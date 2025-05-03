@@ -12,6 +12,7 @@ export interface FormButtonsProps {
   isEdit?: boolean
   deleteText?: string
   onDelete?: () => void
+  className?: string
 }
 
 export const FormButtons: FC<FormButtonsProps> = ({
@@ -21,9 +22,10 @@ export const FormButtons: FC<FormButtonsProps> = ({
   isEdit = false,
   deleteText,
   onDelete,
+  className,
 }: FormButtonsProps) => {
   return (
-    <>
+    <div className={className}>
       {isEdit && onDelete && (
         <Grid cols={2}>
           <GridItem colStart={2}>
@@ -71,6 +73,6 @@ export const FormButtons: FC<FormButtonsProps> = ({
           />
         </GridItem>
       </Grid>
-    </>
+    </div>
   )
 }

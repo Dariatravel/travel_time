@@ -1,3 +1,9 @@
+.container {
+    height: 100%;
+    min-height: 100%;
+    flex: 1 1 auto !important;
+}
+
 .title {
     color: var(--color-typo-brand);
     margin-bottom: 1rem;
@@ -8,5 +14,9 @@
 }
 
 .fields {
-    margin-bottom: .75rem;
+    margin-bottom: 0.75rem;
+}
+
+.buttons {
+    margin-top: auto;
 }
