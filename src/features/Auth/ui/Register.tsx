@@ -1,30 +1,31 @@
-"use client";
-import React from "react";
-import styles from "./style.module.css";
-import { RegisterProps, useRegister } from "@/shared/api/auth/auth";
-import { Controller, useForm } from "react-hook-form";
-import { Grid, GridItem } from "@consta/uikit/Grid";
-import { FORM_SIZE } from "@/shared/lib/const";
-import { TextField } from "@consta/uikit/TextField";
-import { Button } from "@consta/uikit/Button";
-import { Select } from "@consta/uikit/Select";
-import { FullWidthLoader } from "@/shared/ui/Loader/Loader";
+'use client'
+import React from 'react'
+import styles from './style.module.css'
+import { RegisterProps, useRegister, UserRole } from '@/shared/api/auth/auth'
+import { Controller, useForm } from 'react-hook-form'
+import { Grid, GridItem } from '@consta/uikit/Grid'
+import { FORM_SIZE } from '@/shared/lib/const'
+import { TextField } from '@consta/uikit/TextField'
+import { Button } from '@consta/uikit/Button'
+import { Select } from '@consta/uikit/Select'
+import { FullWidthLoader } from '@/shared/ui/Loader/Loader'
+import { translateUserRole } from '@/shared/lib/translateUser'
 
 export interface LoginProps {
-  children?: React.ReactNode;
-  className?: string;
+  children?: React.ReactNode
+  className?: string
 }
 
 export const Register = ({ className }: LoginProps) => {
-  const { isPending, mutateAsync } = useRegister();
+  const { isPending, mutateAsync } = useRegister()
 
   const {
     control,
     watch,
     formState: { errors },
-  } = useForm<RegisterProps>();
+  } = useForm<RegisterProps>()
 
-  const formData = watch();
+  const formData = watch()
 
   return (
     <>
@@ -38,8 +39,8 @@ export const Register = ({ className }: LoginProps) => {
             render={({ field }) => (
               <TextField
                 {...field}
-                placeholder={"Введите фамилию"}
-                label={"Фамилия"}
+                placeholder={'Введите фамилию'}
+                label={'Фамилия'}
                 required
                 size={FORM_SIZE}
                 className={styles.fields}
@@ -55,8 +56,8 @@ export const Register = ({ className }: LoginProps) => {
             render={({ field }) => (
               <TextField
                 {...field}
-                placeholder={"Введите имя"}
-                label={"Имя"}
+                placeholder={'Введите имя'}
+                label={'Имя'}
                 required
                 size={FORM_SIZE}
                 className={styles.fields}
@@ -72,13 +73,22 @@ export const Register = ({ className }: LoginProps) => {
             render={({ field }) => (
               <Select
                 items={[
-                  { label: "Администратор", id: "admin" },
-                  { label: "Оператор", id: "operator" },
-                  { label: "Отельер", id: "hotel" },
+                  {
+                    label: translateUserRole(UserRole.ADMIN),
+                    id: UserRole.ADMIN,
+                  },
+                  {
+                    label: translateUserRole(UserRole.OPERATOR),
+                    id: UserRole.OPERATOR,
+                  },
+                  {
+                    label: translateUserRole(UserRole.HOTEL),
+                    id: UserRole.HOTEL,
+                  },
                 ]}
                 {...field}
-                placeholder={"Выберите роль"}
-                label={"Тип"}
+                placeholder={'Выберите роль'}
+                label={'Тип'}
                 required
                 size={FORM_SIZE}
                 className={styles.fields}
@@ -132,8 +142,8 @@ export const Register = ({ className }: LoginProps) => {
             render={({ field }) => (
               <TextField
                 {...field}
-                placeholder={"Введите пароль"}
-                label={"Пароль"}
+                placeholder={'Введите пароль'}
+                label={'Пароль'}
                 type="password"
                 required
                 size={FORM_SIZE}
@@ -144,15 +154,15 @@ export const Register = ({ className }: LoginProps) => {
         </GridItem>
         <GridItem col={3}>
           <Button
-            label={"Зарегистрироваться"}
+            label={'Зарегистрироваться'}
             onClick={async () => {
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-expect-error
-              mutateAsync({ ...formData, role: formData?.role?.id });
+              mutateAsync({ ...formData, role: formData?.role?.id })
             }}
           />
         </GridItem>
       </Grid>
     </>
-  );
-};
+  )
+}

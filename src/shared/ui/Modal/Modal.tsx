@@ -1,12 +1,12 @@
-import React, { ComponentProps, CSSProperties, FC, useEffect } from "react";
-import { Modal as ModalConsta } from "@consta/uikit/Modal";
-import st from "./style.module.css";
-import { FullWidthLoader, Loader } from "@/shared/ui/Loader/Loader";
-import cn from "classnames";
+import React, { ComponentProps, CSSProperties, FC, useEffect } from 'react'
+import { Modal as ModalConsta } from '@consta/uikit/Modal'
+import st from './style.module.css'
+import { FullWidthLoader, Loader } from '@/shared/ui/Loader/Loader'
+import cn from 'classnames'
 
 export interface ModalProps extends ComponentProps<typeof ModalConsta> {
-  style?: CSSProperties;
-  loading?: boolean;
+  style?: CSSProperties
+  loading?: boolean
 }
 
 export const Modal: FC<ModalProps> = ({
@@ -14,17 +14,17 @@ export const Modal: FC<ModalProps> = ({
   loading = false,
   ...props
 }) => {
-  const { isOpen } = props;
+  const { isOpen } = props
 
   useEffect(() => {
     if (isOpen) {
-      document.body.style.overflow = "hidden";
+      document.body.style.overflow = 'hidden'
     }
 
     return () => {
-      document.body.style.overflow = "";
-    };
-  }, [isOpen]);
+      document.body.style.overflow = ''
+    }
+  }, [isOpen])
 
   return (
     <ModalConsta
@@ -56,5 +56,5 @@ export const Modal: FC<ModalProps> = ({
       )}
       {children}
     </ModalConsta>
-  );
-};
+  )
+}

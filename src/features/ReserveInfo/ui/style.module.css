@@ -1,20 +1,21 @@
 .title {
-    color: var(--color-typo-brand);
-    margin-bottom: 1rem;
+  color: var(--color-typo-brand);
+  margin-bottom: 1rem;
 }
 
 .dropdown {
-    z-index: var(--zIndex-select);
+  z-index: var(--zIndex-select);
 }
 
 .fields {
-    margin-bottom: .75rem;
+  margin-bottom: 0.7rem;
 }
 
 .reserveTotal {
-    margin-bottom: 0.75rem;
+  margin-top: 1rem;
+  margin-bottom: 0.75rem;
 }
 
 .datePicker {
-    z-index: 999 !important;
+  z-index: 999 !important;
 }

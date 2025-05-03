@@ -1,40 +1,40 @@
-import React, { FC, useEffect, useMemo } from "react";
-import cx from "@/features/ReserveInfo/ui/style.module.css";
-import { FieldGroup } from "@consta/uikit/FieldGroup";
-import { TextField } from "@consta/uikit/TextField";
-import { Select } from "@consta/uikit/Select";
-import { IconCalendar } from "@consta/icons/IconCalendar";
-import { DatePicker } from "@consta/uikit/DatePicker";
-import { Controller, useForm } from "react-hook-form";
-import { FORM_SIZE } from "@/shared/lib/const";
+import React, { FC, useEffect, useMemo } from 'react'
+import cx from './style.module.css'
+import { FieldGroup } from '@consta/uikit/FieldGroup'
+import { TextField } from '@consta/uikit/TextField'
+import { Select } from '@consta/uikit/Select'
+import { IconCalendar } from '@consta/icons/IconCalendar'
+import { DatePicker } from '@consta/uikit/DatePicker'
+import { Controller, useForm } from 'react-hook-form'
+import { FORM_SIZE } from '@/shared/lib/const'
 import {
   type CurrentReserveType,
   Nullable,
   Reserve,
   ReserveDTO,
   ReserveForm,
-} from "@/shared/api/reserve/reserve";
-import { useGetHotelsForRoom } from "@/shared/api/hotel/hotel";
-import { useGetRoomsByHotel } from "@/shared/api/room/room";
-import { adaptToOption } from "@/shared/lib/adaptHotel";
-import { FormButtons } from "@/shared/ui/FormButtons/FormButtons";
-import moment from "moment";
-import { ReserveTotal } from "@/features/ReserveInfo/ui/ReserveTotal";
-import { FormTitle } from "@/shared/ui/FormTitle/FormTitle";
-import { showToast } from "@/shared/ui/Toast/Toast";
-import { IoLogoWhatsapp } from "react-icons/io";
-import { createWhatsappLink } from "@/shared/lib/links";
-import { LinkIcon } from "@/shared/ui/LinkIcon/LinkIcon";
-import { TextFieldPropStatus } from "@consta/uikit/__internal__/src/components/TextField/types";
-import { Input } from "antd";
+} from '@/shared/api/reserve/reserve'
+import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel'
+import { useGetRoomsByHotel } from '@/shared/api/room/room'
+import { adaptToOption } from '@/shared/lib/adaptHotel'
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons'
+import moment from 'moment'
+import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal'
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle'
+import { showToast } from '@/shared/ui/Toast/Toast'
+import { IoLogoWhatsapp } from 'react-icons/io'
+import { createWhatsappLink } from '@/shared/lib/links'
+import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon'
+import { TextFieldPropStatus } from '@consta/uikit/__internal__/src/components/TextField/types'
+import { Input } from 'antd'
 
 export interface ReserveInfoProps {
-  onClose: () => void;
-  onAccept: (reserve: Reserve | ReserveDTO) => void;
-  currentReserve?: Nullable<CurrentReserveType>;
-  isLoading: boolean;
-  isEdit?: boolean;
-  onDelete?: (id: string) => void;
+  onClose: () => void
+  onAccept: (reserve: Reserve | ReserveDTO) => void
+  currentReserve?: Nullable<CurrentReserveType>
+  isLoading: boolean
+  isEdit?: boolean
+  onDelete?: (id: string) => void
 }
 
 export const ReserveInfo: FC<ReserveInfoProps> = ({
@@ -49,7 +49,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     data: hotels,
     isLoading: isHotelsLoading,
     status: hotelsStatus,
-  } = useGetHotelsForRoom();
+  } = useGetHotelsForRoom()
 
   const getDefaultValues = ({
     reserve,
@@ -69,7 +69,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
       const currentDate: [Date, Date] =
         start && end
           ? [new Date(start), new Date(end)]
-          : [new Date(), new Date()];
+          : [new Date(), new Date()]
       return {
         date: currentDate,
         price,
@@ -78,11 +78,11 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         phone,
         comment,
         quantity,
-      };
-    };
+      }
+    }
 
     let defaults = {
-      date: [moment().toDate(), moment().add(1, "days").toDate()] as [
+      date: [moment().toDate(), moment().add(1, 'days').toDate()] as [
         Date,
         Date,
       ],
@@ -99,14 +99,14 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
           })
         : undefined,
       price: room?.price,
-    };
-
-    if (!!reserve) {
-      defaults = { ...defaults, ...getReserveDefaults(reserve) };
     }
 
-    return defaults;
-  };
+    if (!!reserve) {
+      defaults = { ...defaults, ...getReserveDefaults(reserve) }
+    }
+
+    return defaults
+  }
 
   const {
     control,
@@ -115,51 +115,51 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     setValue,
     formState: { errors },
   } = useForm<ReserveForm>({
-    mode: "onSubmit",
+    mode: 'onSubmit',
     defaultValues: currentReserve?.hotel
       ? getDefaultValues(currentReserve)
       : undefined,
-  });
+  })
 
-  const formData = watch();
+  const formData = watch()
 
   const {
     data: rooms,
     isLoading: isRoomsLoading,
     refetch: fetchRoomsByHotel,
     status: roomsStatus,
-  } = useGetRoomsByHotel(formData?.hotel_id?.id, false);
+  } = useGetRoomsByHotel(formData?.hotel_id?.id, false)
 
   const hotelOptions = useMemo(() => {
-    const hotelsTmp = hotels?.map(adaptToOption);
+    const hotelsTmp = hotels?.map(adaptToOption)
 
-    return hotelsTmp ?? [];
-  }, [hotels]);
+    return hotelsTmp ?? []
+  }, [hotels])
 
   const roomOptions = useMemo(() => {
-    const hotelsTmp = rooms?.map(adaptToOption);
+    const hotelsTmp = rooms?.map(adaptToOption)
 
-    return hotelsTmp ?? [];
-  }, [rooms]);
+    return hotelsTmp ?? []
+  }, [rooms])
 
   useEffect(() => {
-    if (hotelsStatus === "success" && !!formData.hotel_id) {
-      fetchRoomsByHotel();
+    if (hotelsStatus === 'success' && !!formData.hotel_id) {
+      fetchRoomsByHotel()
     }
-  }, [hotelsStatus, formData.hotel_id]);
+  }, [hotelsStatus, formData.hotel_id])
 
   useEffect(() => {
     // если комнат нет - выходим
-    if (rooms?.length === 0 || !!currentReserve?.reserve?.price) return;
+    if (rooms?.length === 0 || !!currentReserve?.reserve?.price) return
 
-    const room = rooms?.find((room) => room.id === formData?.room_id?.id);
+    const room = rooms?.find(room => room.id === formData?.room_id?.id)
 
     if (room) {
-      setValue("price", room?.price);
+      setValue('price', room?.price)
     }
-  }, [formData.room_id]);
+  }, [formData.room_id])
 
-  const loading = isLoading || isHotelsLoading;
+  const loading = isLoading || isHotelsLoading
 
   const deserializeData = ({
     hotel_id,
@@ -169,12 +169,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     prepayment = 0,
     ...data
   }: ReserveForm) => {
-    const start = moment(date[0]).hour(12).unix();
-    const end = moment(date[1]).hour(11).unix();
-    const room_id = data.room_id?.id;
-    const priceNumber = +price;
-    const quantityNumber = +quantity;
-    const prepaymentNumber = +prepayment;
+    const start = moment(date[0]).hour(12).unix()
+    const end = moment(date[1]).hour(11).unix()
+    const room_id = data.room_id?.id
+    const priceNumber = +price
+    const quantityNumber = +quantity
+    const prepaymentNumber = +prepayment
 
     return {
       ...data,
@@ -184,13 +184,13 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
       price: priceNumber,
       quantity: quantityNumber,
       prepayment: prepaymentNumber,
-    };
-  };
+    }
+  }
 
   const onAcceptForm = (formData: ReserveForm) => {
     if (!formData?.date?.[0] || !formData?.date?.[1]) {
-      showToast("Ошибка при создании брони, проверьте даты", "error");
-      return;
+      showToast('Ошибка при создании брони, проверьте даты', 'error')
+      return
     }
 
     // if (errors) {
@@ -200,37 +200,37 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     //   )
     //   console.log(errors)
     // }
-    const data = deserializeData(formData);
+    const data = deserializeData(formData)
     onAccept(
-      currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data,
-    );
-  };
+      currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data
+    )
+  }
 
   const getError = (
     field: keyof ReserveDTO,
-    errors: Record<string, unknown>,
+    errors: Record<string, unknown>
   ) => {
     if (!errors?.[field]) {
       return {
         status: undefined,
         caption: undefined,
-      };
+      }
     }
 
     return {
-      status: "alert" as TextFieldPropStatus,
+      status: 'alert' as TextFieldPropStatus,
       caption: errors[field],
-    };
-  };
+    }
+  }
 
   const onReserveDelete = () => {
     if (!currentReserve?.reserve?.id || !onDelete) {
-      showToast("Ошибка во время удаления брони, отсутсвует id", "error");
-      return;
+      showToast('Ошибка во время удаления брони, отсутсвует id', 'error')
+      return
     }
 
-    onDelete(currentReserve?.reserve?.id);
-  };
+    onDelete(currentReserve?.reserve?.id)
+  }
   return (
     <>
       <FormTitle>Бронирование</FormTitle>
@@ -244,56 +244,57 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             style={{ zIndex: 999 }}
             required
             value={field.value}
-            onChange={(e) => field.onChange(e)}
+            onChange={e => field.onChange(e)}
             type="date-range"
             leftSide={[IconCalendar, IconCalendar]}
-            placeholder={["ДД.ММ.ГГГГ", "ДД.ММ.ГГГГ"]}
-            dateTimeView={"classic"}
+            placeholder={['ДД.ММ.ГГГГ', 'ДД.ММ.ГГГГ']}
+            dateTimeView={'classic'}
             withClearButton
             size={FORM_SIZE}
             className={cx.fields}
           />
         )}
       />
-
-      <Controller
-        name="hotel_id"
-        control={control}
-        rules={{ required: true }}
-        render={({ field }) => (
-          <Select
-            {...field}
-            style={{ zIndex: 999 }}
-            items={hotelOptions}
-            placeholder={"Выберите из списка"}
-            label={"Название отеля"}
-            required
-            size={FORM_SIZE}
-            dropdownClassName={cx.dropdown}
-            className={cx.fields}
-            disabled={loading || !!currentReserve?.hotel?.id}
-          />
-        )}
-      />
-      <Controller
-        name="room_id"
-        control={control}
-        rules={{ required: true }}
-        render={({ field }) => (
-          <Select
-            {...field}
-            items={roomOptions}
-            placeholder={"Выберите из списка"}
-            label={"Номер"}
-            required
-            size={FORM_SIZE}
-            dropdownClassName={cx.dropdown}
-            className={cx.fields}
-            isLoading={isHotelsLoading || isRoomsLoading}
-            disabled={!!currentReserve}
-          />
-        )}
-      />
+      <FieldGroup size={FORM_SIZE}>
+        <Controller
+          name="hotel_id"
+          control={control}
+          rules={{ required: true }}
+          render={({ field }) => (
+            <Select
+              {...field}
+              style={{ zIndex: 999 }}
+              items={hotelOptions}
+              placeholder={'Выберите из списка'}
+              label={'Название отеля'}
+              required
+              size={FORM_SIZE}
+              dropdownClassName={cx.dropdown}
+              className={cx.fields}
+              disabled={loading || !!currentReserve?.hotel?.id}
+            />
+          )}
+        />
+        <Controller
+          name="room_id"
+          control={control}
+          rules={{ required: true }}
+          render={({ field }) => (
+            <Select
+              {...field}
+              items={roomOptions}
+              placeholder={'Выберите из списка'}
+              label={'Номер'}
+              required
+              size={FORM_SIZE}
+              dropdownClassName={cx.dropdown}
+              className={cx.fields}
+              isLoading={isHotelsLoading || isRoomsLoading}
+              disabled={!!currentReserve}
+            />
+          )}
+        />
+      </FieldGroup>
       <FieldGroup size={FORM_SIZE}>
         <Controller
           name="price"
@@ -317,13 +318,13 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
         {/*// @ts-expect-error*/}
         <TextField
-          {...register("quantity")}
+          {...register('quantity')}
           placeholder="Введите число"
           label="Количество человек"
           incrementButtons={false}
           className={cx.fields}
           required
-          type={"number"}
+          type={'number'}
         />
       </FieldGroup>
       <Controller
@@ -351,14 +352,14 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             placeholder="+7 (...)"
             required
             label="Номер гостя"
-            type={"phone"}
+            type={'phone'}
             size={FORM_SIZE}
             className={cx.fields}
             rightSide={() =>
               formData?.phone ? (
                 <LinkIcon
-                  icon={<IoLogoWhatsapp color="#5BD066" size={"24px"} />}
-                  link={createWhatsappLink(formData?.phone, "Добрый день")}
+                  icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />}
+                  link={createWhatsappLink(formData?.phone, 'Добрый день')}
                 />
               ) : null
             }
@@ -378,7 +379,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             value={field?.value}
             onChange={field?.onChange}
             cols={200}
-            rows={3}
+            rows={2}
             placeholder="Введите комментарий"
             size={FORM_SIZE}
           />
@@ -398,23 +399,23 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
               <Input
                 style={{
                   paddingLeft: 0,
-                  backgroundColor: "transparent",
-                  maxWidth: "150px",
-                  marginBottom: "0rem",
-                  paddingBottom: "0rem",
+                  backgroundColor: 'transparent',
+                  maxWidth: '150px',
+                  marginBottom: '0rem',
+                  paddingBottom: '0rem',
                   paddingTop: 0,
                   // maxHeight: '20px',
                 }}
-                variant={"underlined"}
+                variant={'underlined'}
                 {...field}
-                suffix={"руб."}
+                suffix={'руб.'}
                 required
-                size={"large"}
+                size={'large'}
                 className={cx.fields}
                 disabled={loading}
                 value={String(field?.value)}
                 onChange={field.onChange}
-                type={"number"}
+                type={'number'}
               />
             )}
           />
@@ -423,12 +424,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
 
       <FormButtons
         onDelete={onReserveDelete}
-        deleteText={"Удалить бронь"}
+        deleteText={'Удалить бронь'}
         isEdit={isEdit}
         isLoading={loading}
         onAccept={() => onAcceptForm(formData)}
         onClose={onClose}
       />
     </>
-  );
-};
+  )
+}

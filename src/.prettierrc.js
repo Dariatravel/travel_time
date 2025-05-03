@@ -1,6 +1,4 @@
-
-
-export const config = {
+const config = {
   semi: false, // Добавлять точку с запятой в конце выражений (true по умолчанию)
   singleQuote: true, // Использовать одинарные кавычки вместо двойных (false = двойные кавычки)
   tabWidth: 2, // Размер табуляции (2 пробела — стандарт для многих проектов)
@@ -15,4 +13,5 @@ export const config = {
   proseWrap: 'always', // Как обрабатывать длинные строки в Markdown (preserve = сохранять исходное форматирование)
   jsxBracketSameLine: false, // Закрывающая скобка на новой строке
 }
-   
+
+module.exports = config;

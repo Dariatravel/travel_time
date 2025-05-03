@@ -1,27 +1,27 @@
-import React, { FC, useMemo } from "react";
-import cx from "./style.module.css";
-import { TextField } from "@consta/uikit/TextField";
-import { Select } from "@consta/uikit/Select";
-import { Controller, useForm } from "react-hook-form";
-import { FormButtons } from "@/shared/ui/FormButtons/FormButtons";
-import { RoomForm, useGetHotelsForRoom } from "@/shared/api/hotel/hotel";
-import { FormTitle } from "@/shared/ui/FormTitle/FormTitle";
-import { FORM_GAP_SIZE, FORM_SIZE } from "@/shared/lib/const";
-import { Grid, GridItem } from "@consta/uikit/Grid";
-import { DragNDropField } from "@consta/uikit/DragNDropField";
-import { Button } from "@consta/uikit/Button";
-import { Text } from "@consta/uikit/Text";
-import { adaptToOption } from "@/shared/lib/adaptHotel";
-import { CurrentReserveType, Nullable } from "@/shared/api/reserve/reserve";
-import { Room } from "@/shared/api/room/room";
+import React, { FC, useMemo } from 'react'
+import cx from './style.module.css'
+import { TextField } from '@consta/uikit/TextField'
+import { Select } from '@consta/uikit/Select'
+import { Controller, useForm } from 'react-hook-form'
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons'
+import { RoomForm, useGetHotelsForRoom } from '@/shared/api/hotel/hotel'
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle'
+import { FORM_GAP_SIZE, FORM_SIZE } from '@/shared/lib/const'
+import { Grid, GridItem } from '@consta/uikit/Grid'
+import { DragNDropField } from '@consta/uikit/DragNDropField'
+import { Button } from '@consta/uikit/Button'
+import { Text } from '@consta/uikit/Text'
+import { adaptToOption } from '@/shared/lib/adaptHotel'
+import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve'
+import { Room, RoomDTO } from '@/shared/api/room/room'
 
 export interface RoomInfoProps {
-  onClose: () => void;
-  onAccept: (args?: any) => void;
-  onDelete: (id: string) => void;
-  currentReserve?: Nullable<CurrentReserveType>;
-  isLoading?: boolean;
-  isEdit?: boolean;
+  onClose: () => void
+  onAccept: (args?: any) => void
+  onDelete: (id: string) => void
+  currentReserve?: Nullable<CurrentReserveType>
+  isLoading?: boolean
+  isEdit?: boolean
 }
 
 export const RoomInfo: FC<RoomInfoProps> = ({
@@ -32,9 +32,9 @@ export const RoomInfo: FC<RoomInfoProps> = ({
   isEdit = false,
   onDelete,
 }: RoomInfoProps) => {
-  const { data: hotels, isLoading: isHotelsLoading } = useGetHotelsForRoom();
+  const { data: hotels, isLoading: isHotelsLoading } = useGetHotelsForRoom()
 
-  const loading = isLoading || isHotelsLoading;
+  const loading = isLoading || isHotelsLoading
 
   const { control, watch } = useForm<RoomForm>({
     defaultValues: {
@@ -47,35 +47,38 @@ export const RoomInfo: FC<RoomInfoProps> = ({
       title: currentReserve?.room?.title,
       comment: currentReserve?.room?.comment,
       quantity: currentReserve?.room?.quantity ?? 3,
-      price: String(currentReserve?.room?.price ?? ""),
+      price: String(currentReserve?.room?.price ?? ''),
     },
-  });
+  })
 
   const hotelOptions = useMemo(() => {
-    const hotelsTmp = hotels?.map(adaptToOption);
-    return hotelsTmp ?? [];
-  }, [hotels]);
-  const formData = watch();
+    const hotelsTmp = hotels?.map(adaptToOption)
+    return hotelsTmp ?? []
+  }, [hotels])
+  const formData = watch()
 
-  const deserializeData = (data: RoomForm): Room => {
+  const deserializeData = (data: RoomForm): Room | RoomDTO => {
     return {
       ...data,
-      price: Number(data?.price ? data?.price : "0"),
+      id: currentReserve?.room?.id,
+      price: Number(data?.price ? data?.price : '0'),
       hotel_id: data?.hotel_id?.id,
-      image_path: "",
-      image_title: "",
-    };
-  };
-  const onAcceptForm = () => {
-    const serializedData = deserializeData(formData);
+      image_path: '',
+      image_title: '',
+    }
+  }
 
-    onAccept(serializedData);
-  };
+  const onAcceptForm = () => {
+    const data = deserializeData(formData)
+
+    console.log(data)
+    onAccept(data)
+  }
 
   return (
     <>
       <FormTitle>
-        {isEdit ? "Редактирование номера" : "Добавление номера"}
+        {isEdit ? 'Редактирование номера' : 'Добавление номера'}
       </FormTitle>
       <Controller
         name="hotel_id"
@@ -85,8 +88,8 @@ export const RoomInfo: FC<RoomInfoProps> = ({
           <Select
             {...field}
             items={hotelOptions}
-            placeholder={"Выберите из списка"}
-            label={"Название отеля"}
+            placeholder={'Выберите из списка'}
+            label={'Название отеля'}
             required
             size={FORM_SIZE}
             dropdownClassName={cx.dropdown}
@@ -157,7 +160,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         </GridItem>
       </Grid>
       <DragNDropField
-        onDropFiles={(files) => console.log(files)}
+        onDropFiles={files => console.log(files)}
         disabled={loading}
         className={cx.fields}
       >
@@ -197,8 +200,8 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         onDelete={() =>
           currentReserve?.room?.id && onDelete(currentReserve?.room?.id)
         }
-        deleteText={"Удалить номер"}
+        deleteText={'Удалить номер'}
       />
     </>
-  );
-};
+  )
+}

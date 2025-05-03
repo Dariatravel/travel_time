@@ -1,55 +1,63 @@
-import React, { FC, useCallback } from "react";
-import cx from "./style.module.css";
-import { TextField } from "@consta/uikit/TextField";
-import { Select } from "@consta/uikit/Select";
-import { Controller, useForm } from "react-hook-form";
-import { Hotel, HotelDTO } from "@/shared/api/hotel/hotel";
-import { Grid, GridItem } from "@consta/uikit/Grid";
-import { FORM_SIZE } from "@/shared/lib/const";
-import { HOTEL_TYPES } from "@/features/HotelModal/lib/const";
-import { FormTitle } from "@/shared/ui/FormTitle/FormTitle";
+import React, { FC, useCallback, useMemo } from 'react'
+import cx from './style.module.css'
+import { TextField } from '@consta/uikit/TextField'
+import { Select } from '@consta/uikit/Select'
+import { Controller, useForm } from 'react-hook-form'
+import { Hotel, HotelDTO } from '@/shared/api/hotel/hotel'
+import { Grid, GridItem } from '@consta/uikit/Grid'
+import { FORM_SIZE } from '@/shared/lib/const'
+import { HOTEL_TYPES } from '@/features/HotelModal/lib/const'
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle'
 import {
   CurrentReserveType,
   Nullable,
   TravelOption,
-} from "@/shared/api/reserve/reserve";
-import { LinkIcon } from "@/shared/ui/LinkIcon/LinkIcon";
-import { FaTelegram } from "react-icons/fa";
-import { FormButtons } from "@/shared/ui/FormButtons/FormButtons";
-import { adaptToOption } from "@/shared/lib/adaptHotel";
-import { DragNDropField } from "@consta/uikit/DragNDropField";
-import { Button } from "@consta/uikit/Button";
-import { Text } from "@consta/uikit/Text";
-import { nanoid } from "nanoid";
+} from '@/shared/api/reserve/reserve'
+import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon'
+import { FaTelegram } from 'react-icons/fa'
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons'
+import { adaptToOption } from '@/shared/lib/adaptHotel'
+import { DragNDropField } from '@consta/uikit/DragNDropField'
+import { Button } from '@consta/uikit/Button'
+import { Text } from '@consta/uikit/Text'
+import { nanoid } from 'nanoid'
+import { TravelUser } from '@/shared/api/auth/auth'
+import { translateUserRole } from '@/shared/lib/translateUser'
 
 export interface HotelInfoProps {
-  onClose: () => void;
-  onAccept: (hotel: Hotel | HotelDTO) => Promise<void>;
-  onDelete: (id: string) => Promise<void>;
-  currentReserve: Nullable<CurrentReserveType>;
-  isLoading?: boolean;
-  isEdit: boolean;
+  users: TravelUser[]
+  onClose: () => void
+  onAccept: (hotel: Hotel | HotelDTO) => Promise<void>
+  onDelete: (id: string) => Promise<void>
+  currentReserve: Nullable<CurrentReserveType>
+  isLoading?: boolean
+  isEdit: boolean
 }
 
-export type HotelForm = Omit<Hotel, "type" | "rating"> & {
-  rating: string;
-  type?: TravelOption;
-};
+export type HotelForm = Omit<Hotel, 'type' | 'rating' | 'user_id'> & {
+  rating: string
+  type?: TravelOption
+  user_id?: TravelOption
+}
 
-const DEFAULT_VALUE = { rating: "5", telegram_url: "https://t.me/" };
+const DEFAULT_VALUE = { rating: '5', telegram_url: 'https://t.me/' }
 
 const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelForm> => {
-  const rating = String(hotel?.rating) ?? DEFAULT_VALUE.rating;
+  const rating = String(hotel?.rating) ?? DEFAULT_VALUE.rating
   return {
     ...DEFAULT_VALUE,
     ...hotel,
     rating,
+    user_id: hotel?.user_id
+      ? adaptToOption({ title: hotel?.user_id, id: hotel?.user_id })
+      : undefined,
     type: hotel?.type
       ? adaptToOption({ title: hotel?.type, id: hotel?.type })
       : undefined,
-  };
-};
+  }
+}
 export const HotelInfo: FC<HotelInfoProps> = ({
+  users,
   onAccept,
   onDelete,
   onClose,
@@ -67,35 +75,47 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     formState: { errors },
   } = useForm<HotelForm>({
     defaultValues: getInitialValue(currentReserve?.hotel),
-  });
-
-  const formData = watch();
+  })
+  const userOptions = useMemo(() => {
+    return users?.map(user =>
+      adaptToOption({
+        title: `${translateUserRole(user?.role).toLowerCase()} ${user?.name} ${user?.surname}, ${user?.email}  `,
+        id: user?.sub,
+      })
+    )
+  }, [users])
+  const formData = watch()
 
   const deserializeData = (data: HotelForm): Hotel | undefined => {
     if (!data?.type) {
-      console.error("Не выбран отель");
-      return;
+      console.error('Не выбран отель')
+      return
     }
 
-    return { ...data, type: data?.type?.label, rating: +data?.rating };
-  };
+    return {
+      ...data,
+      type: data?.type?.label,
+      rating: +data?.rating,
+      user_id: data?.user_id?.id,
+    }
+  }
   const onAcceptForm = useCallback(async () => {
-    const serializedData = deserializeData(formData);
+    const serializedData = deserializeData(formData)
 
     if (!serializedData) {
-      console.error("Не выбран отель");
-      return;
+      console.error('Не выбран отель')
+      return
     }
 
-    console.log(serializedData);
-    await onAccept(serializedData);
-  }, [formData]);
+    console.log(serializedData)
+    await onAccept(serializedData)
+  }, [formData])
 
   return (
     <>
       {/*{isLoading && <FullWidthLoader />}*/}
       <FormTitle>
-        {isEdit ? "Редактирование отеля" : "Добавление отеля"}
+        {isEdit ? 'Редактирование отеля' : 'Добавление отеля'}
       </FormTitle>
       <Controller
         name="title"
@@ -123,8 +143,8 @@ export const HotelInfo: FC<HotelInfoProps> = ({
               <Select
                 {...field}
                 items={HOTEL_TYPES}
-                placeholder={"Выберите из списка"}
-                label={"Тип"}
+                placeholder={'Выберите из списка'}
+                label={'Тип'}
                 required
                 size={FORM_SIZE}
                 dropdownClassName={cx.dropdown}
@@ -185,7 +205,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
             rightSide={() =>
               formData?.telegram_url ? (
                 <LinkIcon
-                  icon={<FaTelegram color="2AABEE" size={"24px"} />}
+                  icon={<FaTelegram color="2AABEE" size={'24px'} />}
                   link={formData?.telegram_url}
                 />
               ) : null
@@ -196,21 +216,41 @@ export const HotelInfo: FC<HotelInfoProps> = ({
       {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
       {/*// @ts-expect-error*/}
       <TextField
-        {...register("phone")}
+        {...register('phone')}
         placeholder="+7 (...)"
         label="Номер владельца"
         required
-        type={"phone"}
+        type={'phone'}
         size={FORM_SIZE}
         disabled={isLoading}
         className={cx.fields}
       />
+      <GridItem col={4}>
+        <Controller
+          name="user_id"
+          control={control}
+          rules={{ required: true }}
+          render={({ field }) => (
+            <Select
+              {...field}
+              items={userOptions}
+              placeholder={'Выберите отельера'}
+              label={'Отельер'}
+              required
+              size={FORM_SIZE}
+              dropdownClassName={cx.dropdown}
+              disabled={isLoading}
+              className={cx.fields}
+            />
+          )}
+        />
+      </GridItem>
       <DragNDropField
-        accept={"image/*"}
-        onDropFiles={(files) => {
+        accept={'image/*'}
+        onDropFiles={files => {
           // eslint-disable-next-line @typescript-eslint/ban-ts-comment
           // @ts-expect-error
-          setValue("image_id", { id: nanoid(), file: files[0] });
+          setValue('image_id', { id: nanoid(), file: files[0] })
         }}
         multiple={false}
         className={cx.fields}
@@ -227,7 +267,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
       {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
       {/*// @ts-expect-error*/}
       <TextField
-        {...register("description")}
+        {...register('description')}
         label="Комментарии"
         type="textarea"
         cols={200}
@@ -241,12 +281,12 @@ export const HotelInfo: FC<HotelInfoProps> = ({
         onDelete={() =>
           currentReserve?.hotel && onDelete(currentReserve?.hotel.id)
         }
-        deleteText={"Удалить отель"}
+        deleteText={'Удалить отель'}
         isEdit={isEdit}
         isLoading={isLoading}
         onAccept={() => onAcceptForm()}
         onClose={onClose}
       />
     </>
-  );
-};
+  )
+}
