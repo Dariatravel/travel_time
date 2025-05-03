@@ -19,14 +19,20 @@ import { Flex } from 'antd'
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal'
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal'
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal'
-import supabase from '@/shared/config/supabase'
-import { useGetUsers } from '@/shared/api/auth/auth'
+import { useGetSession } from '@/shared/api/auth/auth'
 
 export default function Main() {
   const [isHotelOpen, setIsHotelOpen] = useState<boolean>(false)
   const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false)
   const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false)
   const { data: countsData, isFetching: isCountsLoading } = useGetAllCounts()
+  const { data: sessionData } = useGetSession()
+
+  useEffect(() => {
+    if (sessionData?.session?.access_token) {
+      console.log('Access token:', sessionData.session)
+    }
+  }, [sessionData])
 
   const {
     isPending: isReserveLoading,

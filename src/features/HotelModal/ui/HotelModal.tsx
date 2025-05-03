@@ -117,7 +117,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
       loading={loading}
     >
       <HotelInfo
-        users={users}
+        users={users ?? []}
         onClose={onClose}
         currentReserve={currentReserve}
         isEdit={isEdit}

@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { redirect } from 'next/navigation'
 import { notifyError, notifySuccess, showToast } from '@/shared/ui/Toast/Toast'
 import { User } from '@supabase/auth-js'
+import { Session } from '@supabase/supabase-js'
 
 export interface AuthProps {
   email: string
@@ -18,6 +19,7 @@ export interface RegisterProps {
   email: string
   password: string
   phone: string
+  user_metadata?: TravelUser
 }
 
 export enum UserRole {
@@ -108,3 +110,17 @@ export const useSignOut = () => useMutation({ mutationFn: signOut })
 export const useUser = () => useQuery({ queryFn: getUser, queryKey: ['USER'] })
 export const useGetUsers = () =>
   useQuery({ queryFn: getListUsers, queryKey: ['USER'] })
+
+export const useGetSession = () => {
+  return useQuery<{ session: Session | null }>({
+    queryKey: ['session'],
+    queryFn: async () => {
+      const { data, error } = await supabase.auth.getSession()
+      if (error) {
+        showToast(`Ошибка при получении сессии: ${error.message}`, 'error')
+        throw error
+      }
+      return data
+    },
+  })
+}
