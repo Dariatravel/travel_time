@@ -84,7 +84,7 @@ Before responding to any request, follow these steps:
 ### Styling
 
 - all styles should writing in style.module.css file placed in the same folder when react component placed
-- styles should import in react component with import style from ./style.module.css
+- styles should import in react component with import style from ./style.module.scss
 - classnames in react component should writes with classnames lib
 - classnames lib should imports in react component with import cx from 'classnames' construction
 
@@ -107,7 +107,7 @@ if we have Button component in Button.tsx file should placed typescript interfac
 ## Project rules
 - Все комментарии должны быть на русском языке
 - Старые комментарий удалять нельзя, только немного изменять
-- Крупные изменения в проекте необходимо добавлять в файл projectLog.md в следующем формате Дата Название изменения Описание, всё должно быть красиво отформатировано и в читаемом виде
+- Крупные изменения в проекте необходимо добавлять в файл CHANGELOG.md в следующем формате Дата Название изменения Описание, всё должно быть красиво отформатировано и в читаемом виде
 К примеру, если ты разрабатываешь новую фичу, в этом файле должна появится запись следующего вида
 Дата: 28.04.2025 Добавлена авторизация
 

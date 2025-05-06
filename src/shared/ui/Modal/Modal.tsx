@@ -1,6 +1,6 @@
 import React, { ComponentProps, CSSProperties, FC, useEffect } from 'react';
 import { Modal as ModalConsta } from '@consta/uikit/Modal';
-import st from './style.module.css';
+import st from './style.module.scss';
 import { FullWidthLoader, Loader } from '@/shared/ui/Loader/Loader';
 import cn from 'classnames';
 
