@@ -59,10 +59,13 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
         router.push(routes[PagesEnum.RESERVATION]);
     };
 
+    const FORM_SIZE = window.innerWidth <= 1365 ? 's' : 'm';
+
+    console.log(FORM_SIZE);
     return (
         <Flex className={styles.container} wrap>
             <Select
-                className={cn(styles.type, styles.categorySelect)}
+                className={cn(styles.categorySelect)}
                 options={HOTEL_TYPES}
                 value={category}
                 onChange={(type) => {
@@ -71,6 +74,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
                 }}
                 placeholder={'Категория'}
                 allowClear
+                size={FORM_SIZE === 's' ? 'middle' : 'large'}
             />
             <DatePicker
                 className={styles.datePicker}
@@ -81,6 +85,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
                 placeholder={['Заезд', 'Выезд']}
                 dateTimeView={'classic'}
                 withClearButton
+                size={FORM_SIZE}
             />
             <TextField
                 className={styles.guestsInput}
@@ -90,8 +95,9 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
                 type={'number'}
                 withClearButton
                 incrementButtons={false}
+                size={FORM_SIZE}
             />
-            <Button className={styles.searchButton} label={'Найти'} onClick={onSearch} />
+            <Button className={styles.searchButton} label={'Найти'} onClick={onSearch} size={FORM_SIZE} />
         </Flex>
     );
 };

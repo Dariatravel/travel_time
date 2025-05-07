@@ -1,7 +1,20 @@
+.widgetContainer {
+    margin-top: 1.5rem;
+
+    @media (max-width: 1365px) {
+        padding: 0.5rem;
+        margin-top: 0;
+    }
+}
+
 .dateContainer {
     position: relative;
 }
 
+.searchContainer {
+    order: 1;
+    padding-top: '1rem';
+}
 .date {
     position: absolute;
     left: 0;
@@ -20,10 +33,6 @@
 .open {
     opacity: 1;
     visibility: visible;
-}
-
-.widgetContainer {
-    margin-top: 1.5rem;
 }
 
 .content {

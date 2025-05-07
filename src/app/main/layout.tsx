@@ -29,7 +29,7 @@ export default function MainLayout({ children }: LayoutProps) {
                 <Col flex="auto" className={styles.childrenContainer}>
                     <Layout className={styles.content} style={{ backgroundColor: 'transparent' }}>
                         <Flex gap={'middle'} wrap className={styles.widgetContainer}>
-                            <div style={{ paddingTop: '1rem' }}>
+                            <div className={styles.searchContainer}>
                                 <SearchFeature />
                             </div>
                             <Flex vertical>
