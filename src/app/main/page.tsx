@@ -31,6 +31,7 @@ export default function Main() {
     const { data: sessionData } = useGetSession();
 
     const { isMobile } = useScreenSize();
+
     useEffect(() => {
         if (sessionData?.session?.access_token) {
             console.log('Access token:', sessionData.session);

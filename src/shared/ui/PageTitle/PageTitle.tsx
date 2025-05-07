@@ -5,6 +5,8 @@ import cn from 'classnames';
 import { Text } from '@consta/uikit/Text';
 import { Flex } from 'antd';
 import { TravelButton } from '@/shared/ui/Button/Button';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { getTextSize } from '@/shared/lib/const';
 
 export interface PageTitleProps {
     title: string;
@@ -20,6 +22,7 @@ export interface PageTitleProps {
 }
 
 export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: PageTitleProps) => {
+    const { isMobile } = useScreenSize();
     const getTitle = (hotels?: number, rooms?: number) => {
         if (hotels && rooms) {
             return ` Всего ${hotels} отелей, ${rooms} номеров`;
@@ -30,20 +33,20 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
         }
     };
     return (
-        <Flex className={cn(styles.headingContainer, className)} align={'center'}>
+        <Flex className={cn(styles.headingContainer, className)}>
             <div>
-                <Text size="2xl" weight={'semibold'} view={'success'}>
+                <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>
                     {title}
                 </Text>
                 <Flex gap={'middle'}>
-                    <Text size="m" view={'success'} style={{ marginTop: '0.5rem' }}>
+                    <Text size={isMobile ? 's' : 'm'} view={'success'} className={styles.subTitle}>
                         {getTitle(hotels, rooms)}
                     </Text>
                 </Flex>
             </div>
             {buttonProps && (
-                <div style={{ marginLeft: 'auto' }}>
-                    <TravelButton label={buttonProps.label} onClick={buttonProps.onClick} />
+                <div className={styles.buttonContainer}>
+                    <TravelButton label={buttonProps.label} onClick={buttonProps.onClick} size={isMobile ? 's' : 'm'} className={styles.button} />
                 </div>
             )}
         </Flex>

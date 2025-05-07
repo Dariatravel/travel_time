@@ -2,6 +2,12 @@
     max-width: 540px;
     min-width: 540px;
     padding: 1.25rem;
+
+    @media (max-width: 1365px) {
+        max-width: 100%;
+        min-width: 100%;
+        padding: 0 0.5rem 0 0;
+    }
 }
 
 .verticalContainer {
@@ -20,8 +26,23 @@
 .info {
     max-width: 100%;
     margin-top: 0.75rem;
+
+    @media (max-width: 1365px) {
+        margin-top:;
+    }
 }
 
 .actions {
     margin-top: auto;
+}
+
+.address {
+    max-width: 200px;
+    max-height: 150px;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    @media (max-width: 1365px) {
+        max-width: 100%;
+    }
 }

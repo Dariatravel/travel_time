@@ -1,0 +1,34 @@
+.container {
+    position: relative;
+    width: 260px;
+    height: 216px;
+
+    @media (max-width: 1365px) {
+        width: 93px;
+        height: 174px;
+    }
+}
+
+.tag {
+    position: absolute !important;
+    left: 5px;
+    top: 7px;
+    /*--tag-base-border-color: transparent;*/
+    color: #000 !important;
+    --tag-base-bg-color: var(--color-control-bg-default) !important;
+    opacity: 0.9;
+    z-index: 999;
+
+    @media (max-width: 1365px) {
+        left: 50%;
+        transform: translateX(-50%);
+        top: auto;
+        bottom: 1rem;
+        font-size: 10px !important;
+        padding: 0;
+    }
+}
+
+.hotelIcon {
+    border-radius: var(--control-radius);
+}
