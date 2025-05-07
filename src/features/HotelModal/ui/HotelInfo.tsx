@@ -8,7 +8,7 @@ import { Grid, GridItem } from '@consta/uikit/Grid';
 import { FORM_SIZE } from '@/shared/lib/const';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
-import { CurrentReserveType, Nullable, TravelOption } from '@/shared/api/reserve/reserve';
+import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { FaTelegram } from 'react-icons/fa';
 import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
@@ -22,6 +22,7 @@ import { translateUserRole } from '@/shared/lib/translateUser';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { hotelFormSchema, HotelFormSchema } from '../lib/validation';
 import { Flex } from 'antd';
+import cn from 'classnames';
 
 export interface HotelInfoProps {
     users: TravelUser[];
@@ -251,15 +252,19 @@ export const HotelInfo: FC<HotelInfoProps> = ({ users, onAccept, onDelete, onClo
                             setValue('image_id', { id: nanoid(), file: files[0] });
                         }}
                         multiple={false}
-                        className={cx.fields}
+                        className={cn(cx.fields, cx.imageUpload)}
                     >
                         {({ openFileDialog }) => (
-                            <>
-                                <Button onClick={openFileDialog} label="Выбрать файл" />
+                            <div className={cx.imageContainer}>
+                                <Button onClick={openFileDialog} label="Выбрать файл" size="s" />
                                 <br />
-                                <Text view="primary">Перетащите изображения или загрузите</Text>
-                                <Text view="secondary">Поддерживаемые форматы: PNG, TIFF, JPG</Text>
-                            </>
+                                <Text view="primary" size="s">
+                                    Перетащите изображения или загрузите
+                                </Text>
+                                <Text view="secondary" size="s">
+                                    Поддерживаемые форматы: PNG, TIFF, JPG
+                                </Text>
+                            </div>
                         )}
                     </DragNDropField>
                 )}

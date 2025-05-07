@@ -20,23 +20,24 @@
     max-width: 200px;
     @media (max-width: 1365px) {
         order: 0;
-        flex: auto;
+        min-width: 50%;
+        max-width: 50%;
     }
 }
 
 .datePicker {
     @media (max-width: 1365px) {
         order: 2;
-        max-width: 250px;
-        overflow: hidden;
+        min-width: 100%;
+        max-width: 100%;
     }
 }
 .guestsInput {
     max-width: 100px;
     @media (max-width: 1365px) {
         order: 0;
-        max-width: 100px;
-        flex: auto;
+        min-width: 50%;
+        max-width: 50%;
     }
 }
 
