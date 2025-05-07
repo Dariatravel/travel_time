@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import { cnMixSpace } from '@consta/uikit/MixSpace';
 import { User } from '@consta/uikit/User';
 import logo from '../../../public/main/logo.svg';
 import Image from 'next/image';
 import cx from './styles.module.scss';
 import { Layout } from '@consta/header/Layout';
-import { useSignOut, useUser } from '@/shared/api/auth/auth';
+import { useSignOut } from '@/shared/api/auth/auth';
 import { useUnit } from 'effector-react/compat';
 import { $user } from '@/shared/models/auth';
-import { Dropdown, MenuProps, Popover } from 'antd';
-import { LogoutOutlined, SettingOutlined } from '@ant-design/icons';
+import { Dropdown, MenuProps } from 'antd';
+import { LogoutOutlined } from '@ant-design/icons';
 import { redirect } from 'next/navigation';
 import { translateUserRole } from '@/shared/lib/translateUser';
 

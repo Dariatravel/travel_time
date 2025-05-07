@@ -1,12 +1,14 @@
-@import '@/styles/variables.scss';
-
 .header {
-    background: $color-bg-default;
-    padding: $space-m;
-    border-bottom: 1px solid $color-bg-border;
+    background: var(--color-bg-default);
+    padding: var(--space-m);
+    border-bottom: 1px solid var(--color-bg-border);
     position: sticky;
     top: 0;
-    z-index: $z-index-menu;
+    z-index: var(--z-index-menu);
+
+    @media (max-width: 1365px) {
+        padding: 0.25rem;
+    }
 }
 
 .container {
@@ -20,19 +22,19 @@
 .logo {
     font-size: 1.5rem;
     font-weight: bold;
-    color: $color-text-primary;
+    color: var(--color-text-primary);
 }
 
 .nav {
     display: flex;
-    gap: $space-m;
+    gap: var(--space-m);
 }
 
 .navItem {
-    color: $color-text-secondary;
+    color: var(--color-text-secondary);
     text-decoration: none;
 
     &:hover {
-        color: $color-text-primary;
+        color: var(--color-text-primary);
     }
 }

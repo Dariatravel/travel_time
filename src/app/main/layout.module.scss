@@ -1,5 +1,3 @@
-@import '@/styles/variables.scss';
-
 .dateContainer {
     position: relative;
 }
@@ -7,14 +5,15 @@
 .date {
     position: absolute;
     left: 0;
-    background-color: $color-bg-default;
+    background-color: var(--color-bg-default);
     border-radius: 0.5rem;
-    z-index: $z-index-calendar;
+    z-index: var(--z-index-calendar);
     visibility: hidden;
     opacity: 0;
-    background: $color-bg-default;
-    box-shadow: $shadow-layer;
-    padding: $space-l;
+    --transition-space: var(--space-2xs);
+    background: var(--color-bg-default);
+    box-shadow: var(--shadow-layer);
+    padding: var(--space-l);
     width: auto;
 }
 
@@ -29,9 +28,9 @@
 
 .content {
     min-height: calc(100vh - var(--header-size));
-    background-color: $color-bg-default;
+    background-color: var(--color-bg-default);
 
-    @include respond-to(xl) {
+    @media (max-width: 1365px) {
         overflow: hidden;
         overflow-y: auto;
         min-height: calc(100vh - var(--header-size) - var(--menu-height));
@@ -41,23 +40,25 @@
 
 .menuContainer {
     background-color: transparent;
-    border-right: 1px solid $color-bg-border;
+    border-right: 1px solid var(--color-bg-border);
 
-    @include respond-to(xl) {
+    @media (max-width: 1365px) {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
-        z-index: $z-index-menu;
-        border-top: 1px solid $color-bg-border;
+        z-index: var(--z-index-menu);
+        border-top: 1px solid var(--color-bg-border);
         border-right: none;
+        background-color: #fff;
+        height: var(--menu-height);
     }
 }
 
 .childrenContainer {
-    padding: 0 $space-m;
+    padding: 0 var(--space-m);
 
-    @include respond-to(xl) {
+    @media (max-width: 1365px) {
         padding: 0;
     }
 }

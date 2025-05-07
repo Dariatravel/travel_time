@@ -4,7 +4,7 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import { Theme, ThemePreset } from '@consta/uikit/Theme';
 import React from 'react';
 import '@consta/themes/Theme_color_highlightsGreenDefault';
-import '../shared/ui/globals.css';
+import '@/shared/ui/globals.scss';
 import '@/features/lib/zIndexes.css';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/shared/config/reactQuery';

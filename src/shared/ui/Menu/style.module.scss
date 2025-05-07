@@ -1,11 +1,9 @@
-@import '@/styles/variables.scss';
-
 .layout {
     margin-top: 136px;
     display: flex;
     flex-direction: column;
 
-    @include respond-to(xl) {
+    @media (max-width: 1365px) {
         margin-left: 0;
         margin-top: 0;
         flex-direction: row;
@@ -14,7 +12,7 @@
 }
 
 .link {
-    padding: $space-m;
+    padding: var(--space-m);
     text-decoration: none;
     color: #7c918f;
     min-height: 32px;

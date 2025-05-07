@@ -10,7 +10,7 @@ import { TextField } from '@consta/uikit/TextField';
 import { useRouter } from 'next/navigation';
 import { getHotelsWithFreeRooms } from '@/shared/api/hotel/hotel';
 import { Flex, Select } from 'antd';
-import styles from './style.module.css';
+import styles from './style.module.scss';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import cn from 'classnames';
 export interface SearchFeatureProps {}
