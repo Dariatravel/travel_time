@@ -26,7 +26,7 @@ export default function MainLayout({ children }: LayoutProps) {
                 <Col xs={{ flex: 'auto', order: 2 }} sm={{ flex: 'auto', order: 2 }} xl={{ flex: '80px', order: 0 }} className={styles.menuContainer}>
                     <TravelMenu />
                 </Col>
-                <Col flex="auto" className={styles.childrenContainer}>
+                <Col flex="auto" className={styles.contentContainer}>
                     <Layout className={styles.content} style={{ backgroundColor: 'transparent' }}>
                         <Flex gap={'middle'} wrap className={styles.widgetContainer}>
                             <div className={styles.searchContainer}>
@@ -42,7 +42,7 @@ export default function MainLayout({ children }: LayoutProps) {
                                 />
                             </Flex>
                         </Flex>
-                        {children}
+                        <div className={styles.childrenContainer}>{children}</div>
                     </Layout>
                 </Col>
             </Row>

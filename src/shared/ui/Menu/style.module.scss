@@ -27,6 +27,12 @@
             fill: var(--color-bg-default);
         }
     }
+
+    @media (max-width: 1365px) {
+        padding: 0.5rem;
+        flex-basis: 33%;
+        // flex: 1;
+    }
 }
 
 .active {

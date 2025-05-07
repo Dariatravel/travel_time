@@ -5,6 +5,13 @@
     pointer-events: none !important;
     display: flex;
     flex-direction: column;
+
+    @media (max-width: 1365px) {
+        top: 5.5rem;
+        padding: 0;
+
+        // max-height: 200px;
+    }
 }
 
 .modal {
@@ -13,7 +20,12 @@
     max-width: var(--modal-max-width) !important;
     max-height: var(--travel-form-height) !important;
     min-height: var(--travel-form-height);
-    padding: $space-m $space-xl $space-m;
+    padding: 1rem 1.5rem 1rem;
+
+    @media (max-width: 1365px) {
+        width: 100%;
+        height: 100%;
+    }
 }
 
 .loading {

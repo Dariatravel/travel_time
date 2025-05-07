@@ -13,6 +13,7 @@ import { Flex, Select } from 'antd';
 import styles from './style.module.scss';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import cn from 'classnames';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 export interface SearchFeatureProps {}
 
 export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps) => {
@@ -20,7 +21,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
     const [category, setCategory] = useState<string | undefined>();
     const [quantity, setQuantity] = useState<number>();
     const router = useRouter();
-
+    const { isMobile } = useScreenSize();
     const onSearch = async () => {
         let start_time, end_time;
         if (date?.[0]) {
@@ -59,9 +60,8 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
         router.push(routes[PagesEnum.RESERVATION]);
     };
 
-    const FORM_SIZE = window.innerWidth <= 1365 ? 's' : 'm';
+    const FORM_SIZE = isMobile ? 's' : 'm';
 
-    console.log(FORM_SIZE);
     return (
         <Flex className={styles.container} wrap>
             <Select

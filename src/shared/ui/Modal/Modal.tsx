@@ -1,7 +1,7 @@
 import React, { ComponentProps, CSSProperties, FC, useEffect } from 'react';
 import { Modal as ModalConsta } from '@consta/uikit/Modal';
 import st from './style.module.scss';
-import { FullWidthLoader, Loader } from '@/shared/ui/Loader/Loader';
+import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import cn from 'classnames';
 
 export interface ModalProps extends ComponentProps<typeof ModalConsta> {

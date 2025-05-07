@@ -7,6 +7,7 @@ import cx from '@/app/main/layout.module.scss';
 import { FaCaretDown } from 'react-icons/fa';
 import { DateTime } from '@consta/uikit/DateTime';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { getTextSize } from '@/shared/lib/const';
 
 export interface TodayProps {
     children?: React.ReactNode;
@@ -22,7 +23,7 @@ export const Today = ({ className, onToggle, open, currentDate }: TodayProps) =>
 
     return (
         <div className={cn(styles.container, className)}>
-            <Text size={isMobile ? 'm' : 'xl'} view={'success'}>
+            <Text size={getTextSize(isMobile)} view={'success'}>
                 Сегодня
             </Text>
             <div className={styles.dateContainer}>
