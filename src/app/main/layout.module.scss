@@ -1,0 +1,63 @@
+@import '@/styles/variables.scss';
+
+.dateContainer {
+    position: relative;
+}
+
+.date {
+    position: absolute;
+    left: 0;
+    background-color: $color-bg-default;
+    border-radius: 0.5rem;
+    z-index: $z-index-calendar;
+    visibility: hidden;
+    opacity: 0;
+    background: $color-bg-default;
+    box-shadow: $shadow-layer;
+    padding: $space-l;
+    width: auto;
+}
+
+.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+.widgetContainer {
+    margin-top: 1.5rem;
+}
+
+.content {
+    min-height: calc(100vh - var(--header-size));
+    background-color: $color-bg-default;
+
+    @include respond-to(xl) {
+        overflow: hidden;
+        overflow-y: auto;
+        min-height: calc(100vh - var(--header-size) - var(--menu-height));
+        max-height: calc(100vh - var(--header-size) - var(--menu-height));
+    }
+}
+
+.menuContainer {
+    background-color: transparent;
+    border-right: 1px solid $color-bg-border;
+
+    @include respond-to(xl) {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: $z-index-menu;
+        border-top: 1px solid $color-bg-border;
+        border-right: none;
+    }
+}
+
+.childrenContainer {
+    padding: 0 $space-m;
+
+    @include respond-to(xl) {
+        padding: 0;
+    }
+}

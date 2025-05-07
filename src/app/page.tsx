@@ -1,10 +1,10 @@
-"use client";
+'use client';
 
-import { useAuth } from "@/shared/lib/useAuth";
-import { redirect } from "next/navigation";
+import { useAuth } from '@/shared/lib/useAuth';
+import { redirect } from 'next/navigation';
 
 export default function Main() {
-  useAuth();
+    useAuth();
 
-  redirect("/main");
+    redirect('/main');
 }

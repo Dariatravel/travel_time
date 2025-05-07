@@ -1,0 +1,42 @@
+@import './variables.scss';
+
+:root {
+    --header-size: #{$header-size};
+    --menu-height: #{$menu-height};
+    --zIndex-calendar: #{$z-index-calendar};
+    --color-bg-default: #{$color-bg-default};
+    --color-bg-border: #{$color-bg-border};
+    --shadow-layer: #{$shadow-layer};
+    --space-2xs: #{$space-2xs};
+    --space-l: #{$space-l};
+}
+
+* {
+    box-sizing: border-box;
+    padding: 0;
+    margin: 0;
+}
+
+html,
+body {
+    max-width: 100vw;
+    overflow-x: hidden;
+    height: 100%;
+}
+
+body {
+    color: $color-text-primary;
+    background: $color-bg-default;
+}
+
+a {
+    color: inherit;
+    text-decoration: none;
+}
+
+// Глобальные стили для Ant Design
+:global {
+    .ant-layout {
+        min-height: 100vh;
+    }
+}

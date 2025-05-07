@@ -1,3 +1,5 @@
+@import '@/styles/variables.scss';
+
 .dateContainer {
     position: relative;
 }
@@ -5,10 +7,9 @@
 .date {
     position: absolute;
     left: 0;
-    /*padding: 1rem;*/
-    background-color: #fff;
+    background-color: $color-bg-default;
     border-radius: 0.5rem;
-    z-index: var(--zIndex-calendar);
+    z-index: $z-index-calendar;
     visibility: hidden;
     opacity: 0;
 }

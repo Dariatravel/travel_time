@@ -1,3 +1,5 @@
+@import '@/styles/variables.scss';
+
 .sidebarOverlay {
     z-index: var(--zIndex-modal) !important;
     pointer-events: none !important;
@@ -11,12 +13,8 @@
     max-width: var(--modal-max-width) !important;
     max-height: var(--travel-form-height) !important;
     min-height: var(--travel-form-height);
-    padding: 1rem 2rem 1rem;
+    padding: $space-m $space-xl $space-m;
 }
-
-/*.modalLoading {*/
-/*    overflow: hidden;*/
-/*}*/
 
 .loading {
     position: absolute;
