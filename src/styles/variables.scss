@@ -1,0 +1,59 @@
+// Цвета
+$color-bg-default: #fff;
+$color-bg-border: #f0f0f0;
+$color-text-primary: #000;
+$color-text-secondary: #666;
+
+// Размеры
+$header-size: 64px;
+$menu-height: 60px;
+$space-2xs: 4px;
+$space-xs: 8px;
+$space-s: 12px;
+$space-m: 16px;
+$space-l: 24px;
+$space-xl: 32px;
+
+// Тени
+$shadow-layer: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+// Z-индексы
+$z-index-calendar: 1000;
+$z-index-menu: 1000;
+
+// Брейкпоинты
+$breakpoint-xs: 480px;
+$breakpoint-sm: 576px;
+$breakpoint-md: 768px;
+$breakpoint-lg: 992px;
+$breakpoint-xl: 1200px;
+$breakpoint-xxl: 1600px;
+
+// Миксины для медиа-запросов
+@mixin respond-to($breakpoint) {
+    @if $breakpoint == xs {
+        @media (max-width: $breakpoint-xs) {
+            @content;
+        }
+    } @else if $breakpoint == sm {
+        @media (max-width: $breakpoint-sm) {
+            @content;
+        }
+    } @else if $breakpoint == md {
+        @media (max-width: $breakpoint-md) {
+            @content;
+        }
+    } @else if $breakpoint == lg {
+        @media (max-width: $breakpoint-lg) {
+            @content;
+        }
+    } @else if $breakpoint == xl {
+        @media (max-width: $breakpoint-xl) {
+            @content;
+        }
+    } @else if $breakpoint == xxl {
+        @media (max-width: $breakpoint-xxl) {
+            @content;
+        }
+    }
+}
