@@ -24,6 +24,11 @@
         min-height: 250px !important;
         overflow-y: auto !important;
         overflow-x: hidden !important;
+
+        @media (max-width: 1365px) {
+            max-height: auto !important;
+            min-height: auto !important;
+        }
     }
 }
 

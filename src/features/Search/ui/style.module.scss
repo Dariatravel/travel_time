@@ -32,6 +32,10 @@
         max-width: 100%;
     }
 }
+
+.datepickerDropdown {
+    z-index: var(--zIndex-datepicker);
+}
 .guestsInput {
     max-width: 100px;
     @media (max-width: 1365px) {

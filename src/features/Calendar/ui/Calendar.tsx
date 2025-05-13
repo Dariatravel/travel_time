@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import '../../../app/main/reservation/calendar.css';
+import '../../../app/main/reservation/calendar.scss';
 import hotelImage from '../hotel.svg';
-import cx from './style.module.css';
+import cx from './style.module.scss';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, useDeleteReserve, useUpdateReserve } from '@/shared/api/reserve/reserve';
 import { Room, useCreateRoom, useGetRoomsWithReservesByHotel } from '@/shared/api/room/room';
@@ -218,6 +218,9 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                 onDoubleClick={() => {
                     onItemClick(item, hotel);
                 }}
+                onTouchEnd={() => {
+                    onItemClick(item, hotel);
+                }}
             >
                 {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
                 {/*<Tooltip*/}
@@ -264,6 +267,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         <HotelTitle size={isMobile ? 's' : 'xl'} className={cx.hotelTitle} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}>
                             {hotel?.title}
                         </HotelTitle>
+                        <div>{hotel?.address}</div>
                         <div>{hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}</div>
                     </div>
                 </div>
@@ -271,7 +275,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                     <ResponsesNothingFound actions={<></>} title={'Нет ни одного номера'} description={<ConstaButton label={'Добавить номер'} onClick={onCreate} />} size={'m'} />
                 )}
                 {!!hotelRooms?.length && (
-                    <div style={{ overflow: 'auto' }}>
+                    <div className={cx.calendarContainer}>
                         <Timeline
                             onZoom={(context, unit) => setCurrentUnit(unit)}
                             className={'travel-timeline'}
@@ -289,6 +293,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             defaultTimeEnd={defaultTimeEnd as unknown as number}
                             minZoom={WEEK}
                             maxZoom={THREE_MONTHS}
+                            onCanvasClick={(res, group, event) => console.log('res', res, group, event)}
                             onCanvasDoubleClick={(groupId, time, e) => {
                                 const room = hotelRooms?.find((group) => group.id === groupId);
                                 // setIsHotelReserve(true)
@@ -307,7 +312,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             }}
                             itemRenderer={itemRenderer}
                         >
-                            <TimelineHeaders>
+                            <TimelineHeaders className={cx.calendarHeader}>
                                 <SidebarHeader>
                                     {({ getRootProps }) => {
                                         return (
