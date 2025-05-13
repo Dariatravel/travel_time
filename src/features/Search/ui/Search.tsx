@@ -14,7 +14,6 @@ import styles from './style.module.scss';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import cn from 'classnames';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
-import classes from './../../../types/css.d';
 export interface SearchFeatureProps {}
 
 export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps) => {
