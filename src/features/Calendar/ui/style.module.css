@@ -1,42 +1,59 @@
 .container {
-    box-shadow: var(--shadow-group);
-    border-radius: var(--control-radius);
-    margin-bottom: 0.75rem;
-    padding: 0 var(--space-l);
-    position: relative;
-    overflow: hidden;
+  box-shadow: var(--shadow-group);
+  border-radius: var(--control-radius);
+  margin-bottom: 0.75rem;
+  padding: 0 var(--space-l);
+  position: relative;
+  overflow: hidden;
 }
 
-.hotelInfo {
-    margin-top: 1.5rem;
-    max-width: 180px;
-    margin-bottom: 1.5rem;
+.hotelInfoContainer {
+  margin-top: 1.5rem;
+
+  margin-bottom: 1.5rem;
+}
+
+.hotelIcon {
+  width: 157px;
+  height: 174px;
+
+  @media (max-width: 1365px) {
+    width: 72px !important;
+    height: 89px !important;
+  }
 }
 
 .hotelDescription {
-    margin-top: 1rem;
+  margin-top: 1rem;
+  display: flex;
+  gap: 0.5rem;
+
+  @media (max-width: 1365px) {
+    margin-top: 0.25rem;
     display: flex;
-    gap: 0.5rem;
+    flex-direction: column;
+  }
 }
 
-.hotelIcon, .hotelTitle {
-    cursor: pointer;
+.hotelIcon,
+.hotelTitle {
+  cursor: pointer;
 }
 
 .calendarHeader {
-    display: flex;
-    justify-content: end;
-    margin-left: auto;
-    padding-right: 0.5rem;
+  display: flex;
+  justify-content: end;
+  margin-left: auto;
+  padding-right: 0.5rem;
 }
 
 .interval {
-    line-height: 30px;
-    text-align: center;
-    border-left: 1px solid var(--color-typo-ghost);
-    border-bottom: 1px solid var(--color-typo-ghost);
-    background-color: white;
-    cursor: pointer;
-    color: var(--color-typo-primary);
-    padding: 0.15rem 0;
+  line-height: 30px;
+  text-align: center;
+  border-left: 1px solid var(--color-typo-ghost);
+  border-bottom: 1px solid var(--color-typo-ghost);
+  background-color: white;
+  cursor: pointer;
+  color: var(--color-typo-primary);
+  padding: 0.15rem 0;
 }
