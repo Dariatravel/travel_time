@@ -1,5 +1,5 @@
 'use client';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useGetAllHotels } from '@/shared/api/hotel/hotel';
 import { Calendar } from '@/features/Calendar/ui/Calendar';
 import { Loader } from '@/shared/ui/Loader/Loader';
@@ -23,6 +23,8 @@ export default function Home() {
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
     const { isFetching, error, data: hotels, refetch } = useGetAllHotels(!filter, filter);
 
+    // @ts-expect-error - Фильтрация отелей с количеством комнат
+    const hotelsWithRooms = useMemo(() => hotels?.filter((hotel) => hotel?.rooms?.[0]?.count > 0), [hotels]);
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
     };
@@ -54,12 +56,11 @@ export default function Home() {
         );
     }
 
-    console.log(hotels);
     return (
         <div>
             <PageTitle title={'Все отели'} hotels={hotels?.length} />
 
-            {hotels?.map((hotel) => <Calendar hotel={hotel} key={hotel.id} onHotelClick={onHotelClick} />)}
+            {hotelsWithRooms?.map((hotel) => <Calendar hotel={hotel} key={hotel.id} onHotelClick={onHotelClick} />)}
             {/*<Pagination value={page} onChange={setPage} items={hotels?.length} />;*/}
         </div>
     );

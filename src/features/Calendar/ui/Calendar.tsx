@@ -279,7 +279,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
             <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
-                    <HotelImage type={hotel?.type} className={cx.hotelIcon} src={hotelImage.src} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)} />
+                    <HotelImage type={hotel?.type} className={cx.hotelIcon} tagClassName={cx.hotelTag} src={hotelImage.src} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)} />
 
                     <div className={cx.hotelDescription}>
                         <HotelTitle size={isMobile ? 's' : 'xl'} className={cx.hotelTitle} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}>
@@ -326,7 +326,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             onCanvasDoubleClick={onReserveAdd}
                             itemRenderer={itemRenderer}
                         >
-                            <TimelineHeaders className={cx.calendarHeader}>
+                            {/* <TimelineHeaders className={cx.calendarHeader}>
                                 <SidebarHeader>
                                     {({ getRootProps }) => {
                                         return (
@@ -414,7 +414,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                                         );
                                     }}
                                 </CustomHeader>
-                            </TimelineHeaders>
+                            </TimelineHeaders> */}
                         </Timeline>
                     </div>
                 )}

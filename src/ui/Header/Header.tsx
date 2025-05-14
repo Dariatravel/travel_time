@@ -14,6 +14,8 @@ import { Dropdown, MenuProps } from 'antd';
 import { LogoutOutlined } from '@ant-design/icons';
 import { redirect } from 'next/navigation';
 import { translateUserRole } from '@/shared/lib/translateUser';
+import Link from 'next/link';
+import { routes } from '@/shared/config/routes';
 
 const RowCenterRight = () => {
     const user = useUnit($user);
@@ -65,9 +67,9 @@ export const LayoutExampleBig = () => {
             // @ts-expect-error
             rowTop={{
                 left: (
-                    <div className={cx.logoContainer}>
+                    <Link href={routes.MAIN} className={cx.logoContainer}>
                         <Image src={logo.src} alt={'Лого'} layout={'fill'} objectFit={'cover'} />
-                    </div>
+                    </Link>
                 ),
                 right: <RowCenterRight />,
             }}
