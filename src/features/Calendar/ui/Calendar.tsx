@@ -274,7 +274,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     return (
         <>
-            <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
+            <div>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
                     <HotelImage type={hotel?.type} className={cx.hotelIcon} tagClassName={cx.hotelTag} src={hotelImage.src} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)} />
@@ -416,7 +416,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         </Timeline>
                     </div>
                 )}
-            </Flex>
+            </div>
             <RoomModal isOpen={isRoomOpen} onClose={() => setIsRoomOpen(false)} onAccept={onRoomCreate} isLoading={isRoomCreating} currentReserve={currentReserve} />
             <ReserveModal isOpen={isReserveOpen} onClose={onClose} onAccept={onReserveAccept} onDelete={onReserveDelete} currentReserve={currentReserve} isLoading={reserveLoading} />
         </>
