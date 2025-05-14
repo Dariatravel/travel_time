@@ -5,5 +5,5 @@ export const getTextSize = (isMobile: boolean) => {
     if (isMobile) {
         return 'm';
     }
-    return 'xl';
+    return '2xl';
 };

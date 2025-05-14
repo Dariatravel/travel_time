@@ -326,7 +326,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             onCanvasDoubleClick={onReserveAdd}
                             itemRenderer={itemRenderer}
                         >
-                            {/* <TimelineHeaders className={cx.calendarHeader}>
+                            <TimelineHeaders className={cx.calendarHeader}>
                                 <SidebarHeader>
                                     {({ getRootProps }) => {
                                         return (
@@ -414,7 +414,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                                         );
                                     }}
                                 </CustomHeader>
-                            </TimelineHeaders> */}
+                            </TimelineHeaders>
                         </Timeline>
                     </div>
                 )}

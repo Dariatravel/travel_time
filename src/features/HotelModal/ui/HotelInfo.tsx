@@ -83,9 +83,6 @@ export const HotelInfo: FC<HotelInfoProps> = ({ users, onAccept, onDelete, onClo
         formState: { errors },
     } = useForm<HotelFormSchema>({
         defaultValues: getInitialValue(currentReserve?.hotel),
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        resolver: zodResolver(hotelFormSchema),
     });
 
     const userOptions = useMemo(() => {

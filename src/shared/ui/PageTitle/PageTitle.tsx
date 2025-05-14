@@ -39,7 +39,7 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
                     {title}
                 </Text>
                 <Flex gap={'middle'}>
-                    <Text size={isMobile ? 's' : 'm'} view={'success'} className={styles.subTitle}>
+                    <Text size={isMobile ? 's' : 'xl'} view={'success'} className={styles.subTitle}>
                         {getTitle(hotels, rooms)}
                     </Text>
                 </Flex>
