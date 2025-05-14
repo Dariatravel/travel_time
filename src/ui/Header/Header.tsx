@@ -68,7 +68,7 @@ export const LayoutExampleBig = () => {
             rowTop={{
                 left: (
                     <Link href={routes.MAIN} className={cx.logoContainer}>
-                        <Image src={logo.src} alt={'Лого'} layout={'fill'} objectFit={'cover'} />
+                        <Image src={logo.src} alt={'Лого'} layout={'fill'} objectFit={'contain'} />
                     </Link>
                 ),
                 right: <RowCenterRight />,
