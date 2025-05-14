@@ -1,0 +1,10 @@
+.card {
+  padding: 1rem;
+  max-width: 568px;
+  min-width: 568px;
+  position: relative;
+
+  @media (max-width: 1365px) {
+    min-width: auto;
+  }
+}
