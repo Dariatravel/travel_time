@@ -198,15 +198,13 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
-        // setIsHotelReserve(true)
-        console.log(room, groupId, time, e, getDateFromUnix(time).unix(), getDateFromUnix(time).add(2, 'day').unix());
         if (room) {
             setCurrentReserve({
                 room,
                 hotel,
                 reserve: {
                     start: time,
-                    end: getDateFromUnix(time).add(2, 'year').unix(),
+                    end: getDateFromUnix(time).add(1, 'day').unix(),
                 },
             });
             setIsReserveOpen(true);
