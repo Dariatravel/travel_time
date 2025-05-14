@@ -23,7 +23,7 @@ export const Room = ({ className, room, onEdit }: HotelProps) => {
     return (
         <Card className={cn(styles.container, className)} shadow title={title}>
             <Flex gap={'large'}>
-                <HotelImage src={hotelImage.src} width={260} height={216} />
+                <HotelImage src={hotelImage.src} />
                 <div className={styles.infoContainer}>
                     <Flex vertical justify="flex-start" className={styles.verticalContainer}>
                         <div>

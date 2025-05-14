@@ -41,7 +41,7 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
     return (
         <Card className={cn(styles.container, className)} shadow title={title}>
             <Flex gap={isMobile ? 'middle' : 'large'}>
-                <HotelImage src={hotelImage.src} width={260} height={216} type={type} />
+                <HotelImage src={hotelImage.src} type={type} />
                 <div className={styles.infoContainer}>
                     <Flex vertical justify="space-around" className={styles.verticalContainer}>
                         <div>
