@@ -28,7 +28,7 @@
     margin-top: 0.75rem;
 
     @media (max-width: 1365px) {
-        margin-top:;
+        margin-top: 0;
     }
 }
 

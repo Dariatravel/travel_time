@@ -22,11 +22,6 @@
     cursor: pointer;
 }
 
-.calendar {
-    min-height: 500px;
-    overflow: hidden;
-}
-
 .calendarHeader {
     display: flex;
     justify-content: end;
@@ -49,8 +44,8 @@
     position: sticky;
 }
 
-.travelTimeline {
-    .rct-outer {
+.hotelTimeline {
+    & > .div {
         max-height: 250px !important;
         min-height: 250px !important;
         overflow-y: auto !important;
@@ -59,6 +54,7 @@
         @media (max-width: 1365px) {
             max-height: auto !important;
             min-height: auto !important;
+            height: 250px !important;
         }
     }
 }

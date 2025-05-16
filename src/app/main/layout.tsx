@@ -8,6 +8,7 @@ import { Today } from '@/features/Today/Today';
 import moment from 'moment/moment';
 import { useAuth } from '@/shared/lib/useAuth';
 import styles from './layout.module.scss';
+import { usePathname } from 'next/navigation';
 
 export interface LayoutProps {
     children?: React.ReactNode;
@@ -19,6 +20,9 @@ moment.locale('ru');
 export default function MainLayout({ children }: LayoutProps) {
     useAuth();
     const currentDate = moment().locale('ru').format('dddd, D MMMM YYYY');
+
+    const isReservationSlug = usePathname().includes('reservation/');
+    console.log(isReservationSlug);
     return (
         <Layout>
             <LayoutExampleBig />
@@ -29,18 +33,18 @@ export default function MainLayout({ children }: LayoutProps) {
                 <Col flex="auto" className={styles.contentContainer}>
                     <Layout className={styles.content} style={{ backgroundColor: 'transparent' }}>
                         <Flex gap={'middle'} wrap className={styles.widgetContainer}>
-                            <div className={styles.searchContainer}>
-                                <SearchFeature />
-                            </div>
-                            <Flex vertical>
-                                <Today
-                                    currentDate={currentDate}
-                                    // open={isCalendarOpen}
-                                    // onToggle={() =>
-                                    //   setIsCalendarOpen((prev) => !prev)
-                                    // }
-                                />
-                            </Flex>
+                            <div className={styles.searchContainer}>{!isReservationSlug && <SearchFeature />}</div>
+                            {!isReservationSlug && (
+                                <Flex vertical>
+                                    <Today
+                                        currentDate={currentDate}
+                                        // open={isCalendarOpen}
+                                        // onToggle={() =>
+                                        //   setIsCalendarOpen((prev) => !prev)
+                                        // }
+                                    />
+                                </Flex>
+                            )}
                         </Flex>
                         <div className={styles.childrenContainer}>{children}</div>
                     </Layout>

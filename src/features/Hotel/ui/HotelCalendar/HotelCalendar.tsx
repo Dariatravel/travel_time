@@ -264,7 +264,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 <div className={cx.calendar}>
                     <Timeline
                         onZoom={(context, unit) => setCurrentUnit(unit)}
-                        className={cx.travelTimeline}
+                        className={'hotelTimeline'}
                         groups={hotelRooms}
                         items={hotelReserves}
                         keys={keys}
