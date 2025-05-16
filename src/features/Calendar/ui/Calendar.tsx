@@ -272,9 +272,10 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
         setIsRoomOpen(true);
     };
 
+    const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
     return (
         <>
-            <div>
+            <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
                     <HotelImage type={hotel?.type} className={cx.hotelIcon} tagClassName={cx.hotelTag} src={hotelImage.src} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)} />
@@ -287,14 +288,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         <div>{hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}</div>
                     </div>
                 </div>
-                {!hotelRooms.length && !isLoading && (
-                    <ResponsesNothingFound
-                        actions={<ConstaButton label={'Добавить номер'} onClick={onCreate} size={isMobile ? 's' : 'm'} />}
-                        description={<></>}
-                        title={'Нет ни одного номера'}
-                        size={'m'}
-                    />
-                )}
+
                 {!!hotelRooms?.length && (
                     <div className={cx.calendarContainer}>
                         <Timeline
@@ -303,7 +297,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             groups={hotelRooms}
                             items={hotelReserves}
                             keys={keys}
-                            sidebarWidth={isMobile ? 100 : 230}
+                            sidebarWidth={sidebarWidth}
                             canMove
                             canResize="both"
                             canSelect
@@ -416,7 +410,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         </Timeline>
                     </div>
                 )}
-            </div>
+            </Flex>
             <RoomModal isOpen={isRoomOpen} onClose={() => setIsRoomOpen(false)} onAccept={onRoomCreate} isLoading={isRoomCreating} currentReserve={currentReserve} />
             <ReserveModal isOpen={isReserveOpen} onClose={onClose} onAccept={onReserveAccept} onDelete={onReserveDelete} currentReserve={currentReserve} isLoading={reserveLoading} />
         </>
