@@ -1,15 +1,13 @@
-import { useState, useEffect, useLayoutEffect } from 'react';
+import { useState, useEffect } from 'react';
 
 export const useScreenSize = () => {
     const [screenSize, setScreenSize] = useState<'s' | 'm'>('s');
 
-    useLayoutEffect(() => {
+    useEffect(() => {
         const handleResize = () => {
             if (window.innerWidth <= 1365) {
-                console.log('setScreenSize', 's', window.innerWidth);
                 setScreenSize('s');
             } else {
-                console.log('setScreenSize', 'm', window.innerWidth);
                 setScreenSize('m');
             }
         };
