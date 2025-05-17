@@ -5,10 +5,9 @@
 .date {
     position: absolute;
     left: 0;
-    /*padding: 1rem;*/
-    background-color: #fff;
+    background-color: var(--color-bg-default);
     border-radius: 0.5rem;
-    z-index: var(--zIndex-calendar);
+    z-index: var(--z-index-calendar);
     visibility: hidden;
     opacity: 0;
 }

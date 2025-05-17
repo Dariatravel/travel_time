@@ -1,4 +1,4 @@
-@import '../lib/consts.css';
+@import '../lib/consts.scss';
 
 html,
 body {
@@ -21,26 +21,29 @@ body {
 /*    min-height: 44px !important;*/
 /*    !*max-height: 44px !important;*!*/
 /*}*/
+.che--Layout {
+    height: 64px !important;
+}
 
 .che--LayoutRow_height_s {
     --header-height: 64px !important;
 }
 
+.che--LayoutRow {
+    border-bottom: none !important;
+}
 .react-calendar-timeline .rct-header-root {
     background-color: transparent !important;
 }
 
-
 .ant-select-selector {
     background: var(--color-control-bg-default) !important;
-    border: var(--control-border-width) solid #BCD5CD !important;
+    border: var(--control-border-width) solid #bcd5cd !important;
     font-size: 18px !important;
     border-radius: 0 !important;
-
 }
 
 /* Для элементов списка */
 .ant-select-dropdown .ant-select-item {
     font-size: 16px !important;
 }
-

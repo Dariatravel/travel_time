@@ -1,0 +1,57 @@
+.dropdown {
+    font-size: 30px !important;
+}
+
+@media (max-width: 1365px) {
+    .container {
+        row-gap: 0.5rem;
+    }
+}
+
+.categorySelect {
+    min-width: 200px;
+    max-width: 200px;
+    @media (max-width: 1365px) {
+        order: 0;
+        font-size: 12px !important;
+        min-width: 50%;
+        max-width: 50%;
+
+        & > div {
+            font-size: 14px !important;
+            border-right: none !important;
+            border-radius: 0px !important;
+        }
+    }
+}
+
+.datePicker {
+    @media (max-width: 1365px) {
+        order: 2;
+        min-width: 100%;
+        max-width: 100%;
+    }
+}
+
+.datepickerDropdown {
+    z-index: var(--zIndex-datepicker);
+}
+.guestsInput {
+    max-width: 100px;
+    @media (max-width: 1365px) {
+        order: 0;
+        border-radius: 0px !important;
+        min-width: 50%;
+        max-width: 50%;
+
+        & > div > div {
+            border-radius: 0px !important;
+        }
+    }
+}
+
+.searchButton {
+    @media (max-width: 1365px) {
+        order: 3;
+    }
+}

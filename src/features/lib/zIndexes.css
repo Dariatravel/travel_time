@@ -6,6 +6,7 @@
     --zIndex-fullWidthcontainer: 200;
     --zIndex-modal: calc(var(--zIndex-fullWidthcontainer) + 1);
     --zIndex-loader: calc(var(--zIndex-modal) + 1);
+    --zIndex-datepicker: calc(var(--zIndex-loader) + 1);
     --zIndex-FullWidthmodal: calc(var(--zIndex-loader) - 1);
     --zIndex-calendar: 100;
 }
