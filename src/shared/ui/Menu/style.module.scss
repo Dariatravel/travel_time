@@ -2,30 +2,36 @@
     margin-top: 136px;
     display: flex;
     flex-direction: column;
-    
-}
 
-@media (max-width: 1365px){
-    .layout{
-        margin-top: 0px;
+    @media (max-width: 1365px) {
+        margin-left: 0;
+        margin-top: 0;
         flex-direction: row;
         justify-content: center;
     }
 }
+
 .link {
-    padding: 1rem;
+    padding: var(--space-m);
     text-decoration: none;
-    color: #7C918F;
+    color: #7c918f;
     min-height: 32px;
     min-width: 120px;
+
     &:hover {
-        transition: all .25s ease-in-out;
+        transition: all 0.25s ease-in-out;
         background-color: var(--color-bg-success);
         color: var(--color-bg-default) !important;
 
         .container div svg {
             fill: var(--color-bg-default);
         }
+    }
+
+    @media (max-width: 1365px) {
+        padding: 0.5rem;
+        flex-basis: 33%;
+        // flex: 1;
     }
 }
 
@@ -37,4 +43,3 @@
         color: var(--color-bg-success);
     }
 }
-

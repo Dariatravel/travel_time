@@ -3,6 +3,13 @@
     pointer-events: none !important;
     display: flex;
     flex-direction: column;
+
+    @media (max-width: 1365px) {
+        top: 0 !important;
+        padding: 0;
+        z-index: 1000 !important;
+        // max-height: 200px;
+    }
 }
 
 .modal {
@@ -11,12 +18,22 @@
     max-width: var(--modal-max-width) !important;
     max-height: var(--travel-form-height) !important;
     min-height: var(--travel-form-height);
-    padding: 1rem 2rem 1rem;
-}
+    padding: 1rem 1.5rem 1rem;
 
-/*.modalLoading {*/
-/*    overflow: hidden;*/
-/*}*/
+    @media (max-width: 767px) {
+        width: 100%;
+        height: 100%;
+        top: 2rem !important;
+        position: absolute;
+        max-height: calc(100% - 2rem) !important;
+        padding: 1rem 0.5rem;
+    }
+
+    @media (min-width: 768px) and (max-width: 1365px) {
+        height: auto !important;
+        max-height: var(--travel-form-height) !important;
+    }
+}
 
 .loading {
     position: absolute;
@@ -43,4 +60,8 @@
     right: 40px;
     top: 18px;
     cursor: pointer;
+
+    @media (max-width: 1365px) {
+        right: 16px;
+    }
 }

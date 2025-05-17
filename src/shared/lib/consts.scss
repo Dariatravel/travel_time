@@ -1,0 +1,85 @@
+:root {
+    --travel-form-height: 636px;
+    --modal-max-width: 480px;
+    --xl: 1365px;
+    --header-size: 64px;
+    --menu-height: 64px;
+
+    /* Цвета */
+    --color-bg-default: #fff;
+    --color-bg-border: #f0f0f0;
+    --color-text-primary: #000;
+    --color-text-secondary: #666;
+
+    /* Размеры */
+    --space-2xs: 4px;
+    --space-xs: 8px;
+    --space-s: 12px;
+    --space-m: 16px;
+    --space-l: 24px;
+    --space-xl: 32px;
+
+    /* Тени */
+    --shadow-layer: 0 2px 8px rgba(0, 0, 0, 0.15);
+
+    /* Z-индексы */
+    --z-index-calendar: 1000;
+    --z-index-menu: 200;
+
+    --zIndex-calendarItem: 1;
+    --zIndex-select: 1000;
+    --zIndex-dateSelect: 990;
+    /* контейнер лоудера без модального окна*/
+    --zIndex-fullWidthcontainer: 200;
+
+    --zIndex-modal: calc(var(--zIndex-fullWidthcontainer) + 1);
+    --zIndex-loader: calc(var(--zIndex-modal) + 1);
+    --zIndex-FullWidthmodal: calc(var(--zIndex-loader) - 1);
+    --zIndex-calendar: 100;
+
+    /* Брейкпоинты */
+    --breakpoint-xs: 480px;
+    --breakpoint-sm: 576px;
+    --breakpoint-md: 768px;
+    --breakpoint-lg: 992px;
+    --breakpoint-xl: 1365px;
+    --breakpoint-xxl: 1600px;
+
+    @media (max-width: 1365px) {
+        --header-size: 48px;
+        --travel-form-height: 500px;
+    }
+
+    @media (min-width: 768px) and (max-width: 1365px) {
+        --travel-form-height: 700px;
+    }
+}
+
+// Миксины для медиа-запросов
+@mixin respond-to($breakpoint) {
+    @if $breakpoint == xs {
+        @media (max-width: var(--breakpoint-xs)) {
+            @content;
+        }
+    } @else if $breakpoint == sm {
+        @media (max-width: var(--breakpoint-sm)) {
+            @content;
+        }
+    } @else if $breakpoint == md {
+        @media (max-width: var(--breakpoint-md)) {
+            @content;
+        }
+    } @else if $breakpoint == lg {
+        @media (max-width: var(--breakpoint-lg)) {
+            @content;
+        }
+    } @else if $breakpoint == xl {
+        @media (max-width: var(--breakpoint-xl)) {
+            @content;
+        }
+    } @else if $breakpoint == xxl {
+        @media (max-width: var(--breakpoint-xxl)) {
+            @content;
+        }
+    }
+}

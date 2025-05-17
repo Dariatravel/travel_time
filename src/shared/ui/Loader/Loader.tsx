@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react'
 import { Loader as LoaderConsta } from '@consta/uikit/Loader'
-import cx from './style.module.css'
+import cx from './style.module.scss'
 import cn from 'classnames'
 
 export interface LoaderProps extends ComponentProps<typeof LoaderConsta> {

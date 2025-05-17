@@ -8,22 +8,33 @@ import { TravelFilterType } from '@/shared/models/hotels'
 import { showToast } from '@/shared/ui/Toast/Toast'
 
 // Тип Room
-export type HotelDTO = {
-  id: string // Уникальный идентификатор отеля
-  title: string // Название отеля
-  type: string // Тип объекта размещения (например, "hotel", "apartment")
-  rating: number // Рейтинг отеля
-  address: string // Адрес отеля
-  telegram_url?: string // Ссылка на Telegram (опционально)
-  phone: string // Телефон отеля
-  description: string // Описание отеля
+export interface HotelImage {
+  id: string
+  file: File
+}
+
+export interface Hotel {
+  id: string
+  title: string
+  type: string
+  rating: number
+  address: string
+  phone: string
+  user_id: string
+  telegram_url?: string
+  description: string
   image_id?: string
-  user_id?: string
+}
+
+export interface HotelDTO extends Hotel {
+  image_id?: string
 }
 
 export type HotelRoomsDTO = HotelDTO & { rooms: RoomDTO }
 //для создания отеля
-export type Hotel = Omit<HotelDTO, 'id'>
+export interface CreateHotelDTO extends Omit<Hotel, 'id'> {
+  image_id?: string
+}
 //для формы
 export type RoomForm = Omit<Room, 'hotel_id' | 'price'> & {
   hotel_id: TravelOption

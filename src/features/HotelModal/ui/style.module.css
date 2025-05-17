@@ -10,3 +10,20 @@
 .fields {
     margin-bottom: 0.75rem;
 }
+
+.imageContainer {
+    text-align: center;
+    /* padding: 0; */
+}
+
+.imageUpload {
+    margin-top: 0;
+    padding: 0.25rem;
+    border: 1px dashed var(--color-typo-brand);
+    border-radius: 16px;
+
+    @media (max-width: 1365px) {
+        max-height: 100px !important;
+        min-height: 100px !important;
+    }
+}

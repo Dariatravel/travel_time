@@ -143,13 +143,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
             return;
         }
 
-        // if (errors) {
-        //   showToast(
-        //     'Ошибка при создании брони, проверьте корректность ввода данных',
-        //     'error'
-        //   )
-        //   console.log(errors)
-        // }
         const data = deserializeData(formData);
         onAccept(currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data);
     };
@@ -186,7 +179,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                 rules={{ required: true }}
                 render={({ field }) => (
                     <DatePicker
-                        style={{ zIndex: 999 }}
+                        style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
                         required
                         value={field.value}
                         onChange={(e) => field.onChange(e)}
@@ -208,7 +201,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                     render={({ field }) => (
                         <Select
                             {...field}
-                            style={{ zIndex: 999 }}
+                            style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
                             items={hotelOptions}
                             placeholder={'Выберите из списка'}
                             label={'Название отеля'}
@@ -260,9 +253,24 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                         />
                     )}
                 />
-                {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-                {/*// @ts-expect-error*/}
-                <TextField {...register('quantity')} placeholder="Введите число" label="Количество человек" incrementButtons={false} className={cx.fields} required type={'number'} />
+                <Controller
+                    name="quantity"
+                    control={control}
+                    rules={{ required: true }}
+                    render={({ field }) => (
+                        <TextField
+                            {...field}
+                            value={field.value?.toString() ?? ''}
+                            placeholder="Введите число"
+                            label="Количество человек"
+                            incrementButtons={false}
+                            className={cx.fields}
+                            required
+                            type={'number'}
+                            size={FORM_SIZE}
+                        />
+                    )}
+                />
             </FieldGroup>
             <Controller
                 name="guest"

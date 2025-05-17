@@ -1,0 +1,32 @@
+.headingContainer {
+    margin-top: 1rem;
+    margin-bottom: 1.5rem;
+    align-items: center;
+
+    @media (max-width: 1365px) {
+        align-items: flex-start;
+        margin-top: 0rem;
+        margin-bottom: 0.5rem;
+    }
+}
+
+.subTitle {
+    margin-top: 0.5rem;
+    @media (max-width: 1365px) {
+        margin-top: 0;
+    }
+}
+
+.buttonContainer {
+    margin-left: auto;
+    @media (max-width: 1365px) {
+        margin-top: 0.25rem;
+    }
+}
+
+.button {
+    @media (max-width: 1365px) {
+        min-width: 120px !important;
+        padding: 0 !important;
+    }
+}
