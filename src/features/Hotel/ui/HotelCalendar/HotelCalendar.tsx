@@ -6,6 +6,7 @@ import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, us
 import { Room, useCreateRoom, useGetRoomsWithReservesByHotel } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { getDateFromUnix } from '@/shared/lib/date';
+import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter, TravelFilterType } from '@/shared/models/hotels';
 import { $isMobile } from '@/shared/models/mobile';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
@@ -115,14 +116,14 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
 
     const onRoomCreate = useCallback((room: Room) => {
         createRoom(room);
-        console.log('Создаю ROOM', room);
+        devLog('Создаю ROOM', room);
     }, []);
 
     const onReserveAccept = async (reserve: Reserve) => {
         const isEdit = currentReserve?.reserve?.id;
 
         if (isEdit) {
-            console.log('Пытаюсь обновить запись');
+            devLog('Пытаюсь обновить запись');
             await updateReserve(reserve as ReserveDTO);
 
             return;
@@ -132,7 +133,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     };
 
     const onReserveDelete = async (id: string) => {
-        console.log('Пытаюсь удалить запись');
+        devLog('Пытаюсь удалить запись');
         await deleteReserve(id);
 
         return;
@@ -252,7 +253,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             defaultTimeEnd = moment().add(3, 'day');
         }
 
-        console.log(isMobile, 'isMobile');
+        devLog('isMobile', isMobile);
         return { defaultTimeStart, defaultTimeEnd };
     };
     const { defaultTimeStart, defaultTimeEnd } = getDefaultTime(isMobile, filter);

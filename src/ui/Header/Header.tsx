@@ -1,21 +1,20 @@
 'use client';
 
-import React from 'react';
+import { useSignOut } from '@/shared/api/auth/auth';
+import { routes } from '@/shared/config/routes';
+import { translateUserRole } from '@/shared/lib/translateUser';
+import { $user } from '@/shared/models/auth';
+import { LogoutOutlined } from '@ant-design/icons';
+import { Layout } from '@consta/header/Layout';
 import { cnMixSpace } from '@consta/uikit/MixSpace';
 import { User } from '@consta/uikit/User';
-import logo from '../../../public/main/logo.svg';
-import Image from 'next/image';
-import cx from './styles.module.scss';
-import { Layout } from '@consta/header/Layout';
-import { useSignOut } from '@/shared/api/auth/auth';
-import { useUnit } from 'effector-react/compat';
-import { $user } from '@/shared/models/auth';
 import { Dropdown, MenuProps } from 'antd';
-import { LogoutOutlined } from '@ant-design/icons';
-import { redirect } from 'next/navigation';
-import { translateUserRole } from '@/shared/lib/translateUser';
+import { useUnit } from 'effector-react/compat';
+import Image from 'next/image';
 import Link from 'next/link';
-import { routes } from '@/shared/config/routes';
+import { redirect } from 'next/navigation';
+import logo from '../../../public/main/logo.svg';
+import cx from './styles.module.scss';
 
 const RowCenterRight = () => {
     const user = useUnit($user);
@@ -31,9 +30,7 @@ const RowCenterRight = () => {
             label: 'Выйти',
             icon: <LogoutOutlined />,
             onClick: async () => {
-                console.log('asdasd');
                 await mutateAsync();
-                // await setUser(null);
                 redirect('/login');
             },
         },

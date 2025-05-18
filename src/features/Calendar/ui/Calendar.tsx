@@ -6,6 +6,7 @@ import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, us
 import { Room, useCreateRoom, useGetRoomsWithReservesByHotel } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { getDateFromUnix } from '@/shared/lib/date';
+import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter, TravelFilterType } from '@/shared/models/hotels';
 import { $isMobile } from '@/shared/models/mobile';
 import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
@@ -121,14 +122,14 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     const onRoomCreate = useCallback((room: Room) => {
         createRoom(room);
-        console.log('Создаю ROOM', room);
+        devLog('Создаю ROOM', room);
     }, []);
 
     const onReserveAccept = async (reserve: Reserve) => {
         const isEdit = currentReserve?.reserve?.id;
 
         if (isEdit) {
-            console.log('Пытаюсь обновить запись');
+            devLog('Пытаюсь обновить запись');
             await updateReserve(reserve as ReserveDTO);
 
             return;
@@ -138,7 +139,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     };
 
     const onReserveDelete = async (id: string) => {
-        console.log('Пытаюсь удалить запись');
+        devLog('Пытаюсь удалить запись');
         await deleteReserve(id);
 
         return;

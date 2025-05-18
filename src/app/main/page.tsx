@@ -1,27 +1,28 @@
 'use client';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text } from '@consta/uikit/Text';
-import { nanoid } from 'nanoid';
-import { Card } from '@consta/uikit/Card';
-import Image from 'next/image';
-import { useGetAllCounts } from '@/shared/api/hotel/hotel';
-import building from '../../../public/main/building.svg';
-import bed from '../../../public/main/bed.svg';
-import key from '../../../public/main/key.svg';
-import { Button } from '@consta/uikit/Button';
-import { ToastContainer } from 'react-toastify';
-import cx from './page.module.scss';
-import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
-import { showToast } from '@/shared/ui/Toast/Toast';
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
-import { Flex } from 'antd';
-import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
-import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
+import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
+import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { useGetSession } from '@/shared/api/auth/auth';
-import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { useGetAllCounts } from '@/shared/api/hotel/hotel';
+import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { getTextSize } from '@/shared/lib/const';
+import { devLog } from '@/shared/lib/logger';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { showToast } from '@/shared/ui/Toast/Toast';
+import { Button } from '@consta/uikit/Button';
+import { Card } from '@consta/uikit/Card';
+import { Text } from '@consta/uikit/Text';
+import { Flex } from 'antd';
+import { nanoid } from 'nanoid';
+import Image from 'next/image';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { ToastContainer } from 'react-toastify';
+import bed from '../../../public/main/bed.svg';
+import building from '../../../public/main/building.svg';
+import key from '../../../public/main/key.svg';
+import cx from './page.module.scss';
 
 export default function Main() {
     const [isHotelOpen, setIsHotelOpen] = useState<boolean>(false);
@@ -34,7 +35,7 @@ export default function Main() {
 
     useEffect(() => {
         if (sessionData?.session?.access_token) {
-            console.log('Access token:', sessionData.session);
+            devLog('Access token:', sessionData.session);
         }
     }, [sessionData]);
 
@@ -81,7 +82,7 @@ export default function Main() {
     );
 
     const onReserveCreate = useCallback((reserve: Reserve) => {
-        console.log('создаю Reserve');
+        devLog('создаю Reserve', reserve);
         createReserve(reserve);
     }, []);
 

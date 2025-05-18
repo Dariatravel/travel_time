@@ -1,19 +1,18 @@
-import React, { FC, useState } from 'react';
+import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
+import { getHotelsWithFreeRooms } from '@/shared/api/hotel/hotel';
+import { PagesEnum, routes } from '@/shared/config/routes';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
+import { IconCalendar } from '@consta/icons/IconCalendar';
 import { Button } from '@consta/uikit/Button';
 import { DatePicker } from '@consta/uikit/DatePicker';
-import { IconCalendar } from '@consta/icons/IconCalendar';
-import { FieldGroup } from '@consta/uikit/FieldGroup';
-import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
-import moment from 'moment/moment';
-import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { TextField } from '@consta/uikit/TextField';
-import { useRouter } from 'next/navigation';
-import { getHotelsWithFreeRooms } from '@/shared/api/hotel/hotel';
 import { Flex, Select } from 'antd';
-import styles from './style.module.scss';
-import { PagesEnum, routes } from '@/shared/config/routes';
 import cn from 'classnames';
-import { useScreenSize } from '@/shared/lib/useScreenSize';
+import moment from 'moment/moment';
+import { useRouter } from 'next/navigation';
+import { FC, useState } from 'react';
+import styles from './style.module.scss';
 export interface SearchFeatureProps {}
 
 export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps) => {
@@ -69,7 +68,6 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
                 options={HOTEL_TYPES}
                 value={category}
                 onChange={(type) => {
-                    console.log(type);
                     setCategory(type);
                 }}
                 placeholder={'Категория'}

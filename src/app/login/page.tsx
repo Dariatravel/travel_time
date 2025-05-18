@@ -1,10 +1,11 @@
 'use client';
-import React, { useEffect } from 'react';
 import { Login } from '@/features/Auth/ui/Login';
 import { Register } from '@/features/Auth/ui/Register';
-import { Tabs, TabsProps } from 'antd';
-import { Card } from '@consta/uikit/Card';
+import { devLog } from '@/shared/lib/logger';
 import { setUser } from '@/shared/models/auth';
+import { Card } from '@consta/uikit/Card';
+import { Tabs, TabsProps } from 'antd';
+import { useEffect } from 'react';
 import style from './style.module.scss';
 
 const items: TabsProps['items'] = [
@@ -22,7 +23,7 @@ const items: TabsProps['items'] = [
 
 export default function LoginPage() {
     const onChange = (key: string) => {
-        console.log(key);
+        devLog('LoginPage', key);
     };
 
     useEffect(() => {

@@ -1,9 +1,10 @@
 'use client';
-import React, { CSSProperties, HTMLAttributes, HTMLProps } from 'react';
 import cx from '@/features/Calendar/ui/style.module.scss';
-import { nanoid } from 'nanoid';
-import { IntervalContext } from 'my-react-calendar-timeline';
+import { devLog } from '@/shared/lib/logger';
 import { Dayjs } from 'dayjs';
+import { IntervalContext } from 'my-react-calendar-timeline';
+import { nanoid } from 'nanoid';
+import React, { CSSProperties, HTMLAttributes, HTMLProps } from 'react';
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error
 import { GetIntervalPropsParams } from 'my-react-calendar-timeline/dist/lib/headers/types';
@@ -27,12 +28,11 @@ export const Interval = ({ interval, unit, showPeriod, getIntervalProps, getRoot
         <div
             onClick={() => {
                 showPeriod(interval.startTime, interval.endTime);
-                console.log({
+                devLog('Interval', {
                     interval,
                     unit,
                     root: getRootProps(),
                 });
-                // console.log(getIntervalProps({interval}))
             }}
             className={cx.interval}
             {...getIntervalProps({

@@ -25,7 +25,6 @@ export default function MainLayout({ children }: LayoutProps) {
     const currentDate = moment().locale('ru').format('dddd, D MMMM YYYY');
 
     const isReservationSlug = usePathname().includes('reservation/');
-    console.log(isReservationSlug);
 
     const [onSetIsMobile] = useUnit([setIsMobile]);
     const { isMobile } = useScreenSize();
@@ -34,6 +33,7 @@ export default function MainLayout({ children }: LayoutProps) {
         onSetIsMobile(isMobile);
     }, [isMobile]);
 
+    console.log(process.env.ANNON);
     return (
         <Layout>
             <LayoutExampleBig />
