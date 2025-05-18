@@ -5,6 +5,7 @@ import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, useDeleteReserve, useUpdateReserve } from '@/shared/api/reserve/reserve';
 import { Room, useCreateRoom, useGetRoomsWithReservesByHotel } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
 import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter, TravelFilterType } from '@/shared/models/hotels';
@@ -18,8 +19,8 @@ import moment from 'moment';
 import 'moment/locale/ru';
 import { CustomHeader, Id, SidebarHeader, Timeline, TimelineHeaders } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
-import React, { useCallback, useMemo, useState } from 'react';
-import { CiSquarePlus } from 'react-icons/ci';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci';
 import '../../../../app/main/reservation/calendar.scss';
 import cx from './style.module.scss';
 
@@ -55,7 +56,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
     const [sort, setSort] = useState<'asc' | 'desc'>('asc');
-
+    const timelineRef = useRef<Timeline>(null);
+    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
     const {
         isPending: isReserveCreating,
         mutateAsync: createReserve,
@@ -257,7 +259,42 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     };
     const { defaultTimeStart, defaultTimeEnd } = getDefaultTime(isMobile, filter);
 
-    const [currentUnit, setCurrentUnit] = useState('day');
+    const onZoomIn = (unit: ZoomUnit) => {
+        const currentIndex = ZOOM_UNITS.indexOf(unit);
+        const isDay = timelineRef.current?.getTimelineUnit() === 'day';
+
+        if (isDay) return;
+
+        console.log(timelineRef.current?.getTimelineUnit(), timelineRef.current?.getTimelineContext());
+        if (currentIndex < ZOOM_UNITS.length - 1) {
+            setCurrentUnit(ZOOM_UNITS[currentIndex + 1]);
+        }
+        timelineRef.current?.changeZoom(-1, 0.5);
+    };
+
+    const onZoomOut = (unit: ZoomUnit) => {
+        const currentIndex = ZOOM_UNITS.indexOf(unit);
+        const isYear = timelineRef.current?.getTimelineUnit() === 'year';
+
+        if (isYear) return;
+        console.log(timelineRef.current?.getTimelineUnit(), timelineRef.current?.getTimelineContext());
+        timelineRef.current?.changeZoom(1.5, 2);
+        if (currentIndex > 0) {
+            setCurrentUnit(ZOOM_UNITS[currentIndex - 1]);
+        }
+    };
+
+    const getHeaderUnit = (currentUnit: ZoomUnit, isFirstHeader: boolean): 'day' | 'month' | 'year' => {
+        const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
+
+        if (isFirstHeader) {
+            // Для первого заголовка берем следующий уровень
+            return currentIndex < ZOOM_UNITS.length - 1 ? ZOOM_UNITS[currentIndex + 1] : ZOOM_UNITS[currentIndex];
+        } else {
+            // Для второго заголовка используем текущий уровень
+            return currentUnit;
+        }
+    };
     return (
         <>
             <div>
@@ -265,7 +302,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 <div className={cx.hotelInfo}></div>
                 <div className={cx.calendar}>
                     <Timeline
-                        onZoom={(context, unit) => setCurrentUnit(unit)}
+                        ref={timelineRef}
+                        onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
                         className={'hotelTimeline'}
                         groups={hotelRooms}
                         items={hotelReserves}
@@ -324,11 +362,13 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                                                     }}
                                                 />
                                             )} */}
+                                            <Button icon={<CiZoomIn size={24} />} type={'link'} onClick={() => onZoomIn(currentUnit)} />
+                                            <Button icon={<CiZoomOut size={24} />} type={'link'} onClick={() => onZoomOut(currentUnit)} />
                                         </div>
                                     );
                                 }}
                             </SidebarHeader>
-                            <CustomHeader unit={currentUnit === 'day' ? 'month' : 'year'}>
+                            <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
                                 {({
                                     headerContext: { intervals, unit },
 
@@ -362,14 +402,15 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                                     );
                                 }}
                             </CustomHeader>
-                            <CustomHeader headerData={{ someData: 'data' }}>
+                            <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
                                 {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                                     return (
                                         <div {...getRootProps()}>
                                             {intervals.map((interval) => {
                                                 const isMonth = unit === 'month';
+                                                const isYear = unit === 'year';
 
-                                                const dateText = isMonth ? moment(interval.startTime.toDate()).format('MMM') : interval.startTime.format('DD');
+                                                const dateText = isMonth || isYear ? moment(interval.startTime.toDate()).format('MMM') : interval.startTime.format('DD');
 
                                                 return (
                                                     <Interval
