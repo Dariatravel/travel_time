@@ -5,6 +5,7 @@ import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, useDeleteReserve, useUpdateReserve } from '@/shared/api/reserve/reserve';
 import { Room, useCreateRoom, useGetRoomsWithReservesByHotel } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
 import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter, TravelFilterType } from '@/shared/models/hotels';
@@ -21,8 +22,8 @@ import moment from 'moment';
 import 'moment/locale/ru';
 import { CustomHeader, Id, SidebarHeader, Timeline, TimelineHeaders } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
-import React, { useCallback, useMemo, useState } from 'react';
-import { CiSquarePlus } from 'react-icons/ci';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci';
 import '../../../app/main/reservation/calendar.scss';
 import hotelImage from '../hotel.svg';
 import cx from './style.module.scss';
@@ -49,19 +50,22 @@ const DAY = 24 * 60 * 60 * 1000;
 const WEEK = DAY * 7;
 const THREE_MONTHS = DAY * 30 * 24;
 // const THREE_MONTHS = 5 * 365.24 * 86400 * 1000;
-
 export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     const [isMobile] = useUnit([$isMobile]);
     const filter = useUnit($hotelsFilter);
     const queryClient = useQueryClient();
     const { data, isFetching: isRoomLoading } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
 
+    const timelineRef = useRef<Timeline>(null);
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
     const [sort, setSort] = useState<'asc' | 'desc'>('asc');
-    const [currentUnit, setCurrentUnit] = useState('day');
+    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
 
+    useEffect(() => {
+        console.log(timelineRef?.current);
+    }, []);
     const {
         isPending: isReserveCreating,
         mutateAsync: createReserve,
@@ -269,6 +273,44 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     };
 
     const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
+
+    const onZoomIn = (unit: ZoomUnit) => {
+        const currentIndex = ZOOM_UNITS.indexOf(unit);
+        const isDay = timelineRef.current?.getTimelineUnit() === 'day';
+
+        if (isDay) return;
+
+        console.log(timelineRef.current?.getTimelineUnit(), timelineRef.current?.getTimelineContext());
+        if (currentIndex < ZOOM_UNITS.length - 1) {
+            setCurrentUnit(ZOOM_UNITS[currentIndex + 1]);
+        }
+        timelineRef.current?.changeZoom(-1, 0.5);
+    };
+
+    const onZoomOut = (unit: ZoomUnit) => {
+        const currentIndex = ZOOM_UNITS.indexOf(unit);
+        const isYear = timelineRef.current?.getTimelineUnit() === 'year';
+
+        if (isYear) return;
+        console.log(timelineRef.current?.getTimelineUnit(), timelineRef.current?.getTimelineContext());
+        timelineRef.current?.changeZoom(1.5, 2);
+        if (currentIndex > 0) {
+            setCurrentUnit(ZOOM_UNITS[currentIndex - 1]);
+        }
+    };
+
+    const getHeaderUnit = (currentUnit: ZoomUnit, isFirstHeader: boolean): 'day' | 'month' | 'year' => {
+        const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
+
+        if (isFirstHeader) {
+            // Для первого заголовка берем следующий уровень
+            return currentIndex < ZOOM_UNITS.length - 1 ? ZOOM_UNITS[currentIndex + 1] : ZOOM_UNITS[currentIndex];
+        } else {
+            // Для второго заголовка используем текущий уровень
+            return currentUnit;
+        }
+    };
+
     return (
         <>
             <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
@@ -288,7 +330,8 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                 {!!hotelRooms?.length && (
                     <div className={cx.calendarContainer}>
                         <Timeline
-                            onZoom={(context, unit) => setCurrentUnit(unit)}
+                            ref={timelineRef}
+                            onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
                             className={'travel-timeline'}
                             groups={hotelRooms}
                             items={hotelReserves}
@@ -340,18 +383,14 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                                                         }}
                                                     />
                                                 )} */}
+                                                <Button icon={<CiZoomIn size={24} />} type={'link'} onClick={() => onZoomIn(currentUnit)} />
+                                                <Button icon={<CiZoomOut size={24} />} type={'link'} onClick={() => onZoomOut(currentUnit)} />
                                             </div>
                                         );
                                     }}
                                 </SidebarHeader>
-                                <CustomHeader unit={currentUnit === 'day' ? 'month' : 'year'}>
-                                    {({
-                                        headerContext: { intervals, unit },
-
-                                        getRootProps,
-                                        getIntervalProps,
-                                        showPeriod,
-                                    }) => {
+                                <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
+                                    {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                                         const isYear = unit === 'year';
                                         return (
                                             <div {...getRootProps()}>
@@ -378,14 +417,15 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                                         );
                                     }}
                                 </CustomHeader>
-                                <CustomHeader unit={currentUnit === 'day' ? 'day' : 'year'}>
+                                <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
                                     {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                                         return (
                                             <div {...getRootProps()}>
                                                 {intervals.map((interval) => {
                                                     const isMonth = unit === 'month';
+                                                    const isYear = unit === 'year';
 
-                                                    const dateText = isMonth ? moment(interval.startTime.toDate()).format('MMM') : interval.startTime.format('DD');
+                                                    const dateText = isMonth || isYear ? moment(interval.startTime.toDate()).format('MMM') : interval.startTime.format('DD');
 
                                                     return (
                                                         <Interval
