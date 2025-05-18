@@ -19,7 +19,6 @@ import 'moment/locale/ru';
 import { CustomHeader, Id, SidebarHeader, Timeline, TimelineHeaders } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
 import React, { useCallback, useMemo, useState } from 'react';
-import { BiSortDown, BiSortUp } from 'react-icons/bi';
 import { CiSquarePlus } from 'react-icons/ci';
 import '../../../../app/main/reservation/calendar.scss';
 import cx from './style.module.scss';
@@ -305,7 +304,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                                                     setIsRoomOpen(true);
                                                 }}
                                             />
-                                            {sort === 'asc' ? (
+                                            {/* TODO: Сортировка отключена по просьбе Михаила - лучше, чтобы здесь была сортировка по дате создания */}
+                                            {/* {sort === 'asc' ? (
                                                 <Button
                                                     icon={<BiSortDown size={24} />}
                                                     type={'link'}
@@ -323,7 +323,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                                                         setSort('asc');
                                                     }}
                                                 />
-                                            )}
+                                            )} */}
                                         </div>
                                     );
                                 }}
