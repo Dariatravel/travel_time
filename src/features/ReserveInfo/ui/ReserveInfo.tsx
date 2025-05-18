@@ -1,26 +1,26 @@
-import React, { FC, useEffect, useMemo } from 'react';
-import cx from './style.module.css';
-import { FieldGroup } from '@consta/uikit/FieldGroup';
-import { TextField } from '@consta/uikit/TextField';
-import { Select } from '@consta/uikit/Select';
-import { IconCalendar } from '@consta/icons/IconCalendar';
-import { DatePicker } from '@consta/uikit/DatePicker';
-import { Controller, useForm } from 'react-hook-form';
-import { FORM_SIZE } from '@/shared/lib/const';
-import { type CurrentReserveType, Nullable, Reserve, ReserveDTO, ReserveForm } from '@/shared/api/reserve/reserve';
+import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
+import { type CurrentReserveType, Nullable, Reserve, ReserveDTO, ReserveForm } from '@/shared/api/reserve/reserve';
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
-import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
-import moment from 'moment';
-import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal';
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
-import { showToast } from '@/shared/ui/Toast/Toast';
-import { IoLogoWhatsapp } from 'react-icons/io';
+import { FORM_SIZE } from '@/shared/lib/const';
 import { createWhatsappLink } from '@/shared/lib/links';
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
+import { showToast } from '@/shared/ui/Toast/Toast';
+import { IconCalendar } from '@consta/icons/IconCalendar';
 import { TextFieldPropStatus } from '@consta/uikit/__internal__/src/components/TextField/types';
+import { DatePicker } from '@consta/uikit/DatePicker';
+import { FieldGroup } from '@consta/uikit/FieldGroup';
+import { Select } from '@consta/uikit/Select';
+import { TextField } from '@consta/uikit/TextField';
 import { Flex, Input } from 'antd';
+import moment from 'moment';
+import { FC, useEffect, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { IoLogoWhatsapp } from 'react-icons/io';
+import cx from './style.module.css';
 
 export interface ReserveInfoProps {
     onClose: () => void;
@@ -228,7 +228,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                             dropdownClassName={cx.dropdown}
                             className={cx.fields}
                             isLoading={isHotelsLoading || isRoomsLoading}
-                            disabled={!!currentReserve}
                         />
                     )}
                 />
