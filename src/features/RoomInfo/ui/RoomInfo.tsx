@@ -1,20 +1,21 @@
-import React, { FC, useMemo } from 'react';
-import cx from './style.module.css';
-import { TextField } from '@consta/uikit/TextField';
-import { Select } from '@consta/uikit/Select';
-import { Controller, useForm } from 'react-hook-form';
-import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
 import { RoomForm, useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
-import { FORM_GAP_SIZE, FORM_SIZE } from '@/shared/lib/const';
-import { Grid, GridItem } from '@consta/uikit/Grid';
-import { DragNDropField } from '@consta/uikit/DragNDropField';
-import { Button } from '@consta/uikit/Button';
-import { Text } from '@consta/uikit/Text';
-import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO } from '@/shared/api/room/room';
+import { adaptToOption } from '@/shared/lib/adaptHotel';
+import { FORM_GAP_SIZE, FORM_SIZE } from '@/shared/lib/const';
+import { devLog } from '@/shared/lib/logger';
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
+import { Button } from '@consta/uikit/Button';
+import { DragNDropField } from '@consta/uikit/DragNDropField';
+import { Grid, GridItem } from '@consta/uikit/Grid';
+import { Select } from '@consta/uikit/Select';
+import { Text } from '@consta/uikit/Text';
+import { TextField } from '@consta/uikit/TextField';
 import { Flex } from 'antd';
+import { FC, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import cx from './style.module.css';
 
 export interface RoomInfoProps {
     onClose: () => void;
@@ -65,7 +66,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({ onAccept, onClose, currentReserve,
     const onAcceptForm = () => {
         const data = deserializeData(formData);
 
-        console.log(data);
+        devLog('onAcceptForm', data);
         onAccept(data);
     };
 
@@ -141,7 +142,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({ onAccept, onClose, currentReserve,
                     />
                 </GridItem>
             </Grid>
-            <DragNDropField onDropFiles={(files) => console.log(files)} disabled={loading} className={cx.fields}>
+            <DragNDropField onDropFiles={(files) => devLog('onDropFiles', files)} disabled={loading} className={cx.fields}>
                 {({ openFileDialog }) => (
                     <>
                         <Button onClick={openFileDialog} label="Выбрать файл" />

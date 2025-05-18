@@ -1,8 +1,8 @@
-import React, { ComponentProps, CSSProperties, FC, useEffect } from 'react';
-import { Modal as ModalConsta } from '@consta/uikit/Modal';
-import st from './style.module.scss';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { Modal as ModalConsta } from '@consta/uikit/Modal';
 import cn from 'classnames';
+import { ComponentProps, CSSProperties, FC, useEffect } from 'react';
+import st from './style.module.scss';
 
 export interface ModalProps extends ComponentProps<typeof ModalConsta> {
     style?: CSSProperties;
