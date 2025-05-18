@@ -1,14 +1,17 @@
 'use client';
-import React from 'react';
-import { LayoutExampleBig } from '@/ui/Header/Header';
-import { Col, Flex, Layout, Row } from 'antd';
-import { TravelMenu } from '@/shared/ui/Menu/Menu';
 import { SearchFeature } from '@/features/Search/ui/Search';
 import { Today } from '@/features/Today/Today';
-import moment from 'moment/moment';
 import { useAuth } from '@/shared/lib/useAuth';
-import styles from './layout.module.scss';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { setIsMobile } from '@/shared/models/mobile';
+import { TravelMenu } from '@/shared/ui/Menu/Menu';
+import { LayoutExampleBig } from '@/ui/Header/Header';
+import { Col, Flex, Layout, Row } from 'antd';
+import { useUnit } from 'effector-react/compat';
+import moment from 'moment/moment';
 import { usePathname } from 'next/navigation';
+import React, { useLayoutEffect } from 'react';
+import styles from './layout.module.scss';
 
 export interface LayoutProps {
     children?: React.ReactNode;
@@ -23,6 +26,14 @@ export default function MainLayout({ children }: LayoutProps) {
 
     const isReservationSlug = usePathname().includes('reservation/');
     console.log(isReservationSlug);
+
+    const [onSetIsMobile] = useUnit([setIsMobile]);
+    const { isMobile } = useScreenSize();
+
+    useLayoutEffect(() => {
+        onSetIsMobile(isMobile);
+    }, [isMobile]);
+
     return (
         <Layout>
             <LayoutExampleBig />
