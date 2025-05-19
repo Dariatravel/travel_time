@@ -15,9 +15,11 @@ import { TextFieldPropStatus } from '@consta/uikit/__internal__/src/components/T
 import { DatePicker } from '@consta/uikit/DatePicker';
 import { FieldGroup } from '@consta/uikit/FieldGroup';
 import { Select } from '@consta/uikit/Select';
+import { Text } from '@consta/uikit/Text';
 import { TextField } from '@consta/uikit/TextField';
 import { Flex, Input } from 'antd';
 import cn from 'classnames';
+import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import { FC, useEffect, useMemo } from 'react';
@@ -358,6 +360,24 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                 }
             />
 
+            <div className={cx.info}>
+                <Flex gap="small">
+                    <Text view="secondary" size="s">
+                        Создана {formData?.created_by}
+                    </Text>
+                    <Text view="secondary" size="s">
+                        {dayjs(formData?.created_at).format('DD.MM.YYYY HH:mm')}
+                    </Text>
+                </Flex>
+                <Flex gap="small">
+                    <Text view="secondary" size="s">
+                        Изменена {formData?.edited_by}
+                    </Text>
+                    <Text view="secondary" size="s">
+                        {dayjs(formData?.edited_at).format('DD.MM.YYYY HH:mm')}
+                    </Text>
+                </Flex>
+            </div>
             <FormButtons className={cx.buttons} onDelete={onReserveDelete} deleteText={'Удалить бронь'} isEdit={isEdit} isLoading={loading} onAccept={() => onAcceptForm(formData)} onClose={onClose} />
         </Flex>
     );
