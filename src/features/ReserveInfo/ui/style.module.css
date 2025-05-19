@@ -22,10 +22,14 @@
     margin-bottom: 0.75rem;
 }
 
-.datePicker {
+.datepicker {
     z-index: 999 !important;
 }
 
 .buttons {
     margin-top: auto;
 }
+
+/* .dropdown {
+    z-index: 999 !important;
+} */

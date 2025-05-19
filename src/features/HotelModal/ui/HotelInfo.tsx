@@ -1,31 +1,26 @@
-import React, { FC, useCallback, useMemo } from 'react';
-import cx from './style.module.css';
-import { TextField } from '@consta/uikit/TextField';
-import { Select } from '@consta/uikit/Select';
-import { Controller, useForm } from 'react-hook-form';
-import { Hotel, HotelDTO, CreateHotelDTO } from '@/shared/api/hotel/hotel';
-import { Grid, GridItem } from '@consta/uikit/Grid';
-import { FORM_SIZE } from '@/shared/lib/const';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
-import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
-import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
-import { FaTelegram } from 'react-icons/fa';
-import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
-import { adaptToOption } from '@/shared/lib/adaptHotel';
-import { DragNDropField } from '@consta/uikit/DragNDropField';
-import { Button } from '@consta/uikit/Button';
-import { Text } from '@consta/uikit/Text';
-import { nanoid } from 'nanoid';
 import { TravelUser } from '@/shared/api/auth/auth';
-import { translateUserRole } from '@/shared/lib/translateUser';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { hotelFormSchema, HotelFormSchema } from '../lib/validation';
-import { Flex } from 'antd';
-import cn from 'classnames';
-import { HotelImageUpload } from './HotelImageUpload/HotelImageUpload';
-import { toast } from 'react-toastify';
+import { CreateHotelDTO, Hotel, HotelDTO } from '@/shared/api/hotel/hotel';
 import { uploadHotelImage } from '@/shared/api/hotel/hotelImage';
+import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
+import { adaptToOption } from '@/shared/lib/adaptHotel';
+import { FORM_SIZE } from '@/shared/lib/const';
+import { translateUserRole } from '@/shared/lib/translateUser';
+import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
+import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
+import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
+import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
+import { GridItem } from '@consta/uikit/Grid';
+import { Select } from '@consta/uikit/Select';
+import { TextField } from '@consta/uikit/TextField';
+import { Flex } from 'antd';
+import { FC, useCallback, useMemo } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import { FaTelegram } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import { HotelFormSchema } from '../lib/validation';
+import { HotelImageUpload } from './HotelImageUpload/HotelImageUpload';
+import cx from './style.module.css';
 
 export interface HotelInfoProps {
     users: TravelUser[];
@@ -140,51 +135,25 @@ export const HotelInfo: FC<HotelInfoProps> = ({ users, onAccept, onDelete, onClo
                 )}
             />
 
-            <Grid cols={6} gap={FORM_SIZE}>
-                <GridItem col={4}>
-                    <Controller
-                        name="type"
-                        control={control}
-                        render={({ field }) => (
-                            <Select
-                                {...field}
-                                items={HOTEL_TYPES}
-                                placeholder={'Выберите из списка'}
-                                label={'Тип'}
-                                required
-                                size={FORM_SIZE}
-                                dropdownClassName={cx.dropdown}
-                                disabled={isLoading}
-                                className={cx.fields}
-                                status={errors.type ? 'alert' : undefined}
-                                caption={errors.type?.message}
-                            />
-                        )}
+            <Controller
+                name="type"
+                control={control}
+                render={({ field }) => (
+                    <Select
+                        {...field}
+                        items={HOTEL_TYPES}
+                        placeholder={'Выберите из списка'}
+                        label={'Тип'}
+                        required
+                        size={FORM_SIZE}
+                        dropdownClassName={cx.dropdown}
+                        disabled={isLoading}
+                        className={cx.fields}
+                        status={errors.type ? 'alert' : undefined}
+                        caption={errors.type?.message}
                     />
-                </GridItem>
-                <GridItem col={2}>
-                    <Controller
-                        name="rating"
-                        control={control}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder="Введите число"
-                                label="Кол-во звёзд"
-                                type="number"
-                                required
-                                min={1}
-                                max={5}
-                                size={FORM_SIZE}
-                                disabled={isLoading}
-                                className={cx.fields}
-                                status={errors.rating ? 'alert' : undefined}
-                                caption={errors.rating?.message}
-                            />
-                        )}
-                    />
-                </GridItem>
-            </Grid>
+                )}
+            />
             <Controller
                 name="address"
                 control={control}
@@ -221,26 +190,16 @@ export const HotelInfo: FC<HotelInfoProps> = ({ users, onAccept, onDelete, onClo
                     />
                 )}
             />
-            <Controller
-                name="phone"
+            <PhoneInput
                 control={control}
-                rules={{
-                    required: 'Номер телефона обязателен для заполнения',
-                }}
-                render={({ field }) => (
-                    <TextField
-                        {...field}
-                        placeholder="+7 (...)"
-                        label="Номер владельца"
-                        required
-                        type={'phone'}
-                        size={FORM_SIZE}
-                        disabled={isLoading}
-                        className={cx.fields}
-                        status={errors.phone ? 'alert' : undefined}
-                        caption={errors.phone?.message}
-                    />
-                )}
+                name="phone"
+                placeholder="+7 (...)"
+                required
+                label="Номер телефона"
+                size={FORM_SIZE}
+                disabled={isLoading}
+                className={cx.fields}
+                error={errors.phone?.message}
             />
             <GridItem col={4}>
                 <Controller
