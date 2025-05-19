@@ -33,7 +33,6 @@ export default function MainLayout({ children }: LayoutProps) {
         onSetIsMobile(isMobile);
     }, [isMobile]);
 
-    console.log(process.env.ANNON);
     return (
         <Layout>
             <LayoutExampleBig />

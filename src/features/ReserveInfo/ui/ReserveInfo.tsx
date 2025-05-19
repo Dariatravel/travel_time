@@ -4,10 +4,9 @@ import { type CurrentReserveType, Nullable, Reserve, ReserveDTO, ReserveForm } f
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { FORM_SIZE } from '@/shared/lib/const';
-import { createWhatsappLink } from '@/shared/lib/links';
 import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
 import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
-import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
+import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { IconCalendar } from '@consta/icons/IconCalendar';
 import { TextFieldPropStatus } from '@consta/uikit/__internal__/src/components/TextField/types';
@@ -19,7 +18,6 @@ import { Flex, Input } from 'antd';
 import moment from 'moment';
 import { FC, useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { IoLogoWhatsapp } from 'react-icons/io';
 import cx from './style.module.css';
 
 export interface ReserveInfoProps {
@@ -282,16 +280,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                 rules={{ required: true }}
                 control={control}
                 render={({ field }) => (
-                    <TextField
-                        {...field}
-                        placeholder="+7 (...)"
-                        required
-                        label="Номер гостя"
-                        type={'phone'}
-                        size={FORM_SIZE}
-                        className={cx.fields}
-                        rightSide={() => (formData?.phone ? <LinkIcon icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />} link={createWhatsappLink(formData?.phone, 'Добрый день')} /> : null)}
-                    />
+                    <PhoneInput control={control} name="phone" placeholder="+7 (...)" required label="Номер гостя" size={FORM_SIZE} className={cx.fields} error={errors.phone?.message} showWhatsapp />
                 )}
             />
 
