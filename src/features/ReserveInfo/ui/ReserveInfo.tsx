@@ -4,6 +4,8 @@ import { type CurrentReserveType, Nullable, Reserve, ReserveDTO, ReserveForm } f
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { FORM_SIZE } from '@/shared/lib/const';
+import { getDate } from '@/shared/lib/getDate';
+import { $user } from '@/shared/models/auth';
 import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
 import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
@@ -15,11 +17,12 @@ import { FieldGroup } from '@consta/uikit/FieldGroup';
 import { Select } from '@consta/uikit/Select';
 import { TextField } from '@consta/uikit/TextField';
 import { Flex, Input } from 'antd';
+import cn from 'classnames';
+import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import { FC, useEffect, useMemo } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import cx from './style.module.css';
-
 export interface ReserveInfoProps {
     onClose: () => void;
     onAccept: (reserve: Reserve | ReserveDTO) => void;
@@ -31,6 +34,8 @@ export interface ReserveInfoProps {
 
 export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete, currentReserve, isLoading, isEdit }: ReserveInfoProps) => {
     const { data: hotels, isLoading: isHotelsLoading, status: hotelsStatus } = useGetHotelsForRoom();
+
+    const user = useUnit($user);
 
     const getDefaultValues = ({ reserve, room, hotel }: CurrentReserveType): Partial<ReserveForm> => {
         const getReserveDefaults = ({ start, end, price, prepayment, guest, phone, comment, quantity }: Partial<ReserveDTO>) => {
@@ -61,6 +66,10 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                   })
                 : undefined,
             price: room?.price,
+            created_by: currentReserve?.reserve?.created_by,
+            edited_by: currentReserve?.reserve?.edited_by,
+            created_at: currentReserve?.reserve?.created_at,
+            edited_at: currentReserve?.reserve?.edited_at,
         };
 
         if (!!reserve) {
@@ -118,11 +127,16 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
 
     const deserializeData = ({ hotel_id, date, price, quantity, prepayment = 0, ...data }: ReserveForm) => {
         const start = moment(date[0]).hour(12).unix();
+        const userName = `${user?.role} ${user?.name} ${user?.surname}`;
         const end = moment(date[1]).hour(11).unix();
         const room_id = data.room_id?.id;
         const priceNumber = +price;
         const quantityNumber = +quantity;
         const prepaymentNumber = +prepayment;
+        const created_by = data?.created_by ?? userName;
+        const edited_by = userName;
+        const created_at = data?.created_at ?? getDate();
+        const edited_at = data?.edited_at ?? getDate();
 
         return {
             ...data,
@@ -132,6 +146,10 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
             price: priceNumber,
             quantity: quantityNumber,
             prepayment: prepaymentNumber,
+            created_by,
+            edited_by,
+            created_at,
+            edited_at,
         };
     };
 
@@ -177,7 +195,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                 rules={{ required: true }}
                 render={({ field }) => (
                     <DatePicker
-                        style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
+                        // style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
                         required
                         value={field.value}
                         onChange={(e) => field.onChange(e)}
@@ -187,7 +205,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({ onAccept, onClose, onDelete,
                         dateTimeView={'classic'}
                         withClearButton
                         size={FORM_SIZE}
-                        className={cx.fields}
+                        className={cn(cx.fields)}
+                        dropdownClassName={cx.dropdown}
                     />
                 )}
             />

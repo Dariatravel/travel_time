@@ -22,6 +22,8 @@
         "@tanstack/react-query": "^5.66.7",
         "antd": "^5.24.2",
         "classnames": "^2.5.1",
+        "dayjs": "^1.11.13",
+        "dayjs-ext": "^2.2.0",
         "effector": "^23.3.0",
         "effector-logger": "^0.15.0",
         "effector-react": "^23.3.0",
