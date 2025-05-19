@@ -10,7 +10,7 @@ import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
 import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
-import { Grid, GridItem } from '@consta/uikit/Grid';
+import { GridItem } from '@consta/uikit/Grid';
 import { Select } from '@consta/uikit/Select';
 import { TextField } from '@consta/uikit/TextField';
 import { Flex } from 'antd';
@@ -135,51 +135,25 @@ export const HotelInfo: FC<HotelInfoProps> = ({ users, onAccept, onDelete, onClo
                 )}
             />
 
-            <Grid cols={6} gap={FORM_SIZE}>
-                <GridItem col={4}>
-                    <Controller
-                        name="type"
-                        control={control}
-                        render={({ field }) => (
-                            <Select
-                                {...field}
-                                items={HOTEL_TYPES}
-                                placeholder={'Выберите из списка'}
-                                label={'Тип'}
-                                required
-                                size={FORM_SIZE}
-                                dropdownClassName={cx.dropdown}
-                                disabled={isLoading}
-                                className={cx.fields}
-                                status={errors.type ? 'alert' : undefined}
-                                caption={errors.type?.message}
-                            />
-                        )}
+            <Controller
+                name="type"
+                control={control}
+                render={({ field }) => (
+                    <Select
+                        {...field}
+                        items={HOTEL_TYPES}
+                        placeholder={'Выберите из списка'}
+                        label={'Тип'}
+                        required
+                        size={FORM_SIZE}
+                        dropdownClassName={cx.dropdown}
+                        disabled={isLoading}
+                        className={cx.fields}
+                        status={errors.type ? 'alert' : undefined}
+                        caption={errors.type?.message}
                     />
-                </GridItem>
-                <GridItem col={2}>
-                    <Controller
-                        name="rating"
-                        control={control}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder="Введите число"
-                                label="Кол-во звёзд"
-                                type="number"
-                                required
-                                min={1}
-                                max={5}
-                                size={FORM_SIZE}
-                                disabled={isLoading}
-                                className={cx.fields}
-                                status={errors.rating ? 'alert' : undefined}
-                                caption={errors.rating?.message}
-                            />
-                        )}
-                    />
-                </GridItem>
-            </Grid>
+                )}
+            />
             <Controller
                 name="address"
                 control={control}

@@ -1,22 +1,20 @@
 'use client';
-import React from 'react';
-import styles from './style.module.css';
-import cn from 'classnames';
 import { HotelDTO, HotelWithRoomsCount } from '@/shared/api/hotel/hotel';
-import { Card } from '@consta/uikit/Card';
-import hotelImage from './hotel.svg';
-import { HotelRating } from '@/shared/ui/Hotel/HotelRating';
-import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
-import { Button, Flex } from 'antd';
-import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
-import { Button as ConstaButton } from '@consta/uikit/Button';
-import { IconForward } from '@consta/icons/IconForward';
-import { IconEdit } from '@consta/icons/IconEdit';
-import Link from 'next/link';
-import { Text } from '@consta/uikit/Text';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
+import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
+import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
+import { IconForward } from '@consta/icons/IconForward';
+import { Button as ConstaButton } from '@consta/uikit/Button';
+import { Card } from '@consta/uikit/Card';
+import { Text } from '@consta/uikit/Text';
+import { Flex } from 'antd';
+import cn from 'classnames';
+import Link from 'next/link';
+import React from 'react';
+import hotelImage from './hotel.svg';
+import styles from './style.module.css';
 
 export interface HotelProps {
     children?: React.ReactNode;
@@ -45,10 +43,7 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
                 <div className={styles.infoContainer}>
                     <Flex vertical justify="space-around" className={styles.verticalContainer}>
                         <div>
-                            <Flex align={'center'} justify={'space-between'}>
-                                <HotelRating rating={rating} /> <Button icon={<IconEdit />} color={'primary'} type={'text'} onClick={() => onEdit(hotel)} />
-                            </Flex>
-                            <HotelTitle>{title}</HotelTitle>
+                            <HotelTitle size={isMobile ? 'm' : 'l'}>{title}</HotelTitle>
                             <div className={styles.info}>
                                 <Text size={getTextSize(isMobile)}>{hotel?.rooms?.[0]?.count ?? 0} номеров</Text>
                                 <div className={styles.address}>
