@@ -173,27 +173,27 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
   }
 
   const hotelRooms = useMemo(() => {
-    let rooms =
+    const rooms =
       data?.map(({ reserves, id, title, ...room }) => ({
         id,
         title: `${title}`,
         ...room,
       })) ?? []
 
-    rooms = rooms.sort((a, b) => {
-      if (sort === 'asc') {
-        return a.title.localeCompare(b.title, undefined, {
-          numeric: true,
-          caseFirst: 'upper',
-        })
-      } else {
-        return b.title.localeCompare(b.title, undefined, {
-          numeric: true,
-          caseFirst: 'upper',
-          sensitivity: 'case',
-        })
-      }
-    })
+    // rooms = rooms.sort((a, b) => {
+    //   if (sort === 'asc') {
+    //     return a.title.localeCompare(b.title, undefined, {
+    //       numeric: true,
+    //       caseFirst: 'upper',
+    //     })
+    //   } else {
+    //     return b.title.localeCompare(b.title, undefined, {
+    //       numeric: true,
+    //       caseFirst: 'upper',
+    //       sensitivity: 'case',
+    //     })
+    //   }
+    // })
 
     return rooms
   }, [data, sort])
