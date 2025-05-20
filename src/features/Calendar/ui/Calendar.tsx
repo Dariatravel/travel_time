@@ -181,27 +181,27 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
   }
 
   const hotelRooms = useMemo(() => {
-    let rooms =
+    const rooms =
       data?.map(({ reserves, id, title, ...room }) => ({
         id,
         title: `${title}`,
         ...room,
       })) ?? []
 
-    rooms = rooms.sort((a, b) => {
-      if (sort === 'asc') {
-        return a.title.localeCompare(b.title, 'ru', {
-          numeric: true,
-          caseFirst: 'upper',
-        })
-      } else {
-        return b.title.localeCompare(b.title, 'ru', {
-          caseFirst: 'upper',
-          sensitivity: 'case',
-          numeric: true,
-        })
-      }
-    })
+    // rooms = rooms.sort((a, b) => {
+    //   if (sort === 'asc') {
+    //     return a.title.localeCompare(b.title, 'ru', {
+    //       numeric: true,
+    //       caseFirst: 'upper',
+    //     })
+    //   } else {
+    //     return b.title.localeCompare(b.title, 'ru', {
+    //       caseFirst: 'upper',
+    //       sensitivity: 'case',
+    //       numeric: true,
+    //     })
+    //   }
+    // })
 
     return rooms
   }, [data, sort])
