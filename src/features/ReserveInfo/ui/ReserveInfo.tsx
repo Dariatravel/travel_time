@@ -30,7 +30,7 @@ import { useUnit } from 'effector-react/compat'
 import moment from 'moment'
 import { FC, useEffect, useMemo } from 'react'
 import { Controller, useForm } from 'react-hook-form'
-import cx from './style.module.css'
+import cx from './style.module.scss'
 
 export interface ReserveInfoProps {
   onClose: () => void
@@ -180,7 +180,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     ...data
   }: ReserveForm) => {
     const start = moment(date[0]).hour(12).unix()
-    const userName = `${user?.role} ${user?.name} ${user?.surname}`
+    const userName = `${user?.name} ${user?.surname}`
     const end = moment(date[1]).hour(11).unix()
     const room_id = data.room_id?.id
     const priceNumber = +price
@@ -435,37 +435,37 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         }
       />
 
-      <div className={cx.info}>
-        {formData?.created_at && (
-          <Flex gap="small">
-            <Text view="secondary" size="s">
-              Создана {formData?.created_by}
-            </Text>
-            <Text view="secondary" size="s">
-              {dayjs(formData?.created_at).format('DD.MM.YYYY HH:mm')}
-            </Text>
-          </Flex>
-        )}
-        {formData?.edited_at && (
-          <Flex gap="small">
-            <Text view="secondary" size="s">
-              Изменена {formData?.edited_by}
-            </Text>
-            <Text view="secondary" size="s">
-              {dayjs(formData?.edited_at).format('DD.MM.YYYY HH:mm')}
-            </Text>
-          </Flex>
-        )}
-      </div>
       <FormButtons
         className={cx.buttons}
         onDelete={onReserveDelete}
-        deleteText={'Удалить бронь'}
+        deleteText={''}
         isEdit={isEdit}
         isLoading={loading}
         onAccept={() => onAcceptForm(formData)}
         onClose={onClose}
       />
+      <div className={cx.info}>
+        {formData?.created_at && !formData?.edited_at && (
+          <Flex gap="small" justify={'end'}>
+            <Text view="secondary" size="s" f>
+              Создано {formData?.created_by}
+            </Text>
+            <Text view="secondary" size="s">
+              {dayjs(formData?.created_at).format('DD.MM.YYYY')}
+            </Text>
+          </Flex>
+        )}
+        {formData?.edited_at && (
+          <Flex gap="small" justify={'end'}>
+            <Text view="secondary" size="s">
+              Последнее изменение {formData?.edited_by}
+            </Text>
+            <Text view="secondary" size="s">
+              {dayjs(formData?.edited_at).format('DD.MM.YYYY')}
+            </Text>
+          </Flex>
+        )}
+      </div>
     </Flex>
   )
 }
