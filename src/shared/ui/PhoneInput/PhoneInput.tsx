@@ -2,10 +2,8 @@ import { TextField } from '@consta/uikit/TextField'
 import { Control, Controller, FieldValues, Path } from 'react-hook-form'
 import { FaTelegram } from 'react-icons/fa'
 import { IoLogoWhatsapp } from 'react-icons/io'
-import { IMaskInput, IMaskMixin, ReactMaskOpts, useIMask } from 'react-imask'
+import { ReactMaskOpts, useIMask } from 'react-imask'
 import { LinkIcon } from '../LinkIcon/LinkIcon'
-import { Input } from 'antd'
-import { useMaskito } from '@maskito/react'
 import { memo } from 'react'
 
 interface PhoneInputProps<T extends FieldValues> {
@@ -35,10 +33,7 @@ export const PhoneInput = <T extends FieldValues>({
   showTelegram = false,
   size = 's',
 }: PhoneInputProps<T>) => {
-  const { ref, value, unmaskedValue } = useIMask<
-    HTMLInputElement,
-    ReactMaskOpts
-  >({
+  const { ref, value } = useIMask<HTMLInputElement, ReactMaskOpts>({
     mask: '+{7}(000)000-00-00',
   })
 
