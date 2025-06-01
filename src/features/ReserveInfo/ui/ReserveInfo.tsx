@@ -17,7 +17,6 @@ import { FormTitle } from '@/shared/ui/FormTitle/FormTitle'
 import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput'
 import { showToast } from '@/shared/ui/Toast/Toast'
 import { IconCalendar } from '@consta/icons/IconCalendar'
-import { TextFieldPropStatus } from '@consta/uikit/__internal__/src/components/TextField/types'
 import { DatePicker } from '@consta/uikit/DatePicker'
 import { FieldGroup } from '@consta/uikit/FieldGroup'
 import { Select } from '@consta/uikit/Select'
@@ -29,7 +28,7 @@ import dayjs from 'dayjs'
 import { useUnit } from 'effector-react/compat'
 import moment from 'moment'
 import { FC, useEffect, useMemo } from 'react'
-import { Controller, useForm } from 'react-hook-form'
+import { Controller, SubmitErrorHandler, useForm } from 'react-hook-form'
 import cx from './style.module.scss'
 
 export interface ReserveInfoProps {
@@ -124,6 +123,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     watch,
     setValue,
     formState: { errors },
+    handleSubmit,
   } = useForm<ReserveForm>({
     mode: 'onSubmit',
     defaultValues: currentReserve?.hotel
@@ -137,7 +137,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     data: rooms,
     isLoading: isRoomsLoading,
     refetch: fetchRoomsByHotel,
-    status: roomsStatus,
   } = useGetRoomsByHotel(formData?.hotel_id?.id, false)
 
   const hotelOptions = useMemo(() => {
@@ -218,21 +217,9 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     )
   }
 
-  const getError = (
-    field: keyof ReserveDTO,
-    errors: Record<string, unknown>
-  ) => {
-    if (!errors?.[field]) {
-      return {
-        status: undefined,
-        caption: undefined,
-      }
-    }
-
-    return {
-      status: 'alert' as TextFieldPropStatus,
-      caption: errors[field],
-    }
+  const onError: SubmitErrorHandler<ReserveForm> = errors => {
+    showToast(`Заполните все обязательные поля`, 'error')
+    return
   }
 
   const onReserveDelete = () => {
@@ -250,10 +237,9 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
       <Controller
         name="date"
         control={control}
-        rules={{ required: true }}
-        render={({ field }) => (
+        rules={{ required: 'Период обязателен для заполнения' }}
+        render={({ field, fieldState: { error } }) => (
           <DatePicker
-            // style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
             required
             value={field.value}
             onChange={e => field.onChange(e)}
@@ -265,6 +251,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             size={FORM_SIZE}
             className={cn(cx.fields)}
             dropdownClassName={cx.dropdown}
+            status={error?.message ? 'alert' : undefined}
+            caption={error?.message}
           />
         )}
       />
@@ -272,8 +260,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         <Controller
           name="hotel_id"
           control={control}
-          rules={{ required: true }}
-          render={({ field }) => (
+          rules={{ required: 'Отель обязателен для заполнения' }}
+          render={({ field, fieldState: { error } }) => (
             <Select
               {...field}
               style={{ zIndex: 'var(--zIndex-fullWidthcontainer)' }}
@@ -285,14 +273,16 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
               dropdownClassName={cx.dropdown}
               className={cx.fields}
               disabled={loading || !!currentReserve?.hotel?.id}
+              status={error?.message ? 'alert' : undefined}
+              caption={error?.message}
             />
           )}
         />
         <Controller
           name="room_id"
           control={control}
-          rules={{ required: true }}
-          render={({ field }) => (
+          rules={{ required: 'Номер обязателен для заполнения' }}
+          render={({ field, fieldState: { error } }) => (
             <Select
               {...field}
               items={roomOptions}
@@ -303,6 +293,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
               dropdownClassName={cx.dropdown}
               className={cx.fields}
               isLoading={isHotelsLoading || isRoomsLoading}
+              status={error?.message ? 'alert' : undefined}
+              caption={error?.message}
             />
           )}
         />
@@ -311,8 +303,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         <Controller
           name="price"
           control={control}
-          rules={{ required: true }}
-          render={({ field }) => (
+          rules={{ required: 'Стоимость обязательна для заполнения' }}
+          render={({ field, fieldState: { error } }) => (
             <TextField
               {...field}
               placeholder="Введите стоимость"
@@ -324,14 +316,16 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
               onChange={field.onChange}
               type="number"
               incrementButtons={false}
+              status={error?.message ? 'alert' : undefined}
+              caption={error?.message}
             />
           )}
         />
         <Controller
           name="quantity"
           control={control}
-          rules={{ required: true }}
-          render={({ field }) => (
+          rules={{ required: 'Кол-во гостей обязательно для заполнения' }}
+          render={({ field, fieldState: { error } }) => (
             <TextField
               {...field}
               value={field.value?.toString() ?? ''}
@@ -342,15 +336,17 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
               required
               type={'number'}
               size={FORM_SIZE}
+              status={error?.message ? 'alert' : undefined}
+              caption={error?.message}
             />
           )}
         />
       </FieldGroup>
       <Controller
         name="guest"
-        rules={{ required: true }}
+        rules={{ required: 'Гость обязателен для заполнения' }}
         control={control}
-        render={({ field }) => (
+        render={({ field, fieldState: { error } }) => (
           <TextField
             {...field}
             placeholder="Введите ФИО"
@@ -358,6 +354,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             className={cx.fields}
             required
             size={FORM_SIZE}
+            status={error?.message ? 'alert' : undefined}
+            caption={error?.message}
           />
         )}
       />
@@ -367,6 +365,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         control={control}
         render={({ field }) => (
           <PhoneInput
+            {...field}
             control={control}
             name="phone"
             placeholder="+7 (...)"
@@ -441,7 +440,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         deleteText={''}
         isEdit={isEdit}
         isLoading={loading}
-        onAccept={() => onAcceptForm(formData)}
+        onAccept={handleSubmit(onAcceptForm, onError)}
         onClose={onClose}
       />
       <div className={cx.info}>

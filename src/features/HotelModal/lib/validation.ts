@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { HOTEL_TYPES } from './const';
 
 const imageSchema = z.object({
     id: z.string(),
@@ -8,7 +7,7 @@ const imageSchema = z.object({
 
 export const hotelFormSchema = z.object({
     id: z.string().optional(),
-    title: z.string().min(1, 'Название отеля обязательно для заполнения'),
+    title: z.string().min(1, { message: 'Название отеля обязательно для заполнения' }).nonempty({ message: 'Название отеля обязательно для заполнения' }),
     type: z.object({
         id: z.string(),
         label: z.string(),

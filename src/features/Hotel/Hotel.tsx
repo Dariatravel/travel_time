@@ -5,17 +5,17 @@ import { useScreenSize } from '@/shared/lib/useScreenSize'
 import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage'
 import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram'
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle'
+import { IconEdit } from '@consta/icons/IconEdit'
 import { IconForward } from '@consta/icons/IconForward'
 import { Button as ConstaButton } from '@consta/uikit/Button'
 import { Card } from '@consta/uikit/Card'
 import { Text } from '@consta/uikit/Text'
-import { Button, Flex } from 'antd'
+import { Button, Flex, Tag } from 'antd'
 import cn from 'classnames'
 import Link from 'next/link'
 import React from 'react'
 import hotelImage from './hotel.svg'
 import styles from './style.module.css'
-import { IconEdit } from '@consta/icons/IconEdit'
 
 export interface HotelProps {
   children?: React.ReactNode
@@ -26,17 +26,7 @@ export interface HotelProps {
 }
 
 export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
-  const {
-    telegram_url,
-    id,
-    title,
-    rating,
-    type,
-    phone,
-    address,
-    description,
-    image_id,
-  } = hotel
+  const { telegram_url, title, type, phone, address } = hotel
   const { isMobile } = useScreenSize()
 
   const redirectUrl = `${routes[PagesEnum.HOTELS]}/${hotel?.id}`
@@ -58,10 +48,11 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
             className={styles.verticalContainer}
           >
             <div>
-              <Flex align={'center'} justify={'end'}>
+              <Flex align={'flex-start'} justify={'space-between'}>
                 {/* TODO: Рейтинг отключён, оставлен для истории, если 01.07.2025
                 не потребуется, то удалить*/}
                 {/*<HotelRating rating={rating} />{' '}*/}
+                <HotelTitle size={isMobile ? 'm' : 'l'}>{title}</HotelTitle>
                 <Button
                   icon={<IconEdit />}
                   color={'primary'}
@@ -69,14 +60,17 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
                   onClick={() => onEdit(hotel)}
                 />
               </Flex>
-              <HotelTitle size={isMobile ? 'm' : 'l'}>{title}</HotelTitle>
+
               <div className={styles.info}>
                 <Text size={getTextSize(isMobile)}>
                   {hotel?.rooms?.[0]?.count ?? 0} номеров
                 </Text>
-                <div className={styles.address}>
-                  <Text size={getTextSize(isMobile)}>Адрес: {address}</Text>
-                </div>
+                <Flex className={styles.address} gap={'small'}>
+                  <Text size={getTextSize(isMobile)}>Адрес: </Text>
+                  <Tag className={styles.addressTag}>
+                    <Text size={getTextSize(isMobile)}>{address}</Text>
+                  </Tag>
+                </Flex>
                 <Text size={getTextSize(isMobile)}>Номер: {phone}</Text>
               </div>
             </div>
