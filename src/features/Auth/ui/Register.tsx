@@ -73,10 +73,10 @@ export const Register = ({ className }: LoginProps) => {
             render={({ field }) => (
               <Select
                 items={[
-                  {
-                    label: translateUserRole(UserRole.ADMIN),
-                    id: UserRole.ADMIN,
-                  },
+                  // {
+                  //   label: translateUserRole(UserRole.ADMIN),
+                  //   id: UserRole.ADMIN,
+                  // },
                   {
                     label: translateUserRole(UserRole.OPERATOR),
                     id: UserRole.OPERATOR,

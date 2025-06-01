@@ -1,11 +1,11 @@
-import supabase from '@/shared/config/supabase'
-import { useMutation, useQuery } from '@tanstack/react-query'
-import { QUERY_KEYS } from '@/shared/config/reactQuery'
-import { Room, RoomDTO } from '@/shared/api/room/room'
-import { ReserveDTO, TravelOption } from '@/shared/api/reserve/reserve'
 import { TABLE_NAMES } from '@/shared/api/const'
+import { ReserveDTO, TravelOption } from '@/shared/api/reserve/reserve'
+import { Room, RoomDTO } from '@/shared/api/room/room'
+import { QUERY_KEYS } from '@/shared/config/reactQuery'
+import supabase from '@/shared/config/supabase'
 import { TravelFilterType } from '@/shared/models/hotels'
 import { showToast } from '@/shared/ui/Toast/Toast'
+import { useMutation, useQuery } from '@tanstack/react-query'
 
 // Тип Room
 export interface HotelImage {
@@ -31,10 +31,12 @@ export interface HotelDTO extends Hotel {
 }
 
 export type HotelRoomsDTO = HotelDTO & { rooms: RoomDTO }
+
 //для создания отеля
 export interface CreateHotelDTO extends Omit<Hotel, 'id'> {
   image_id?: string
 }
+
 //для формы
 export type RoomForm = Omit<Room, 'hotel_id' | 'price'> & {
   hotel_id: TravelOption
@@ -59,13 +61,18 @@ export type HotelForRoom = Pick<HotelDTO, 'id' | 'title'>
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] }
 
 export async function getAllHotels(
-  filter?: TravelFilterType
+  filter?: TravelFilterType,
+  page: number = 0,
+  offset: number = 3
 ): Promise<HotelWithRoomsCount[]> {
   try {
+    const from = page * offset
+    const to = from + 1 + offset
+
     const query = supabase
       .from('hotels')
-      .select('*, rooms(count)')
-      .order('title', { ascending: true })
+      .select('*, rooms(count)', { count: 'exact' })
+      .order('created_at', { ascending: false })
 
     if (filter?.type) {
       query.eq('type', filter.type)

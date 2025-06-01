@@ -1,48 +1,54 @@
 .container {
-    max-width: 540px;
-    min-width: 540px;
-    padding: 1.25rem;
+  max-width: 540px;
+  min-width: 540px;
+  padding: 1.25rem;
 
-    @media (max-width: 1365px) {
-        max-width: 100%;
-        min-width: 100%;
-        padding: 0 0.5rem 0 0;
-    }
+  @media (max-width: 1365px) {
+    max-width: 100%;
+    min-width: 100%;
+    padding: 0 0.5rem 0 0;
+  }
 }
 
 .verticalContainer {
-    min-height: 100%;
+  min-height: 100%;
 }
 
 .infoContainer {
-    width: 100%;
+  width: 100%;
 }
 
 .telegram {
-    width: 24px;
-    height: 24px;
+  width: 24px;
+  height: 24px;
 }
 
 .info {
-    max-width: 100%;
-    margin-top: 0.75rem;
+  max-width: 100%;
+  margin-top: 0.75rem;
 
-    @media (max-width: 1365px) {
-        margin-top: 0;
-    }
+  @media (max-width: 1365px) {
+    margin-top: 0;
+  }
 }
 
 .actions {
-    margin-top: auto;
+  margin-top: auto;
 }
 
 .address {
-    max-width: 200px;
-    max-height: 150px;
-    overflow-y: auto;
-    overflow-x: hidden;
+  /*max-width: 200px;*/
+  /*max-height: 150px;*/
+  overflow-y: auto;
+  overflow-x: hidden;
 
-    @media (max-width: 1365px) {
-        max-width: 100%;
-    }
+  @media (max-width: 1365px) {
+    max-width: 100%;
+  }
+}
+
+.addressTag {
+  overflow-x: auto;
+  word-break: break-all;
+  max-width: 250px;
 }

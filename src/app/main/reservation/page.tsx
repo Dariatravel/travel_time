@@ -1,19 +1,19 @@
 'use client';
-import React, { useEffect, useMemo, useState } from 'react';
-import { useGetAllHotels } from '@/shared/api/hotel/hotel';
 import { Calendar } from '@/features/Calendar/ui/Calendar';
-import { Loader } from '@/shared/ui/Loader/Loader';
-import cx from './page.module.css';
-import { useUnit } from 'effector-react/compat';
-import { $hotelsFilter } from '@/shared/models/hotels';
-import 'my-react-calendar-timeline/style.css';
-import './calendar.scss';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
-import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
-import { useRouter } from 'next/navigation';
-import { ResponsesNothingFound } from '@consta/uikit/ResponsesNothingFound';
+import { useGetAllHotels } from '@/shared/api/hotel/hotel';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { routes } from '@/shared/config/routes';
+import { $hotelsFilter } from '@/shared/models/hotels';
+import { Loader } from '@/shared/ui/Loader/Loader';
+import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
+import { ResponsesNothingFound } from '@consta/uikit/ResponsesNothingFound';
+import { useUnit } from 'effector-react/compat';
+import 'my-react-calendar-timeline/style.css';
+import { useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import './calendar.scss';
+import cx from './page.module.css';
 
 export default function Home() {
     const router = useRouter();
@@ -35,6 +35,30 @@ export default function Home() {
             queryKey: [...QUERY_KEYS.roomsWithReservesByHotel],
         });
     }, [filter]);
+
+    // const { status, data, error, isFetching, isFetchingNextPage, fetchNextPage, hasNextPage } = useInfiniteQuery({
+    //     queryKey: ['projects'],
+    //     queryFn: (ctx) => getAllHotels(filter, 10, ctx.pageParam),
+    //     getNextPageParam: (lastGroup) => lastGroup.nextOffset,
+    //     initialPageParam: 0,
+    // });
+    // const rowVirtualizer = useVirtualizer({
+    //     count: hasNextPage ? allRows.length + 1 : allRows.length,
+    //     getScrollElement: () => parentRef.current,
+    //     estimateSize: () => 100,
+    //     overscan: 5,
+    // });
+    // React.useEffect(() => {
+    //     const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
+
+    //     if (!lastItem) {
+    //         return;
+    //     }
+
+    //     if (lastItem.index >= allRows.length - 1 && hasNextPage && !isFetchingNextPage) {
+    //         fetchNextPage();
+    //     }
+    // }, [hasNextPage, fetchNextPage, allRows.length, isFetchingNextPage, rowVirtualizer.getVirtualItems()]);
 
     if (isFetching || isFreeHotelsLoading) {
         return (
