@@ -159,7 +159,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
         const rooms =
             data?.map(({ reserves, id, title, ...room }) => ({
                 id,
-                title: `${title}`,
+                title: `${title} вм: ${room.quantity}`,
                 ...room,
             })) ?? [];
 
@@ -312,6 +312,12 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
         }
     };
 
+    const isEmpty = !hotelRooms?.length;
+
+    if (isEmpty) {
+        return null;
+    }
+
     return (
         <>
             <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
@@ -390,34 +396,42 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                                         );
                                     }}
                                 </SidebarHeader>
-                                <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
-                                    {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
-                                        const isYear = unit === 'year';
-                                        return (
-                                            <div {...getRootProps()}>
-                                                {intervals.map((interval) => {
-                                                    const dateText = isYear ? moment(interval.startTime.toDate()).format('YYYY') : moment(interval.startTime.toDate()).format('MMM');
+                                <div className={cx.stickyHeader}>
+                                    <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
+                                        {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
+                                            const isYear = unit === 'year';
+                                            return (
+                                                <div {...getRootProps()}>
+                                                    {intervals.map((interval, index) => {
+                                                        const dateText = isYear ? moment(interval.startTime.toDate()).format('YYYY') : moment(interval.startTime.toDate()).format('MMM');
 
-                                                    return (
-                                                        <Interval
-                                                            interval={interval}
-                                                            unit={unit}
-                                                            getIntervalProps={getIntervalProps}
-                                                            getRootProps={getRootProps}
-                                                            dateText={dateText}
-                                                            showPeriod={showPeriod}
-                                                            intervalStyles={{
-                                                                backgroundColor: 'var(--color-bg-success)',
-                                                                color: 'var(--color-control-typo-primary)',
-                                                            }}
-                                                            key={nanoid()}
-                                                        />
-                                                    );
-                                                })}
-                                            </div>
-                                        );
-                                    }}
-                                </CustomHeader>
+                                                        // Определяем, является ли интервал первым в видимой области
+                                                        const isFirstVisible = interval === intervals[0];
+                                                        return (
+                                                            <Interval
+                                                                interval={interval}
+                                                                unit={unit}
+                                                                getIntervalProps={getIntervalProps}
+                                                                getRootProps={getRootProps}
+                                                                dateText={dateText}
+                                                                showPeriod={showPeriod}
+                                                                intervalStyles={{
+                                                                    backgroundColor: 'var(--color-bg-success)',
+                                                                    color: 'var(--color-control-typo-primary)',
+                                                                    position: 'sticky',
+                                                                    left: isFirstVisible ? 0 : 'auto',
+                                                                    zIndex: 100,
+                                                                }}
+                                                                key={nanoid()}
+                                                                className={index === 0 ? cx.intervalSticky : ''}
+                                                            />
+                                                        );
+                                                    })}
+                                                </div>
+                                            );
+                                        }}
+                                    </CustomHeader>
+                                </div>
                                 <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
                                     {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                                         return (

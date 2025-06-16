@@ -24,7 +24,7 @@ export default function Home() {
     const { isFetching, error, data: hotels, refetch } = useGetAllHotels(!filter, filter);
 
     // @ts-expect-error - Фильтрация отелей с количеством комнат
-    const hotelsWithRooms = useMemo(() => hotels?.filter((hotel) => hotel?.rooms?.[0]?.count > 0), [hotels]);
+    const hotelsWithRooms = useMemo(() => hotels?.filter((hotel) => hotel?.rooms?.length > 0), [hotels]);
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
     };
