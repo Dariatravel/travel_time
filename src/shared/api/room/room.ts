@@ -44,6 +44,7 @@ export async function getRoomsWithReservesByHotel(hotel_id?: string, filter?: Tr
         query.select(`
       id,
       title,
+      quantity,
       reserves(*)`);
     }
 
