@@ -1,5 +1,5 @@
 'use client';
-import { HotelDTO, HotelWithRoomsCount } from '@/shared/api/hotel/hotel';
+import { HotelDTO, HotelRoomsDTO, HotelWithRoomsCount } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
@@ -20,7 +20,7 @@ import styles from './style.module.css';
 export interface HotelProps {
     children?: React.ReactNode;
     className?: string;
-    hotel: HotelWithRoomsCount;
+    hotel: HotelRoomsDTO;
     onDelete: (id: string) => void;
     onEdit: (hotel: HotelDTO) => void;
 }

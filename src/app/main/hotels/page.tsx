@@ -58,8 +58,6 @@ export default function Hotels() {
     const totalCount = {
         hotels: hotels?.length,
         rooms: hotels?.reduce((prev, curr) => {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error
             return (prev += curr?.rooms?.length ?? 0);
         }, 0),
     };
@@ -80,7 +78,7 @@ export default function Hotels() {
             <Flex wrap gap={'small'}>
                 {hotels?.map((hotel) => (
                     <Hotel
-                        hotel={hotel as HotelWithRoomsCount}
+                        hotel={hotel}
                         key={hotel.id}
                         onDelete={deleteHotel}
                         onEdit={(hotel: HotelDTO) => {
