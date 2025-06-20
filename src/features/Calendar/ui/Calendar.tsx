@@ -181,7 +181,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     const rooms =
       data?.map(({ reserves, id, title, ...room }) => ({
         id,
-        title: `${title} вм: ${room.quantity}`,
+        title: `${title}`,
         ...room,
       })) ?? []
 

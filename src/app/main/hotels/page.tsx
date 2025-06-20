@@ -1,7 +1,7 @@
 'use client';
 import { Hotel } from '@/features/Hotel/Hotel';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
-import { HotelDTO, HotelWithRoomsCount, useDeleteHotel, useGetAllHotels, useUpdateHotel } from '@/shared/api/hotel/hotel';
+import { HotelDTO, useDeleteHotel, useGetAllHotels, useUpdateHotel } from '@/shared/api/hotel/hotel';
 import { Nullable } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { TravelButton } from '@/shared/ui/Button/Button';
