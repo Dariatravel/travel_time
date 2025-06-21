@@ -5,7 +5,7 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { RoomReserves } from './../room/room';
 
 // Тип Room
@@ -62,33 +62,65 @@ export type HotelForRoom = Pick<HotelDTO, 'id' | 'title'>;
 
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
 
-export async function getAllHotels(filter?: TravelFilterType, page: number = 0, offset: number = 3): Promise<HotelRoomsDTO[]> {
+/**
+ * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации
+ * @param filter - фильтр для поиска
+ * @param page - номер страницы (начиная с 0)
+ * @param limit - количество элементов на странице
+ * @returns объект с массивом отелей и общим количеством
+ */
+export async function getAllHotels(filter?: TravelFilterType, page: number = 0, limit: number = 10): Promise<{ data: HotelRoomsDTO[]; count: number }> {
     try {
-        const from = page * offset;
-        const to = from + 1 + offset;
+        const from = page * limit;
+        const to = from + limit - 1;
 
-        const query = supabase.from('hotels').select('*, rooms(*)').order('created_at', { ascending: false });
+        let query = supabase.from('hotels_with_rooms').select('*, rooms(*)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to);
 
         if (filter?.type) {
-            query.eq('type', filter.type);
+            query = query.eq('type', filter.type);
         }
 
-        if (filter?.hotels_id) {
-            query.in('id', filter.hotels_id);
-        }
+        // if (filter?.hotels_id) {
+        //     query = query.in('id', filter.hotels_id);
+        // }
 
+        // фильтрация по количеству необходима для того, чтобы исключить ситуацию, когда мы получаем отель, в котором нет номеров, тогда на UI мы ничего не увидим
         if (filter?.quantity) {
-            query.gte('rooms.quantity', filter.quantity);
+            query = query.gte('rooms.quantity', filter.quantity);
         }
 
         const response = await query;
 
-        return response.data as HotelRoomsDTO[]; // Возвращаем массив отелей
+        console.log({ response });
+        return {
+            data: response.data as HotelRoomsDTO[],
+            count: response.count || 0,
+        };
     } catch (error) {
         console.error('Ошибка при получении отелей:', error);
         throw error;
     }
 }
+
+/**
+ * Хук для бесконечной подгрузки отелей с поддержкой фильтрации
+ * @param filter - фильтр для поиска
+ * @param limit - количество элементов на странице (по умолчанию 5)
+ */
+export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number = 5) => {
+    return useInfiniteQuery({
+        queryKey: [QUERY_KEYS.hotels, filter],
+        queryFn: async ({ pageParam = 0 }) => {
+            const result = await getAllHotels(filter, pageParam as number, limit);
+            return result; // Возвращаем полный объект с data и count
+        },
+        initialPageParam: 0,
+        getNextPageParam: (lastPage: { data: HotelRoomsDTO[]; count: number }, allPages: { data: HotelRoomsDTO[]; count: number }[]) => {
+            const totalLoaded = allPages.reduce((sum, page) => sum + page.data.length, 0);
+            return totalLoaded < lastPage.count ? allPages.length : undefined;
+        },
+    });
+};
 
 export async function getAllHotelsForRoom(): Promise<HotelForRoom[]> {
     const response = await supabase.from('hotels').select('id, title');
@@ -145,8 +177,11 @@ export const useHotelById = (id: string) => {
 
 export const useGetAllHotels = (enabled?: boolean, filter?: TravelFilterType, select?: (hotels: HotelRoomsDTO[]) => HotelRoomsDTO[]) => {
     return useQuery({
-        queryKey: QUERY_KEYS.hotels,
-        queryFn: () => getAllHotels(filter),
+        queryKey: [QUERY_KEYS.hotels, filter],
+        queryFn: async () => {
+            const result = await getAllHotels(filter);
+            return result.data;
+        },
         enabled: enabled,
         select: select,
     });
@@ -256,3 +291,6 @@ export const useCreateImage = (onSuccess?: () => void, onError?: (e: Error) => v
         onError,
     });
 };
+
+
+
