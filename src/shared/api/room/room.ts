@@ -3,7 +3,6 @@ import { insertItem } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
-import { devLog } from '@/shared/lib/logger';
 import { TravelFilterType } from '@/shared/models/hotels';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useMutation, useQuery } from '@tanstack/react-query';
@@ -54,13 +53,13 @@ export async function getRoomsWithReservesByHotel(hotel_id?: string, filter?: Tr
         query.gte('quantity', filter?.quantity);
     }
 
-    if (filter?.rooms_id && hotel_id) {
-        const rooms_id = filter?.rooms_id.get(hotel_id);
-        devLog('rooms_id', rooms_id);
-        if (rooms_id) {
-            query.in('id', rooms_id);
-        }
-    }
+    // if (filter?.rooms_id && hotel_id) {
+    //     const rooms_id = filter?.rooms_id.get(hotel_id);
+    //     devLog('rooms_id', rooms_id);
+    //     if (rooms_id) {
+    //         query.in('id', rooms_id);
+    //     }
+    // }
 
     const response = await query;
     return response.data as unknown as RoomReserves[]; // Возвращаем массив отелей

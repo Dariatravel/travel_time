@@ -74,26 +74,48 @@ export async function getAllHotels(filter?: TravelFilterType, page: number = 0, 
         const from = page * limit;
         const to = from + limit - 1;
 
-        let query = supabase.from('hotels_with_rooms').select('*, rooms(*)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to);
+        let query = supabase.from('hotels_with_rooms_new').select('*, rooms(*)', { count: 'exact' });
 
         if (filter?.type) {
             query = query.eq('type', filter.type);
         }
-
-        // if (filter?.hotels_id) {
-        //     query = query.in('id', filter.hotels_id);
-        // }
 
         // фильтрация по количеству необходима для того, чтобы исключить ситуацию, когда мы получаем отель, в котором нет номеров, тогда на UI мы ничего не увидим
         if (filter?.quantity) {
             query = query.gte('rooms.quantity', filter.quantity);
         }
 
+        query.order('created_at', { ascending: false }).range(from, to);
         const response = await query;
 
-        console.log({ response });
+        let filteredData = response.data as HotelRoomsDTO[];
+
+        // Фильтрация по новому полю hotels
+        if (filter?.hotels && filter.hotels.length > 0) {
+            // Создаем Map для быстрого поиска разрешенных номеров по hotel_id
+            const hotelsMap = new Map(filter.hotels.map((hotel) => [hotel.hotel_id, hotel.rooms]));
+
+            // Фильтруем отели и их номера
+            filteredData = filteredData
+                .filter((hotel) => hotelsMap.has(hotel.id)) // Оставляем только отели из фильтра
+                .map((hotel) => {
+                    const allowedRooms = hotelsMap.get(hotel.id);
+                    if (allowedRooms && allowedRooms.length > 0) {
+                        // Оставляем только те номера, которые есть в фильтре
+                        const filteredRooms = hotel.rooms.filter((room) => allowedRooms.includes(room.id));
+                        return {
+                            ...hotel,
+                            rooms: filteredRooms,
+                        };
+                    }
+                    return hotel;
+                })
+                .filter((hotel) => hotel.rooms.length > 0); // Убираем отели без номеров
+        }
+
+        console.log({ response, filteredData });
         return {
-            data: response.data as HotelRoomsDTO[],
+            data: filteredData,
             count: response.count || 0,
         };
     } catch (error) {
@@ -116,8 +138,13 @@ export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number 
         },
         initialPageParam: 0,
         getNextPageParam: (lastPage: { data: HotelRoomsDTO[]; count: number }, allPages: { data: HotelRoomsDTO[]; count: number }[]) => {
-            const totalLoaded = allPages.reduce((sum, page) => sum + page.data.length, 0);
-            return totalLoaded < lastPage.count ? allPages.length : undefined;
+            // Если последняя страница пустая или количество загруженных элементов равно общему количеству, то больше страниц нет
+            if (lastPage.data.length === 0 || lastPage.data.length < limit) {
+                return undefined;
+            }
+
+            // Возвращаем номер следующей страницы
+            return allPages.length;
         },
     });
 };
@@ -291,6 +318,3 @@ export const useCreateImage = (onSuccess?: () => void, onError?: (e: Error) => v
         onError,
     });
 };
-
-
-

@@ -34,7 +34,9 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
         let freeRoomData: Partial<TravelFilterType> = {
             hotels_id: undefined,
             rooms_id: undefined,
+            hotels: undefined,
         };
+
         if (!!start_time && !!end_time) {
             // effector
             // TODO: сюда должна заехать вместимость
@@ -42,6 +44,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
 
             freeRoomData = {
                 hotels_id: result?.map((hotel) => hotel.hotel_id),
+                hotels: result.map(({ hotel_id, rooms }) => ({ hotel_id, rooms: rooms.map(({ room_id }) => room_id) })),
                 rooms_id: new Map(result?.map((hotel) => [hotel.hotel_id, hotel.rooms.map((room) => room.room_id)])),
             };
         }
@@ -53,7 +56,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (props: SearchFeatureProps)
             quantity: quantity ?? undefined,
             ...freeRoomData,
         };
-
+        console.log(filter);
         changeTravelFilter(filter);
 
         router.push(routes[PagesEnum.RESERVATION]);
