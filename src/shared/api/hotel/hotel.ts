@@ -74,48 +74,17 @@ export async function getAllHotels(filter?: TravelFilterType, page: number = 0, 
         const from = page * limit;
         const to = from + limit - 1;
 
-        let query = supabase.from('hotels_with_rooms_new').select('*, rooms(*)', { count: 'exact' });
+        const query = supabase.from('hotels_with_rooms_new').select('*, rooms(*)', { count: 'exact' });
 
-        if (filter?.type) {
-            query = query.eq('type', filter.type);
-        }
-
-        // фильтрация по количеству необходима для того, чтобы исключить ситуацию, когда мы получаем отель, в котором нет номеров, тогда на UI мы ничего не увидим
-        if (filter?.quantity) {
-            query = query.gte('rooms.quantity', filter.quantity);
+        if (filter?.hotels_id) {
+            query.in('id', filter?.hotels_id);
         }
 
         query.order('created_at', { ascending: false }).range(from, to);
         const response = await query;
 
-        let filteredData = response.data as HotelRoomsDTO[];
-
-        // Фильтрация по новому полю hotels
-        if (filter?.hotels && filter.hotels.length > 0) {
-            // Создаем Map для быстрого поиска разрешенных номеров по hotel_id
-            const hotelsMap = new Map(filter.hotels.map((hotel) => [hotel.hotel_id, hotel.rooms]));
-
-            // Фильтруем отели и их номера
-            filteredData = filteredData
-                .filter((hotel) => hotelsMap.has(hotel.id)) // Оставляем только отели из фильтра
-                .map((hotel) => {
-                    const allowedRooms = hotelsMap.get(hotel.id);
-                    if (allowedRooms && allowedRooms.length > 0) {
-                        // Оставляем только те номера, которые есть в фильтре
-                        const filteredRooms = hotel.rooms.filter((room) => allowedRooms.includes(room.id));
-                        return {
-                            ...hotel,
-                            rooms: filteredRooms,
-                        };
-                    }
-                    return hotel;
-                })
-                .filter((hotel) => hotel.rooms.length > 0); // Убираем отели без номеров
-        }
-
-        console.log({ response, filteredData });
         return {
-            data: filteredData,
+            data: response?.data ?? [],
             count: response.count || 0,
         };
     } catch (error) {
@@ -227,12 +196,16 @@ export const useGetHotelsForRoom = () => {
     });
 };
 
-export async function getHotelsWithFreeRooms(start_time: number, end_time: number): Promise<FreeHotelsDTO[]> {
+export async function getHotelsWithFreeRooms(filter: { start?: number; end?: number; type?: string; quantity?: number }): Promise<FreeHotelsDTO[]> {
     try {
-        const { data, error } = await supabase.rpc('get_hotels_with_free_rooms_in_period', {
-            start_time,
-            end_time,
-        });
+        const default_filter = {
+            start_time: filter?.start ?? null,
+            end_time: filter?.end ?? null,
+            hotel_type_filter: filter?.type ?? null,
+            min_quantity_filter: filter?.quantity ?? null,
+        };
+
+        const { data, error } = await supabase.rpc('get_available_hotels', default_filter);
 
         return data ?? ([] as FreeHotelsDTO[]);
     } catch (error) {

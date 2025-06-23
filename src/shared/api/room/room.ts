@@ -49,19 +49,14 @@ export async function getRoomsWithReservesByHotel(hotel_id?: string, filter?: Tr
 
     query.filter('hotel_id', 'eq', hotel_id);
 
-    if (filter?.quantity) {
-        query.gte('quantity', filter?.quantity);
+    if (filter?.hotels && hotel_id) {
+        const allowedRooms = filter?.hotels.get(hotel_id) ?? [];
+
+        query.in('id', allowedRooms);
     }
 
-    // if (filter?.rooms_id && hotel_id) {
-    //     const rooms_id = filter?.rooms_id.get(hotel_id);
-    //     devLog('rooms_id', rooms_id);
-    //     if (rooms_id) {
-    //         query.in('id', rooms_id);
-    //     }
-    // }
-
     const response = await query;
+
     return response.data as unknown as RoomReserves[]; // Возвращаем массив отелей
 }
 

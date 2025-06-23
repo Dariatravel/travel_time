@@ -6,9 +6,9 @@ export type TravelFilterType = Nullable<{
     quantity?: number;
     start?: number;
     end?: number;
-    hotels_id?: string[];
-    rooms_id?: Map<string, string[]>;
-    hotels?: { hotel_id: string; rooms: string[] }[];
+    // информация о найденных свободных номерах отелей
+    hotels?: Map<string, string[]>;
+    hotels_id: string[];
 }>;
 
 const changeTravelFilter = createEvent<TravelFilterType>();
