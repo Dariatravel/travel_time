@@ -1,12 +1,12 @@
 'use client';
-import React from 'react';
-import styles from './style.module.scss';
-import cn from 'classnames';
+import { getTextSize } from '@/shared/lib/const';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { TravelButton } from '@/shared/ui/Button/Button';
 import { Text } from '@consta/uikit/Text';
 import { Flex } from 'antd';
-import { TravelButton } from '@/shared/ui/Button/Button';
-import { useScreenSize } from '@/shared/lib/useScreenSize';
-import { getTextSize } from '@/shared/lib/const';
+import cn from 'classnames';
+import React from 'react';
+import styles from './style.module.scss';
 
 export interface PageTitleProps {
     title: string;
@@ -38,11 +38,11 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
                 <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>
                     {title}
                 </Text>
-                <Flex gap={'middle'}>
+                {/* <Flex gap={'middle'}>
                     <Text size={isMobile ? 's' : 'xl'} view={'success'} className={styles.subTitle}>
                         {getTitle(hotels, rooms)}
                     </Text>
-                </Flex>
+                </Flex> */}
             </div>
             {buttonProps && (
                 <div className={styles.buttonContainer}>
