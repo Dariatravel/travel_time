@@ -2,7 +2,9 @@
 import { Calendar } from '@/features/Calendar/ui/Calendar';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
 import { useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { routes } from '@/shared/config/routes';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { Loader } from '@/shared/ui/Loader/Loader';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
@@ -14,45 +16,46 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useRef } from 'react';
 import './calendar.scss';
 import cx from './page.module.css';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 
 export default function Home() {
     const router = useRouter();
+    const { isMobile } = useScreenSize();
 
     const filter = useUnit($hotelsFilter);
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
 
     const parentRef = useRef<HTMLDivElement>(null);
-    const ITEM_HEIGHT = 300;
+
+    // Определяем размеры в зависимости от устройства
+    const ITEM_HEIGHT = isMobile ? 375 : 300;
     const ITEM_GAP = 32;
     const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } = useInfiniteHotelsQuery(filter, 3);
+    const PAGE_SIZE = 3;
+
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } = useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
     const hotelsWithRooms = hotels.filter((hotel) => hotel?.rooms?.length > 0);
-
-    console.log(data);
     const rowVirtualizer = useVirtualizer({
-        count: hasNextPage ? hotelsWithRooms.length + 1 : hotelsWithRooms.length,
+        count: hotelsWithRooms.length,
         getScrollElement: () => parentRef.current,
         estimateSize: () => VIRTUAL_HEIGHT,
-        overscan: 2,
+        overscan: 1,
     });
 
     useEffect(() => {
         const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
-        if (lastItem && lastItem.index >= hotelsWithRooms.length - 1 && hasNextPage && !isFetchingNextPage) {
+        if (lastItem && lastItem.index >= hotelsWithRooms.length - 1 && hasNextPage && !isFetchingNextPage && hotelsWithRooms.length > 0) {
             fetchNextPage();
         }
     }, [rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage, hotelsWithRooms.length, fetchNextPage]);
 
-
     useEffect(() => {
-        refetch()
+        refetch();
         queryClient.invalidateQueries({
-          queryKey: [...QUERY_KEYS.hotels],
-        })
-      }, [filter])
+            queryKey: [...QUERY_KEYS.hotels],
+        });
+    }, [filter]);
 
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
@@ -84,14 +87,14 @@ export default function Home() {
             <div ref={parentRef} className={cx.scrollContainer}>
                 <div
                     style={{
-                        height: `${rowVirtualizer.getTotalSize()}px`,
+                        height: `500px`,
                         width: '100%',
                         position: 'relative',
                     }}
                 >
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                         const hotel = hotelsWithRooms[virtualRow.index];
-                        if (!hotel) return hasNextPage ? <Loader key={virtualRow.index} /> : null;
+                        if (!hotel) return null;
                         return (
                             <div
                                 key={hotel.id}

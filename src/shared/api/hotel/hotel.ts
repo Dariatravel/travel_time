@@ -74,26 +74,17 @@ export async function getAllHotels(filter?: TravelFilterType, page: number = 0, 
         const from = page * limit;
         const to = from + limit - 1;
 
-        let query = supabase.from('hotels_with_rooms').select('*, rooms(*)', { count: 'exact' }).order('created_at', { ascending: false }).range(from, to);
+        const query = supabase.from('hotels_with_rooms_new').select('*, rooms(*)', { count: 'exact' });
 
-        if (filter?.type) {
-            query = query.eq('type', filter.type);
+        if (filter?.hotels_id) {
+            query.in('id', filter?.hotels_id);
         }
 
-        // if (filter?.hotels_id) {
-        //     query = query.in('id', filter.hotels_id);
-        // }
-
-        // фильтрация по количеству необходима для того, чтобы исключить ситуацию, когда мы получаем отель, в котором нет номеров, тогда на UI мы ничего не увидим
-        if (filter?.quantity) {
-            query = query.gte('rooms.quantity', filter.quantity);
-        }
-
+        query.order('created_at', { ascending: false }).range(from, to);
         const response = await query;
 
-        console.log({ response });
         return {
-            data: response.data as HotelRoomsDTO[],
+            data: response?.data ?? [],
             count: response.count || 0,
         };
     } catch (error) {
@@ -116,8 +107,13 @@ export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number 
         },
         initialPageParam: 0,
         getNextPageParam: (lastPage: { data: HotelRoomsDTO[]; count: number }, allPages: { data: HotelRoomsDTO[]; count: number }[]) => {
-            const totalLoaded = allPages.reduce((sum, page) => sum + page.data.length, 0);
-            return totalLoaded < lastPage.count ? allPages.length : undefined;
+            // Если последняя страница пустая или количество загруженных элементов равно общему количеству, то больше страниц нет
+            if (lastPage.data.length === 0 || lastPage.data.length < limit) {
+                return undefined;
+            }
+
+            // Возвращаем номер следующей страницы
+            return allPages.length;
         },
     });
 };
@@ -200,12 +196,16 @@ export const useGetHotelsForRoom = () => {
     });
 };
 
-export async function getHotelsWithFreeRooms(start_time: number, end_time: number): Promise<FreeHotelsDTO[]> {
+export async function getHotelsWithFreeRooms(filter: { start?: number; end?: number; type?: string; quantity?: number }): Promise<FreeHotelsDTO[]> {
     try {
-        const { data, error } = await supabase.rpc('get_hotels_with_free_rooms_in_period', {
-            start_time,
-            end_time,
-        });
+        const default_filter = {
+            start_time: filter?.start ?? null,
+            end_time: filter?.end ?? null,
+            hotel_type_filter: filter?.type ?? null,
+            min_quantity_filter: filter?.quantity ?? null,
+        };
+
+        const { data, error } = await supabase.rpc('get_available_hotels', default_filter);
 
         return data ?? ([] as FreeHotelsDTO[]);
     } catch (error) {
@@ -291,6 +291,3 @@ export const useCreateImage = (onSuccess?: () => void, onError?: (e: Error) => v
         onError,
     });
 };
-
-
-
