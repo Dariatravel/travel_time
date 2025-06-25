@@ -1,3 +1,16 @@
 .container {
-    padding-bottom: 1rem;
+    /* padding-bottom: 1rem; */
+}
+
+.scrollContainer {
+    position: relative;
+    overflow: auto;
+    will-change: transform;
+    height: calc(100vh - 259px); /* header + search + title */
+}
+
+@media (max-width: 768px) {
+    .scrollContainer {
+        height: calc(100vh - 365px); /* header + search + title + footer */
+    }
 }
