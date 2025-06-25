@@ -1,13 +1,13 @@
 'use client';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import Link from 'next/link';
+import { Text } from '@consta/uikit/Text';
 import { Flex } from 'antd';
-import { IoMdHome } from 'react-icons/io';
+import Link from 'next/link';
+import { useParams, usePathname } from 'next/navigation';
 import { FaRegCalendar } from 'react-icons/fa';
+import { IoMdHome } from 'react-icons/io';
 import { LuChartNoAxesCombined } from 'react-icons/lu';
 import cx from './style.module.scss';
-import { Text } from '@consta/uikit/Text';
-import { usePathname, useParams } from 'next/navigation';
 
 const pages = [
     {
@@ -39,7 +39,7 @@ export const TravelMenu = () => {
                 const isActive = slicedPathname === page?.href;
 
                 return (
-                    <Link href={page?.href} className={`${cx.link} ${isActive ? cx.active : ''}`} key={index}>
+                    <Link href={page?.href} className={`${cx.link} ${isActive ? cx.active : ''}`} key={index} prefetch={false}>
                         <div className={cx.container}>
                             <Flex vertical align="center">
                                 <div className={cx.icon}>{page?.icon}</div>
