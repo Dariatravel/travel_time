@@ -27,8 +27,9 @@ export default function Home() {
     const parentRef = useRef<HTMLDivElement>(null);
 
     // Определяем размеры в зависимости от устройства
-    const ITEM_HEIGHT = isMobile ? 375 : 300;
+
     const ITEM_GAP = 32;
+    const ITEM_HEIGHT = isMobile ? 375 : 300;
     const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
     const PAGE_SIZE = 3;
 
@@ -55,15 +56,13 @@ export default function Home() {
         queryClient.invalidateQueries({
             queryKey: [...QUERY_KEYS.hotels],
         });
-    }, [filter]);
-
-    useEffect(() => {
         return () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.hotels],
             });
         };
-    }, []);
+    }, [filter]);
+
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
     };
@@ -94,7 +93,7 @@ export default function Home() {
             <div ref={parentRef} className={cx.scrollContainer}>
                 <div
                     style={{
-                        height: `500px`,
+                        // height: `500px`,
                         width: '100%',
                         position: 'relative',
                     }}
@@ -110,9 +109,8 @@ export default function Home() {
                                     top: 0,
                                     left: 0,
                                     width: '100%',
-                                    height: `${ITEM_HEIGHT}px`,
+                                    height: `${VIRTUAL_HEIGHT}px`,
                                     transform: `translateY(${virtualRow.start}px)`,
-                                    marginBottom: `${ITEM_GAP}px`,
                                     willChange: 'transform',
                                 }}
                             >
