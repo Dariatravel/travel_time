@@ -1,9 +1,6 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-    experimental: {
-        prefetch: false,
-    },
     compiler: {
         reactRemoveProperties: true,
     },
