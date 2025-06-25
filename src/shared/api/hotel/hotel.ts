@@ -63,7 +63,7 @@ export type HotelForRoom = Pick<HotelDTO, 'id' | 'title'>;
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
 
 /**
- * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации
+ * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
  * @param filter - фильтр для поиска
  * @param page - номер страницы (начиная с 0)
  * @param limit - количество элементов на странице
@@ -94,15 +94,46 @@ export async function getAllHotels(filter?: TravelFilterType, page: number = 0, 
 }
 
 /**
+ * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
+ * @param filter - фильтр для поиска
+ * @param page - номер страницы (начиная с 0)
+ * @param limit - количество элементов на странице
+ * @returns объект с массивом отелей и общим количеством
+ */
+export async function getAllHotelsWithEmptyRooms(filter?: TravelFilterType, page: number = 0, limit: number = 10): Promise<{ data: HotelRoomsDTO[]; count: number }> {
+    try {
+        const from = page * limit;
+        const to = from + limit - 1;
+
+        const query = supabase.from('hotels').select('*, rooms(*)', { count: 'exact' });
+
+        if (filter?.hotels_id) {
+            query.in('id', filter?.hotels_id);
+        }
+
+        query.order('created_at', { ascending: false }).range(from, to);
+        const response = await query;
+
+        return {
+            data: response?.data ?? [],
+            count: response.count || 0,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении отелей:', error);
+        throw error;
+    }
+}
+
+/**
  * Хук для бесконечной подгрузки отелей с поддержкой фильтрации
  * @param filter - фильтр для поиска
  * @param limit - количество элементов на странице (по умолчанию 5)
  */
-export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number = 5) => {
+export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number = 5, withEmptyRooms?: boolean) => {
     return useInfiniteQuery({
         queryKey: [QUERY_KEYS.hotels, filter],
         queryFn: async ({ pageParam = 0 }) => {
-            const result = await getAllHotels(filter, pageParam as number, limit);
+            const result = withEmptyRooms ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit) : await getAllHotels(filter, pageParam as number, limit);
             return result; // Возвращаем полный объект с data и count
         },
         initialPageParam: 0,

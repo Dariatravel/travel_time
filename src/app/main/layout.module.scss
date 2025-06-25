@@ -8,6 +8,7 @@
 }
 
 .childrenContainer {
+    padding: 0 0.5rem;
     @media (max-width: 1365px) {
         padding: 0.5rem;
     }
@@ -50,7 +51,7 @@
 
     @media (max-width: 1365px) {
         overflow: hidden;
-        overflow-y: auto;
+        // overflow-y: auto;
         min-height: calc(100vh - var(--header-size) - var(--menu-height));
         max-height: calc(100vh - var(--header-size) - var(--menu-height));
     }
