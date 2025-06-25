@@ -69,17 +69,17 @@ export default function Hotels() {
         }
     }, [rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage, hotels.length, fetchNextPage, columnCount]);
 
-    useEffect(() => {
-        refetch();
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.hotels],
-        });
-        return () => {
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.hotels],
-            });
-        };
-    }, [hotels]);
+    // useEffect(() => {
+    //     refetch();
+    //     queryClient.invalidateQueries({
+    //         queryKey: [...QUERY_KEYS.hotels],
+    //     });
+    //     return () => {
+    //         queryClient.invalidateQueries({
+    //             queryKey: [...QUERY_KEYS.hotels],
+    //         });
+    //     };
+    // }, [hotels]);
 
     if (loading) {
         return <FullWidthLoader />;
@@ -135,6 +135,8 @@ export default function Hotels() {
                     {rowVirtualizer.getVirtualItems().map((virtualRow) => (
                         <Flex
                             key={virtualRow.key}
+                            justify="start"
+                            align="flex-start"
                             gap={gap}
                             style={{
                                 position: 'absolute',
@@ -146,15 +148,7 @@ export default function Hotels() {
                             }}
                         >
                             {getRowItems(virtualRow.index).map((hotel) => (
-                                <div
-                                    key={hotel.id}
-                                    style={{
-                                        // width: `${columnWidth}px`,
-                                        minHeight: `${rowHeight}px`,
-                                        height: '100%',
-                                        width: '100%',
-                                    }}
-                                >
+                                <div key={hotel.id} className={style.hotelContainer}>
                                     <Hotel
                                         hotel={hotel}
                                         onDelete={deleteHotel}
