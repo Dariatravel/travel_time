@@ -57,6 +57,13 @@ export default function Home() {
         });
     }, [filter]);
 
+    useEffect(() => {
+        return () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotels],
+            });
+        };
+    }, []);
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
     };

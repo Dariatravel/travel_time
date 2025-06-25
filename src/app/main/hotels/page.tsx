@@ -1,7 +1,7 @@
 'use client';
 import { Hotel } from '@/features/Hotel/Hotel';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
-import { HotelDTO, useDeleteHotel, useInfiniteHotelsQuery, useUpdateHotel } from '@/shared/api/hotel/hotel';
+import { HotelDTO, useDeleteHotel, useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
 import { Nullable } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
@@ -31,13 +31,7 @@ export default function Hotels() {
         });
     });
 
-    const { isPending: isHotelUpdating, mutateAsync: updateHotel } = useUpdateHotel(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.hotels],
-        });
-    });
-
-    const loading = isLoading || isHotelDeleting || isHotelUpdating;
+    const loading = isLoading || isHotelDeleting;
 
     // --- Виртуализированная сетка ---
     const parentRef = useRef<HTMLDivElement>(null);
@@ -50,7 +44,6 @@ export default function Hotels() {
     // SSR fallback
     if (isMobile) columnCount = 1;
 
-    console.log(isMobile);
     const rowHeight = isMobile ? 174 : 256;
     const gap = isMobile ? 8 : 24;
     const rowCount = Math.ceil(hotels.length / columnCount);
@@ -75,6 +68,18 @@ export default function Hotels() {
             fetchNextPage();
         }
     }, [rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage, hotels.length, fetchNextPage, columnCount]);
+
+    useEffect(() => {
+        refetch();
+        queryClient.invalidateQueries({
+            queryKey: [...QUERY_KEYS.hotels],
+        });
+        return () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotels],
+            });
+        };
+    }, [hotels]);
 
     if (loading) {
         return <FullWidthLoader />;

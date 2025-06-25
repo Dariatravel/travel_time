@@ -131,7 +131,7 @@ export async function getAllHotelsWithEmptyRooms(filter?: TravelFilterType, page
  */
 export const useInfiniteHotelsQuery = (filter?: TravelFilterType, limit: number = 5, withEmptyRooms?: boolean) => {
     return useInfiniteQuery({
-        queryKey: [QUERY_KEYS.hotels, filter],
+        queryKey: [QUERY_KEYS.hotels],
         queryFn: async ({ pageParam = 0 }) => {
             const result = withEmptyRooms ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit) : await getAllHotels(filter, pageParam as number, limit);
             return result; // Возвращаем полный объект с data и count
