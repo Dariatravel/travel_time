@@ -7,7 +7,7 @@ import { Text } from '@consta/uikit/Text'
 export interface HotelTitleProps {
   children?: React.ReactNode
   className?: string
-  onClick?: () => void
+  href?: string
   size?:
     | 's'
     | 'm'
@@ -25,12 +25,17 @@ export interface HotelTitleProps {
 
 export const HotelTitle = ({
   className,
-  onClick,
+  href,
   children,
   size = 'xl',
 }: HotelTitleProps) => {
+  const isLink = !!href
   return (
-    <div className={cn(styles.container, className)} onClick={onClick}>
+    <a
+      className={cn(styles.container, className)}
+      href={href}
+      target={isLink ? '_blank' : undefined}
+    >
       <Text
         className={styles.title}
         transform={'uppercase'}
@@ -39,6 +44,6 @@ export const HotelTitle = ({
       >
         {children}
       </Text>
-    </div>
+    </a>
   )
 }
