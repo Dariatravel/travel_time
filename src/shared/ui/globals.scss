@@ -2,14 +2,14 @@
 
 html,
 body {
-    max-width: 100vw;
-    overflow-x: hidden;
+  max-width: 100vw;
+  overflow-x: hidden;
 }
 
 * {
-    box-sizing: border-box;
-    padding: 0;
-    margin: 0;
+  box-sizing: border-box;
+  padding: 0;
+  margin: 0;
 }
 
 /*.rct-sidebar-row {*/
@@ -22,28 +22,29 @@ body {
 /*    !*max-height: 44px !important;*!*/
 /*}*/
 .che--Layout {
-    height: 64px !important;
+  height: 64px !important;
 }
 
 .che--LayoutRow_height_s {
-    --header-height: 64px !important;
+  --header-height: 64px !important;
 }
 
 .che--LayoutRow {
-    border-bottom: none !important;
+  border-bottom: none !important;
 }
+
 .react-calendar-timeline .rct-header-root {
-    background-color: transparent !important;
+  background-color: transparent !important;
 }
 
-.ant-select-selector {
-    background: var(--color-control-bg-default) !important;
-    border: var(--control-border-width) solid #bcd5cd !important;
-    font-size: 18px !important;
-    border-radius: 0 !important;
-}
+//.ant-select-selector {
+//    background: var(--color-control-bg-default) !important;
+//    border: var(--control-border-width) solid #bcd5cd !important;
+//    font-size: 18px !important;
+//    border-radius: 0 !important;
+//}
 
-/* Для элементов списка */
-.ant-select-dropdown .ant-select-item {
-    font-size: 16px !important;
-}
+///* Для элементов списка */
+//.ant-select-dropdown .ant-select-item {
+//  font-size: 16px !important;
+//}

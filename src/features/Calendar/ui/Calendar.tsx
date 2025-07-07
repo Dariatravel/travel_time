@@ -16,7 +16,7 @@ import {
   useCreateRoom,
   useGetRoomsWithReservesByHotel,
 } from '@/shared/api/room/room'
-import { QUERY_KEYS } from '@/shared/config/reactQuery'
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery'
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const'
 import { getDateFromUnix } from '@/shared/lib/date'
 import { devLog } from '@/shared/lib/logger'
@@ -40,7 +40,7 @@ import {
   TimelineHeaders,
 } from 'my-react-calendar-timeline'
 import { nanoid } from 'nanoid'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci'
 import '../../../app/main/reservation/calendar.scss'
 import hotelImage from '../hotel.svg'
@@ -73,11 +73,18 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
   const [isMobile] = useUnit([$isMobile])
   const filter = useUnit($hotelsFilter)
   const queryClient = useQueryClient()
-  const { data, isFetching: isRoomLoading } = useGetRoomsWithReservesByHotel(
-    hotel.id,
-    filter,
-    true
-  )
+  const {
+    data,
+    isFetching: isRoomLoading,
+    refetch,
+  } = useGetRoomsWithReservesByHotel(hotel.id, filter, true)
+
+  useEffect(() => {
+    refetch()
+    queryClient.invalidateQueries({
+      queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+    })
+  }, [filter])
 
   const timelineRef = useRef<Timeline>(null)
   const [currentReserve, setCurrentReserve] =

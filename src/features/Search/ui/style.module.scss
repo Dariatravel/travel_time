@@ -1,57 +1,69 @@
 .dropdown {
-    font-size: 30px !important;
+  font-size: 30px !important;
 }
 
 @media (max-width: 1365px) {
-    .container {
-        row-gap: 0.5rem;
-    }
+  .wrapper {
+    height: 100%
+  }
+  .container {
+    flex: 1 1 100%;
+    row-gap: 0.5rem;
+  }
 }
 
 .categorySelect {
-    min-width: 200px;
-    max-width: 200px;
-    @media (max-width: 1365px) {
-        order: 0;
-        font-size: 12px !important;
-        min-width: 50%;
-        max-width: 50%;
+  min-width: 200px;
+  max-width: 200px;
+  flex: 1 1 auto;
+  @media (max-width: 1365px) {
+    order: 0;
+    font-size: 12px !important;
+    flex: 1 1 100%;
+    max-width: 70%;
 
-        & > div {
-            font-size: 14px !important;
-            border-right: none !important;
-            border-radius: 0px !important;
-        }
-    }
+  }
+}
+
+.quantityInput {
+  flex: 0 1 125px;
+  @media (max-width: 1365px) {
+    flex: 1 1 50px;
+  }
 }
 
 .datePicker {
-    @media (max-width: 1365px) {
-        order: 2;
-        min-width: 100%;
-        max-width: 100%;
-    }
+  @media (max-width: 1365px) {
+    order: 2;
+    min-width: 100%;
+    max-width: 100%;
+  }
 }
 
 .datepickerDropdown {
-    z-index: var(--zIndex-datepicker);
-}
-.guestsInput {
-    max-width: 100px;
-    @media (max-width: 1365px) {
-        order: 0;
-        border-radius: 0px !important;
-        min-width: 50%;
-        max-width: 50%;
+  z-index: var(--zIndex-datepicker);
 
-        & > div > div {
-            border-radius: 0px !important;
-        }
+  @media (max-width: 1365px) {
+    z-index: 1000 !important;
+  }
+}
+
+.guestsInput {
+  max-width: 100px;
+  @media (max-width: 1365px) {
+    order: 0;
+    border-radius: 0px !important;
+    min-width: 50%;
+    max-width: 50%;
+
+    & > div > div {
+      border-radius: 0px !important;
     }
+  }
 }
 
 .searchButton {
-    @media (max-width: 1365px) {
-        order: 3;
-    }
+  @media (max-width: 1365px) {
+    order: 3;
+  }
 }
