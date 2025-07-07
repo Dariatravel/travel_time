@@ -26,7 +26,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (
 ) => {
   const [date, setValue] = useState<[Date?, Date?] | null>(null)
   const [category, setCategory] = useState<string | undefined>()
-  const [quantity, setQuantity] = useState<number>(undefined)
+  const [quantity, setQuantity] = useState<number | undefined>(undefined)
   const [selectedHotels, setSelectedHotels] = useState<string[]>([])
   const router = useRouter()
   const { isMobile } = useScreenSize()
@@ -139,7 +139,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (
           min={0}
           placeholder={'Гости'}
           onChange={e =>
-            setQuantity(!!e.target.value ? e.target.value : undefined)
+            setQuantity(!!e.target.value ? Number(e.target.value) : undefined)
           }
           allowClear
           size={FORM_SIZE === 's' ? 'middle' : 'large'}
@@ -168,11 +168,15 @@ export const SearchFeature: FC<SearchFeatureProps> = (
           options={hotelOptions}
           filterOption={(inputValue, option) => {
             if (inputValue) {
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-expect-error
-              return option.label
-                .toLowerCase()
-                .includes(inputValue.toLowerCase())
+              return (
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-expect-error
+                option.label
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-expect-error
+                  .toLowerCase()
+                  .includes(inputValue.toLowerCase())
+              )
             } else {
               return true
             }
