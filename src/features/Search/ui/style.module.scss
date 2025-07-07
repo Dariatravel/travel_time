@@ -3,6 +3,9 @@
 }
 
 @media (max-width: 1365px) {
+  .wrapper {
+    height: 100%
+  }
   .container {
     flex: 1 1 100%;
     row-gap: 0.5rem;
@@ -12,24 +15,20 @@
 .categorySelect {
   min-width: 200px;
   max-width: 200px;
+  flex: 1 1 auto;
   @media (max-width: 1365px) {
     order: 0;
     font-size: 12px !important;
-    min-width: 50%;
-    max-width: 50%;
+    flex: 1 1 100%;
+    max-width: 70%;
 
-    & > div {
-      font-size: 14px !important;
-      border-right: none !important;
-      border-radius: 0px !important;
-    }
   }
 }
 
 .quantityInput {
   flex: 0 1 125px;
   @media (max-width: 1365px) {
-    flex: 1 1 125px;
+    flex: 1 1 50px;
   }
 }
 
@@ -43,6 +42,10 @@
 
 .datepickerDropdown {
   z-index: var(--zIndex-datepicker);
+
+  @media (max-width: 1365px) {
+    z-index: 1000 !important;
+  }
 }
 
 .guestsInput {
