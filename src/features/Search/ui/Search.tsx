@@ -19,11 +19,13 @@ import { DatePicker } from '@consta/uikit/DatePicker'
 import { IconCalendar } from '@consta/icons/IconCalendar'
 import { cloneDeep } from 'lodash'
 
-export interface SearchFeatureProps {}
+export interface SearchFeatureProps {
+  onSearchCb?: () => void
+}
 
-export const SearchFeature: FC<SearchFeatureProps> = (
-  props: SearchFeatureProps
-) => {
+export const SearchFeature: FC<SearchFeatureProps> = ({
+  onSearchCb,
+}: SearchFeatureProps) => {
   const [date, setValue] = useState<[Date?, Date?] | null>(null)
   const [category, setCategory] = useState<string | undefined>()
   const [quantity, setQuantity] = useState<number | undefined>(undefined)
@@ -71,7 +73,6 @@ export const SearchFeature: FC<SearchFeatureProps> = (
       freeHotels_id: undefined,
     }
 
-    console.log({ filter, und: isAllValuesUndefined(filter) })
     if (!isAllValuesUndefined(filter)) {
       const result = await getHotelsWithFreeRooms(filter)
 
@@ -91,6 +92,8 @@ export const SearchFeature: FC<SearchFeatureProps> = (
         freeHotels_id: result?.map(hotel => hotel.hotel_id),
         freeHotels: getHotelsMap(result),
       }
+
+      console.log({ freeRoomData })
     }
 
     if (selectedHotels.length !== 0) {
@@ -102,11 +105,15 @@ export const SearchFeature: FC<SearchFeatureProps> = (
       filter.hotels = undefined
     }
 
-    console.log(filter)
+    console.log({ filter })
     changeTravelFilter({ ...filter, ...freeRoomData })
 
     if (window.location.pathname !== routes[PagesEnum.RESERVATION]) {
       router.push(routes[PagesEnum.RESERVATION])
+    }
+
+    if (onSearchCb) {
+      onSearchCb()
     }
   }
 
@@ -118,10 +125,9 @@ export const SearchFeature: FC<SearchFeatureProps> = (
 
   const hotelOptions = hotels?.map(hotel => adaptToAntOption(hotel)) ?? []
   return (
-    <Flex gap={'small'} wrap={isMobile}>
+    <Flex gap={'small'} wrap={isMobile} className={styles.wrapper}>
       <Flex className={styles.container} wrap>
         <Select
-          style={{ flex: '1 1 auto' }}
           className={cn(styles.categorySelect)}
           options={HOTEL_TYPES}
           value={category}
@@ -183,7 +189,7 @@ export const SearchFeature: FC<SearchFeatureProps> = (
           }}
           size={FORM_SIZE === 's' ? 'middle' : 'large'}
         />
-      </Flex>{' '}
+      </Flex>
       <Button
         style={{ flex: '1 0 auto' }}
         className={styles.searchButton}

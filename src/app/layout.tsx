@@ -14,6 +14,7 @@ import 'moment/locale/ru'
 import { Geist, Geist_Mono } from 'next/font/google'
 import React from 'react'
 import styles from './styles.module.css'
+import { THEME_PRESET } from '@/shared/config/theme'
 
 moment.locale('ru') // Для локализации дат
 
@@ -26,19 +27,6 @@ const geistMono = Geist_Mono({
   variable: '--font-geist-mono',
   subsets: ['latin'],
 })
-
-const preset: ThemePreset = {
-  color: {
-    primary: 'highlightsGreenDefault', //основная цветовая схема, указано значение модификатора _color
-    accent: 'highlightsGreenDefault', //акцентная цветовая схема, указано значение модификатора _color
-    invert: 'highlightsGreenDefault', //инвертная цветовая схема, указывается значение модификатора _color
-  },
-  control: 'gpnDefault', // указывается значение модификатора _control
-  font: 'gpnDefault', // указывается значение модификатора _font
-  size: 'gpnDefault', // указывается значение модификатора _size
-  space: 'gpnDefault', // указывается значение модификатора _space
-  shadow: 'gpnDefault', // указывается значение модификатора _shadow
-}
 
 moment.locale('ru')
 
@@ -71,7 +59,7 @@ export default function RootLayout({
           }}
         >
           <QueryClientProvider client={queryClient}>
-            <Theme preset={preset}>
+            <Theme preset={THEME_PRESET}>
               <SafeHydrate>
                 <div className={styles.layout} />
                 {children}
