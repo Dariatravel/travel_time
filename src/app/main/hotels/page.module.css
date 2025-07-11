@@ -1,34 +1,28 @@
 .container {
-    /* padding-bottom: 1rem; */
+  /* padding-bottom: 1rem; */
 }
 
 .scrollContainer {
-    position: relative;
-    overflow: auto;
-    will-change: transform;
-    height: calc(100vh - 259px); /* header + search + title */
-}
-
-@media (max-width: 1365px) {
-    .scrollContainer {
-        height: calc(100vh - 365px); /* header + search + title + footer */
-    }
+  position: relative;
+  overflow: auto;
+  will-change: transform;
+  height: calc(100vh - 300px); /* header + search + title */
 }
 
 .hotelContainer {
-    /*
+  /*
       min-width и min-height задаются фиксированно,
       так как переменные rowHeight и columnWidth недоступны в CSS.
       flex-basis: 33% используется для трёх колонок,
       на мобильных можно переопределить через медиа-запрос.
     */
-    min-height: 256px;
-    height: 100%;
-    width: 100%;
-    flex-basis: 33%;
+  min-height: 256px;
+  height: 100%;
+  width: 100%;
+  flex-basis: 33%;
 
-    @media (max-width: 1365px) {
-        flex-basis: 100%;
-        min-height: 174px;
-    }
+  @media (max-width: 1365px) {
+    flex-basis: 100%;
+    min-height: 174px;
+  }
 }
