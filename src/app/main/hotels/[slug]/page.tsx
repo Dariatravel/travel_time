@@ -34,7 +34,9 @@ export default function Rooms() {
     return <FullWidthLoader />
   }
 
-  const rooms: RoomDTO[] = hotel?.rooms ?? []
+  const rooms: RoomDTO[] =
+    hotel?.rooms.sort((a, b) => a?.title?.localeCompare(b?.title)) ??
+    ([] as RoomDTO[])
 
   if (!rooms?.length) {
     return (
