@@ -93,12 +93,6 @@ export async function getAllHotels(
           hotels.includes(id)
         )
 
-        console.log({
-          freeHotels: filter?.freeHotels_id,
-          filterHotels: filter?.hotels,
-          filterHotelsId: hotels,
-          filteredByTitle,
-        })
         query.in('id', filteredByTitle)
       } else {
         query.in('id', filter?.freeHotels_id)
@@ -116,7 +110,7 @@ export async function getAllHotels(
       )
     }
 
-    query.order('created_at', { ascending: false }).range(from, to)
+    query.order('title', { ascending: true }).range(from, to)
     const response = await query
 
     return {
@@ -156,7 +150,7 @@ export async function getAllHotelsWithEmptyRooms(
       query.in('id', filter?.freeHotels_id)
     }
 
-    query.order('created_at', { ascending: false }).range(from, to)
+    query.order('title', { ascending: true }).range(from, to)
     const response = await query
 
     return {
