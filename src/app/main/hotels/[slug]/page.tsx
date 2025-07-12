@@ -36,7 +36,9 @@ export default function Rooms() {
 
   const rooms: RoomDTO[] = hotel?.rooms ?? []
 
-  if (!rooms?.length) {
+  const sortedRooms = rooms.sort((a, b) => a?.title?.localeCompare(b?.title))
+
+  if (!sortedRooms?.length) {
     return (
       <div>
         <PageTitle title={'Все номера'} rooms={0} />
@@ -67,7 +69,7 @@ export default function Rooms() {
       {/*{isLoading && <FullWidthLoader />}*/}
       <PageTitle
         title={hotel?.title}
-        rooms={hotel?.rooms?.length}
+        rooms={sortedRooms?.length}
         buttonProps={{
           label: 'Добавить номер',
           onClick: () => setIsRoomOpen(true),
@@ -75,7 +77,7 @@ export default function Rooms() {
       />
       <div className={style.roomsContainer}>
         <Flex wrap gap={'small'}>
-          {rooms?.map(room => (
+          {sortedRooms?.map(room => (
             <Room
               room={room}
               key={room.id}

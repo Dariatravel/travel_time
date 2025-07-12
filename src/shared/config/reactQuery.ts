@@ -12,4 +12,6 @@ export const QUERY_KEYS = {
   allCounts: ['hotels', 'counts'],
 }
 
-export const queryClient = new QueryClient()
+export const queryClient = new QueryClient({
+  defaultOptions: { queries: { refetchOnWindowFocus: false } },
+})
