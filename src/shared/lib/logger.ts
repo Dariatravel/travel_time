@@ -4,9 +4,7 @@
  * @param data - Дополнительные данные для логирования
  */
 export const devLog = (message: string, ...data: unknown[]): void => {
-    if (process.env.MODE === 'development') {
-        console.log(`[DEV] ${message}`, ...data);
-    }
+    console.log(`[DEV] ${message}`, ...data);
 };
 
 /**
@@ -15,9 +13,7 @@ export const devLog = (message: string, ...data: unknown[]): void => {
  * @param error - Объект ошибки
  */
 export const devError = (message: string, error?: unknown): void => {
-    if (process.env.MODE === 'development') {
-        console.error(`[DEV ERROR] ${message}`, error);
-    }
+    console.error(`[DEV ERROR] ${message}`, error);
 };
 
 /**
@@ -26,7 +22,5 @@ export const devError = (message: string, error?: unknown): void => {
  * @param data - Дополнительные данные
  */
 export const devWarn = (message: string, ...data: unknown[]): void => {
-    if (process.env.MODE === 'development') {
-        console.warn(`[DEV WARN] ${message}`, ...data);
-    }
+    console.warn(`[DEV WARN] ${message}`, ...data);
 };
