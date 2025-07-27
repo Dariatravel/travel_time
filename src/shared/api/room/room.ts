@@ -16,6 +16,7 @@ export type RoomDTO = {
     image_title: string; // Название изображения
     image_path: string; // Путь к изображению
     comment?: string; // Комментарий к номеру
+    order?: number;
 };
 
 export type RoomReserves = {

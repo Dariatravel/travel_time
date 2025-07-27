@@ -29,6 +29,8 @@ export async function signup(formData: FormData) {
     };
 
     try {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        //@ts-expect-error
         await supabase.auth.signUp(data);
     } catch (e) {
         console.error(e);
@@ -44,6 +46,8 @@ export async function signup(formData: FormData) {
 // }
 
 async function signInWithEmail(email: string, password: string) {
+    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+    //@ts-expect-error
     const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
