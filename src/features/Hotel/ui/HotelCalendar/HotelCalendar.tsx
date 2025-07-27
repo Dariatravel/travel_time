@@ -1,521 +1,272 @@
-import { Interval } from '@/features/Calendar/ui/Intervals'
-import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal'
-import { RoomModal } from '@/features/RoomInfo/ui/RoomModal'
-import { HotelDTO } from '@/shared/api/hotel/hotel'
+import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
+import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
+import { HotelDTO } from '@/shared/api/hotel/hotel';
 import {
-  CurrentReserveType,
-  Nullable,
-  Reserve,
-  ReserveDTO,
-  useCreateReserve,
-  useDeleteReserve,
-  useUpdateReserve,
-} from '@/shared/api/reserve/reserve'
+    CurrentReserveType,
+    Nullable,
+    Reserve,
+    ReserveDTO,
+    useCreateReserve,
+    useDeleteReserve,
+    useUpdateReserve,
+} from '@/shared/api/reserve/reserve';
 import {
-  Room,
-  useCreateRoom,
-  useGetRoomsWithReservesByHotel,
-} from '@/shared/api/room/room'
-import { QUERY_KEYS } from '@/shared/config/reactQuery'
-import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const'
-import { getDateFromUnix } from '@/shared/lib/date'
-import { devLog } from '@/shared/lib/logger'
-import { $hotelsFilter, TravelFilterType } from '@/shared/models/hotels'
-import { $isMobile } from '@/shared/models/mobile'
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader'
-import { showToast } from '@/shared/ui/Toast/Toast'
-import { useQueryClient } from '@tanstack/react-query'
-import { Button } from 'antd'
-import { useUnit } from 'effector-react/compat'
-import moment from 'moment'
-import 'moment/locale/ru'
-import {
-  CustomHeader,
-  Id,
-  SidebarHeader,
-  Timeline,
-  TimelineHeaders,
-} from 'my-react-calendar-timeline'
-import { nanoid } from 'nanoid'
-import React, { useCallback, useMemo, useRef, useState } from 'react'
-import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci'
-import '../../../../app/main/reservation/calendar.scss'
-import cx from './style.module.scss'
-
-const keys = {
-  groupIdKey: 'id',
-  groupTitleKey: 'title',
-  groupRightTitleKey: 'rightTitle',
-  itemIdKey: 'id',
-  itemTitleKey: 'title',
-  itemDivTitleKey: 'title',
-  itemGroupKey: 'group',
-  itemTimeStartKey: 'start',
-  itemTimeEndKey: 'end',
-  groupLabelKey: 'title',
-}
+    Room,
+    RoomDTO,
+    useCreateRoom,
+    useGetRoomsWithReservesByHotel,
+    useUpdateRoomOrder,
+} from '@/shared/api/room/room';
+import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import { getDateFromUnix } from '@/shared/lib/date';
+import { devLog } from '@/shared/lib/logger';
+import { $hotelsFilter } from '@/shared/models/hotels';
+import { $isMobile } from '@/shared/models/mobile';
+import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { showToast } from '@/shared/ui/Toast/Toast';
+import { useQueryClient } from '@tanstack/react-query';
+import { useUnit } from 'effector-react/compat';
+import { cloneDeep } from 'lodash';
+import { Id } from 'my-react-calendar-timeline';
+import { useCallback, useMemo, useState } from 'react';
+import '../../../../app/main/reservation/calendar.scss';
+import cx from './style.module.scss';
 
 export interface CalendarProps {
-  hotel: HotelDTO
+    hotel: HotelDTO;
 }
-
-const DAY = 24 * 60 * 60 * 1000
-const WEEK = DAY * 7
-const THREE_MONTHS = DAY * 30 * 24
-// const THREE_MONTHS = 5 * 365.24 * 86400 * 1000;
 
 export const HotelCalendar = ({ hotel }: CalendarProps) => {
-  const [isMobile] = useUnit([$isMobile])
-  const filter = useUnit($hotelsFilter)
-  const queryClient = useQueryClient()
-  const { data, isFetching: isRoomLoading } = useGetRoomsWithReservesByHotel(
-    hotel.id,
-    filter,
-    true
-  )
+    const [isMobile] = useUnit([$isMobile]);
+    const filter = useUnit($hotelsFilter);
+    const queryClient = useQueryClient();
+    const { data, isFetching: isRoomLoading } = useGetRoomsWithReservesByHotel(
+        hotel.id,
+        filter,
+        true,
+    );
 
-  const [currentReserve, setCurrentReserve] =
-    useState<Nullable<CurrentReserveType>>(null)
-  const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false)
-  const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false)
-  const [sort, setSort] = useState<'asc' | 'desc'>('asc')
-  const timelineRef = useRef<Timeline>(null)
-  const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day')
-  const {
-    isPending: isReserveCreating,
-    mutateAsync: createReserve,
-    error: reserveError,
-  } = useCreateReserve(
-    () => {
-      queryClient.invalidateQueries({
-        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-      })
-      setCurrentReserve(null)
-      setIsReserveOpen(false)
-    },
-    e => {
-      showToast(`Ошибка при обновлении брони ${e}`, 'error')
-    }
-  )
+    const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
+    const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
+    const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
+    const [sort, setSort] = useState<'asc' | 'desc'>('asc');
 
-  const { isPending: isReserveUpdating, mutate: updateReserve } =
-    useUpdateReserve(
-      () => {
-        queryClient.invalidateQueries({
-          queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-        })
-        setCurrentReserve(null)
-        setIsReserveOpen(false)
-      },
-      e => {
-        showToast('Ошибка при обновлении брони', 'error')
-      }
-    )
-
-  const { isPending: isReserveDeleting, mutateAsync: deleteReserve } =
-    useDeleteReserve(() => {
-      queryClient.invalidateQueries({
-        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-      })
-      setCurrentReserve(null)
-      setIsReserveOpen(false)
-    })
-
-  const {
-    isPending: isRoomCreating,
-    mutate: createRoom,
-    error: roomError,
-  } = useCreateRoom(
-    () => {
-      queryClient.invalidateQueries({
-        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-      })
-      queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel })
-      setCurrentReserve(null)
-      setIsRoomOpen(false)
-      showToast('Номер успешно добавлен')
-    },
-    e => {
-      showToast(`Ошибка при добавлении номера ${e}`, 'error')
-    }
-  )
-
-  const onRoomCreate = useCallback((room: Room) => {
-    createRoom(room)
-    devLog('Создаю ROOM', room)
-  }, [])
-
-  const onReserveAccept = async (reserve: Reserve) => {
-    const isEdit = currentReserve?.reserve?.id
-
-    if (isEdit) {
-      devLog('Пытаюсь обновить запись')
-      await updateReserve(reserve as ReserveDTO)
-
-      return
-    }
-
-    await createReserve(reserve)
-  }
-
-  const onReserveDelete = async (id: string) => {
-    devLog('Пытаюсь удалить запись')
-    await deleteReserve(id)
-
-    return
-  }
-
-  const onClose = () => {
-    // queryClient.invalidateQueries({queryKey: [QUERY_KEYS.hotelsForRoom]})
-    // queryClient.invalidateQueries({queryKey: [QUERY_KEYS.roomsByHotel]})
-    setIsReserveOpen(false)
-    setCurrentReserve(null)
-  }
-
-  const hotelRooms = useMemo(() => {
-    const rooms =
-      data?.map(({ reserves, id, title, ...room }) => ({
-        id,
-        title: `${title}`,
-        ...room,
-      })) ?? []
-
-    // rooms = rooms.sort((a, b) => {
-    //   if (sort === 'asc') {
-    //     return a.title.localeCompare(b.title, undefined, {
-    //       numeric: true,
-    //       caseFirst: 'upper',
-    //     })
-    //   } else {
-    //     return b.title.localeCompare(b.title, undefined, {
-    //       numeric: true,
-    //       caseFirst: 'upper',
-    //       sensitivity: 'case',
-    //     })
-    //   }
-    // })
-
-    return rooms
-  }, [data, sort])
-  //
-  let hotelReserves: Array<ReserveDTO & { group: string }> = []
-
-  const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
-    const room = hotelRooms?.find(group => group.id === groupId)
-    if (room) {
-      setCurrentReserve({
-        room,
-        hotel,
-        reserve: {
-          start: time,
-          end: getDateFromUnix(time).add(1, 'day').unix(),
+    const {
+        isPending: isReserveCreating,
+        mutateAsync: createReserve,
+        error: reserveError,
+    } = useCreateReserve(
+        () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+            });
+            setCurrentReserve(null);
+            setIsReserveOpen(false);
         },
-      })
-      setIsReserveOpen(true)
-    }
-  }
-  data?.forEach(({ id: room_id, reserves }) => {
-    const reservesTmp = reserves.map(({ end, start, ...reserve }) => ({
-      ...reserve,
-      id: reserve.id,
-      group: room_id,
-      end: getDateFromUnix(end),
-      start: getDateFromUnix(start),
-    }))
+        (e) => {
+            showToast(`Ошибка при обновлении брони ${e}`, 'error');
+        },
+    );
 
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    hotelReserves = hotelReserves.concat(reservesTmp)
-  })
+    const { isPending: isReserveUpdating, mutate: updateReserve } = useUpdateReserve(
+        () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+            });
+            setCurrentReserve(null);
+            setIsReserveOpen(false);
+        },
+        (e) => {
+            showToast('Ошибка при обновлении брони', 'error');
+        },
+    );
 
-  // @ts-nocheck
-  const itemRenderer = ({
-    item,
-    itemContext,
-    getItemProps,
-    getResizeProps,
-  }: {
-    item: any
-    itemContext: any
-    getItemProps: (item: any) => any
-    getResizeProps: (item: any) => any
-  }) => {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    const { left: leftResizeProps, right: rightResizeProps } = getResizeProps()
+    const { isPending: isReserveDeleting, mutateAsync: deleteReserve } = useDeleteReserve(() => {
+        queryClient.invalidateQueries({
+            queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+        });
+        setCurrentReserve(null);
+        setIsReserveOpen(false);
+    });
+
+    const {
+        isPending: isRoomCreating,
+        mutate: createRoom,
+        error: roomError,
+    } = useCreateRoom(
+        () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+            });
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
+            setCurrentReserve(null);
+            setIsRoomOpen(false);
+            showToast('Номер успешно добавлен');
+        },
+        (e) => {
+            showToast(`Ошибка при добавлении номера ${e}`, 'error');
+        },
+    );
+
+    const { mutate: updateRoomOrder, isPending: isUpdatingOrder } = useUpdateRoomOrder(
+        () => {
+            showToast('Порядок номеров успешно обновлен');
+        },
+        (error) => {
+            showToast(`Ошибка при обновлении порядка номеров: ${error}`, 'error');
+        },
+    );
+
+    const onRoomCreate = useCallback((room: Room) => {
+        createRoom(room);
+        devLog('Создаю ROOM', room);
+    }, []);
+
+    const onReserveAccept = async (reserve: Reserve) => {
+        const isEdit = currentReserve?.reserve?.id;
+
+        if (isEdit) {
+            devLog('Пытаюсь обновить запись');
+            await updateReserve(reserve as ReserveDTO);
+
+            return;
+        }
+
+        await createReserve(reserve);
+    };
+
+    const onReserveDelete = async (id: string) => {
+        devLog('Пытаюсь удалить запись');
+        await deleteReserve(id);
+
+        return;
+    };
+
+    const onClose = () => {
+        setIsReserveOpen(false);
+        setCurrentReserve(null);
+    };
+
+    const hotelRooms = useMemo(() => {
+        const rooms =
+            data?.map(({ reserves, id, title, ...room }) => ({
+                id,
+                title: `${title}`,
+                ...room,
+            })) ?? [];
+
+        return rooms;
+    }, [data, sort]);
+
+    let hotelReserves: Array<ReserveDTO & { group: string }> = [];
+
+    data?.forEach(({ id: room_id, reserves }) => {
+        const reservesTmp = reserves.map(({ end, start, ...reserve }) => ({
+            ...reserve,
+            id: reserve.id,
+            group: room_id,
+            end: getDateFromUnix(end),
+            start: getDateFromUnix(start),
+        }));
+
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        hotelReserves = hotelReserves.concat(reservesTmp);
+    });
+
+    const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
+        const room = hotelRooms?.find((group) => group.id === groupId);
+        if (room) {
+            setCurrentReserve({
+                room,
+                hotel,
+                reserve: {
+                    start: time,
+                    end: getDateFromUnix(time).add(1, 'day').unix(),
+                },
+            });
+            setIsReserveOpen(true);
+        }
+    };
 
     const onItemClick = (reserve: ReserveDTO, hotel: HotelDTO) => {
-      const room = hotelRooms.find(room => room.id === reserve?.room_id)
+        const room = hotelRooms.find((room) => room.id === reserve?.room_id);
 
-      if (room) {
-        setCurrentReserve({ room, reserve, hotel })
-        setIsReserveOpen(true)
-      }
-    }
+        if (room) {
+            setCurrentReserve({ room, reserve, hotel });
+            setIsReserveOpen(true);
+        }
+    };
+
+    const onCreateRoomClick = () => {
+        setCurrentReserve({ hotel: hotel });
+        setIsRoomOpen(true);
+    };
+
+    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
+    const reserveLoading = isReserveCreating || isReserveUpdating;
+
+    // Уникальный ID для этого Timeline
+    const timelineId = `hotel-calendar-${hotel.id}`;
+
+    const handleGroupsReorder = (newOrder: string[]) => {
+        devLog('Новый порядок групп в HotelCalendar:', newOrder);
+        const rooms = cloneDeep(data);
+        // Формируем новый массив RoomDTO с актуальным порядком
+        const roomsWithNewOrder = newOrder
+            .map((roomId, index) => {
+                const room = rooms?.find((r) => r.id === roomId);
+                /**
+                 * Удаляем поле reserves из объекта room, чтобы избежать мутаций и ошибок типов.
+                 * Вместо delete используем деструктуризацию, чтобы создать новый объект без поля reserves.
+                 */
+                if (!room) return null;
+                // eslint-disable-next-line @typescript-eslint/no-unused-vars
+                const { reserves, ...roomWithoutReserves } = room;
+                return { ...roomWithoutReserves, order: index };
+            })
+            .filter((room) => room !== null) as RoomDTO[];
+        devLog('', roomsWithNewOrder);
+        updateRoomOrder({ hotelId: hotel.id, rooms: roomsWithNewOrder });
+    };
 
     return (
-      <div
-        {...getItemProps(item.itemProps)}
-        key={nanoid()}
-        onDoubleClick={() => {
-          onItemClick(item, hotel)
-        }}
-        onTouchEnd={() => {
-          onItemClick(item, hotel)
-        }}
-      >
-        {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
-        <div
-          className={`${cx.calendarItem} rct-item-content`}
-          style={{ maxHeight: `${itemContext.dimensions.height}` }}
-        >
-          {item?.guest} {item?.phone}
-        </div>
-
-        {itemContext.useResizeHandle ? <div {...rightResizeProps} /> : ''}
-      </div>
-    )
-  }
-
-  const isLoading = isRoomLoading || isRoomCreating
-  const reserveLoading = isReserveCreating || isReserveUpdating
-
-  const getDefaultTime = (isMobile: boolean, filter: TravelFilterType) => {
-    let defaultTimeStart = moment().add(-15, 'day')
-    let defaultTimeEnd = moment().add(15, 'day')
-
-    if (filter?.start) {
-      defaultTimeStart = getDateFromUnix(filter?.start).add(-2, 'day')
-      defaultTimeEnd = getDateFromUnix(filter?.start).add(15, 'day')
-    }
-
-    if (isMobile) {
-      defaultTimeStart = moment().add(-3, 'day')
-      defaultTimeEnd = moment().add(3, 'day')
-    }
-
-    devLog('isMobile', isMobile)
-    return { defaultTimeStart, defaultTimeEnd }
-  }
-  const { defaultTimeStart, defaultTimeEnd } = getDefaultTime(isMobile, filter)
-
-  const onZoomIn = (unit: ZoomUnit) => {
-    const currentIndex = ZOOM_UNITS.indexOf(unit)
-    const isDay = timelineRef.current?.getTimelineUnit() === 'day'
-
-    if (isDay) return
-
-    console.log(
-      timelineRef.current?.getTimelineUnit(),
-      timelineRef.current?.getTimelineContext()
-    )
-    if (currentIndex < ZOOM_UNITS.length - 1) {
-      setCurrentUnit(ZOOM_UNITS[currentIndex + 1])
-    }
-    timelineRef.current?.changeZoom(-1, 0.5)
-  }
-
-  const onZoomOut = (unit: ZoomUnit) => {
-    const currentIndex = ZOOM_UNITS.indexOf(unit)
-    const isYear = timelineRef.current?.getTimelineUnit() === 'year'
-
-    if (isYear) return
-    console.log(
-      timelineRef.current?.getTimelineUnit(),
-      timelineRef.current?.getTimelineContext()
-    )
-    timelineRef.current?.changeZoom(1.5, 2)
-    if (currentIndex > 0) {
-      setCurrentUnit(ZOOM_UNITS[currentIndex - 1])
-    }
-  }
-
-  const getHeaderUnit = (
-    currentUnit: ZoomUnit,
-    isFirstHeader: boolean
-  ): 'day' | 'month' | 'year' => {
-    const currentIndex = ZOOM_UNITS.indexOf(currentUnit)
-
-    if (isFirstHeader) {
-      // Для первого заголовка берем следующий уровень
-      return currentIndex < ZOOM_UNITS.length - 1
-        ? ZOOM_UNITS[currentIndex + 1]
-        : ZOOM_UNITS[currentIndex]
-    } else {
-      // Для второго заголовка используем текущий уровень
-      return currentUnit
-    }
-  }
-  return (
-    <>
-      <div>
-        {isLoading && <FullWidthLoader />}
-        <div className={cx.hotelInfo}></div>
-        <div className={cx.calendar}>
-          <Timeline
-            ref={timelineRef}
-            onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
-            className={'hotelTimeline'}
-            groups={hotelRooms}
-            items={hotelReserves}
-            keys={keys}
-            sidebarWidth={isMobile ? 100 : 230}
-            canMove
-            canResize="both"
-            canSelect
-            itemTouchSendsClick={true}
-            stackItems={false}
-            itemHeightRatio={0.75}
-            defaultTimeStart={defaultTimeStart as unknown as number}
-            defaultTimeEnd={defaultTimeEnd as unknown as number}
-            minZoom={WEEK}
-            maxZoom={THREE_MONTHS}
-            onCanvasClick={(groupId, time, e) => {
-              // @typescript-eslint/ban-ts-comment
-              // @ts-expect-error - Событие touch не определено в типах Timeline
-              if (e?.nativeEvent?.pointerType === 'touch') {
-                onReserveAdd(groupId, time, e)
-              }
-            }}
-            onCanvasDoubleClick={onReserveAdd}
-            itemRenderer={itemRenderer}
-          >
-            <TimelineHeaders className={cx.calendarHeader}>
-              <SidebarHeader>
-                {({ getRootProps }) => {
-                  return (
-                    <div {...getRootProps()} className={cx.calendarHeader}>
-                      <Button
-                        icon={<CiSquarePlus size={24} />}
-                        type={'link'}
-                        onClick={() => {
-                          setCurrentReserve({ hotel: hotel })
-                          setIsRoomOpen(true)
-                        }}
-                      />
-                      {/* TODO: Сортировка отключена по просьбе Михаила - лучше, чтобы здесь была сортировка по дате создания */}
-                      {/* {sort === 'asc' ? (
-                                                <Button
-                                                    icon={<BiSortDown size={24} />}
-                                                    type={'link'}
-                                                    title={'В алфавитном порядке А-Я'}
-                                                    onClick={() => {
-                                                        setSort('desc');
-                                                    }}
-                                                />
-                                            ) : (
-                                                <Button
-                                                    icon={<BiSortUp size={24} />}
-                                                    type={'link'}
-                                                    title={'В алфавитном порядке А-Я'}
-                                                    onClick={() => {
-                                                        setSort('asc');
-                                                    }}
-                                                />
-                                            )} */}
-                      <Button
-                        icon={<CiZoomIn size={24} />}
-                        type={'link'}
-                        onClick={() => onZoomIn(currentUnit)}
-                      />
-                      <Button
-                        icon={<CiZoomOut size={24} />}
-                        type={'link'}
-                        onClick={() => onZoomOut(currentUnit)}
-                      />
-                    </div>
-                  )
-                }}
-              </SidebarHeader>
-              <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
-                {({
-                  headerContext: { intervals, unit },
-
-                  getRootProps,
-                  getIntervalProps,
-                  showPeriod,
-                }) => {
-                  const isYear = unit === 'year'
-                  return (
-                    <div {...getRootProps()}>
-                      {intervals.map(interval => {
-                        const dateText = isYear
-                          ? moment(interval.startTime.toDate()).format('YYYY')
-                          : moment(interval.startTime.toDate()).format('MMM')
-
-                        return (
-                          <Interval
-                            interval={interval}
-                            unit={unit}
-                            getIntervalProps={getIntervalProps}
-                            getRootProps={getRootProps}
-                            dateText={dateText}
-                            showPeriod={showPeriod}
-                            intervalStyles={{
-                              backgroundColor: 'var(--color-bg-success)',
-                              color: 'var(--color-control-typo-primary)',
-                            }}
-                            key={nanoid()}
-                          />
-                        )
-                      })}
-                    </div>
-                  )
-                }}
-              </CustomHeader>
-              <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
-                {({
-                  headerContext: { intervals, unit },
-                  getRootProps,
-                  getIntervalProps,
-                  showPeriod,
-                }) => {
-                  return (
-                    <div {...getRootProps()}>
-                      {intervals.map(interval => {
-                        const isMonth = unit === 'month'
-                        const isYear = unit === 'year'
-
-                        const dateText =
-                          isMonth || isYear
-                            ? moment(interval.startTime.toDate()).format('MMM')
-                            : interval.startTime.format('DD')
-
-                        return (
-                          <Interval
-                            interval={interval}
-                            unit={unit}
-                            getIntervalProps={getIntervalProps}
-                            getRootProps={getRootProps}
-                            dateText={dateText}
-                            showPeriod={showPeriod}
-                            key={nanoid()}
-                          />
-                        )
-                      })}
-                    </div>
-                  )
-                }}
-              </CustomHeader>
-            </TimelineHeaders>
-          </Timeline>
-        </div>
-        <RoomModal
-          isOpen={isRoomOpen}
-          onClose={() => setIsRoomOpen(false)}
-          onAccept={onRoomCreate}
-          isLoading={isRoomCreating}
-          currentReserve={currentReserve}
-        />
-      </div>
-      <ReserveModal
-        isOpen={isReserveOpen}
-        onClose={onClose}
-        onAccept={onReserveAccept}
-        onDelete={onReserveDelete}
-        currentReserve={currentReserve}
-        isLoading={reserveLoading}
-      />
-    </>
-  )
-}
+        <>
+            <div>
+                {isLoading && <FullWidthLoader />}
+                <div className={cx.hotelInfo}></div>
+                <div className={cx.calendar}>
+                    <Timeline
+                        hotel={hotel}
+                        hotelRooms={hotelRooms}
+                        hotelReserves={hotelReserves}
+                        timelineClassName="hotelTimeline"
+                        sidebarWidth={isMobile ? 100 : 230}
+                        onReserveAdd={onReserveAdd}
+                        onItemClick={onItemClick}
+                        onCreateRoom={onCreateRoomClick}
+                        calendarItemClassName={cx.calendarItem}
+                        timelineId={timelineId}
+                        onGroupsReorder={handleGroupsReorder}
+                    />
+                </div>
+                <RoomModal
+                    isOpen={isRoomOpen}
+                    onClose={() => setIsRoomOpen(false)}
+                    onAccept={onRoomCreate}
+                    isLoading={isRoomCreating}
+                    currentReserve={currentReserve}
+                />
+            </div>
+            <ReserveModal
+                isOpen={isReserveOpen}
+                onClose={onClose}
+                onAccept={onReserveAccept}
+                onDelete={onReserveDelete}
+                currentReserve={currentReserve}
+                isLoading={reserveLoading}
+            />
+        </>
+    );
+};
