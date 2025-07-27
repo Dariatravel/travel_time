@@ -7,13 +7,7 @@ import { Button } from 'antd';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import 'moment/locale/ru';
-import {
-    CustomHeader,
-    Id,
-    SidebarHeader,
-    Timeline as TimelineComponent,
-    TimelineHeaders,
-} from 'my-react-calendar-timeline';
+import { CustomHeader, Id, SidebarHeader, Timeline as TimelineComponent, TimelineHeaders } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
 import React, { useRef, useState } from 'react';
 import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci';
@@ -72,17 +66,7 @@ export const Timeline = ({
     const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 100 : 230);
 
     // @ts-nocheck
-    const itemRenderer = ({
-        item,
-        itemContext,
-        getItemProps,
-        getResizeProps,
-    }: {
-        item: any;
-        itemContext: any;
-        getItemProps: (item: any) => any;
-        getResizeProps: (item: any) => any;
-    }) => {
+    const itemRenderer = ({ item, itemContext, getItemProps, getResizeProps }: { item: any; itemContext: any; getItemProps: (item: any) => any; getResizeProps: (item: any) => any }) => {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-expect-error
         const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
@@ -99,10 +83,7 @@ export const Timeline = ({
                 }}
             >
                 {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
-                <div
-                    className={`${calendarItemClassName || styles.calendarItem} rct-item-content`}
-                    style={{ maxHeight: `${itemContext.dimensions.height}` }}
-                >
+                <div className={`${calendarItemClassName || styles.calendarItem} rct-item-content`} style={{ maxHeight: `${itemContext.dimensions.height}` }}>
                     {item?.guest} {item?.phone}
                 </div>
 
@@ -113,11 +94,7 @@ export const Timeline = ({
 
     const groupRenderer = ({ group }: { group: any }) => {
         return (
-            <DraggableGroup
-                id={`${timelineId}-${group.id}`}
-                title={group.title}
-                className={styles.timelineGroup}
-            >
+            <DraggableGroup id={`${timelineId}-${group.id}`} title={group.title} className={styles.timelineGroup}>
                 <div className={styles.groupContent}>{group.title}</div>
             </DraggableGroup>
         );
@@ -159,17 +136,12 @@ export const Timeline = ({
         }
     };
 
-    const getHeaderUnit = (
-        currentUnit: ZoomUnit,
-        isFirstHeader: boolean,
-    ): 'day' | 'month' | 'year' => {
+    const getHeaderUnit = (currentUnit: ZoomUnit, isFirstHeader: boolean): 'day' | 'month' | 'year' => {
         const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
 
         if (isFirstHeader) {
             // Для первого заголовка берем следующий уровень
-            return currentIndex < ZOOM_UNITS.length - 1
-                ? ZOOM_UNITS[currentIndex + 1]
-                : ZOOM_UNITS[currentIndex];
+            return currentIndex < ZOOM_UNITS.length - 1 ? ZOOM_UNITS[currentIndex + 1] : ZOOM_UNITS[currentIndex];
         } else {
             // Для второго заголовка используем текущий уровень
             return currentUnit;
@@ -190,11 +162,7 @@ export const Timeline = ({
     };
 
     return (
-        <DndTimelineWrapper
-            groups={groupsForDnd}
-            onGroupsReorder={handleGroupsReorder}
-            timelineId={timelineId}
-        >
+        <DndTimelineWrapper groups={groupsForDnd} onGroupsReorder={handleGroupsReorder} timelineId={timelineId}>
             <TimelineComponent
                 ref={timelineRef}
                 onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
@@ -229,41 +197,20 @@ export const Timeline = ({
                         {({ getRootProps }) => {
                             return (
                                 <div {...getRootProps()} className={styles.calendarHeader}>
-                                    {onCreateRoom && (
-                                        <Button
-                                            icon={<CiSquarePlus size={24} />}
-                                            type={'link'}
-                                            onClick={onCreateRoom}
-                                        />
-                                    )}
-                                    <Button
-                                        icon={<CiZoomIn size={24} />}
-                                        type={'link'}
-                                        onClick={() => onZoomIn(currentUnit)}
-                                    />
-                                    <Button
-                                        icon={<CiZoomOut size={24} />}
-                                        type={'link'}
-                                        onClick={() => onZoomOut(currentUnit)}
-                                    />
+                                    {onCreateRoom && <Button icon={<CiSquarePlus size={24} />} type={'link'} onClick={onCreateRoom} />}
+                                    <Button icon={<CiZoomIn size={24} />} type={'link'} onClick={() => onZoomIn(currentUnit)} />
+                                    <Button icon={<CiZoomOut size={24} />} type={'link'} onClick={() => onZoomOut(currentUnit)} />
                                 </div>
                             );
                         }}
                     </SidebarHeader>
                     <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
-                        {({
-                            headerContext: { intervals, unit },
-                            getRootProps,
-                            getIntervalProps,
-                            showPeriod,
-                        }) => {
+                        {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                             const isYear = unit === 'year';
                             return (
                                 <div {...getRootProps()}>
                                     {intervals.map((interval) => {
-                                        const dateText = isYear
-                                            ? moment(interval.startTime.toDate()).format('YYYY')
-                                            : moment(interval.startTime.toDate()).format('MMM');
+                                        const dateText = isYear ? moment(interval.startTime.toDate()).format('YYYY') : moment(interval.startTime.toDate()).format('MMM');
 
                                         return (
                                             <Interval
@@ -286,22 +233,14 @@ export const Timeline = ({
                         }}
                     </CustomHeader>
                     <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
-                        {({
-                            headerContext: { intervals, unit },
-                            getRootProps,
-                            getIntervalProps,
-                            showPeriod,
-                        }) => {
+                        {({ headerContext: { intervals, unit }, getRootProps, getIntervalProps, showPeriod }) => {
                             return (
                                 <div {...getRootProps()}>
                                     {intervals.map((interval) => {
                                         const isMonth = unit === 'month';
                                         const isYear = unit === 'year';
 
-                                        const dateText =
-                                            isMonth || isYear
-                                                ? moment(interval.startTime.toDate()).format('MMM')
-                                                : interval.startTime.format('DD');
+                                        const dateText = isMonth || isYear ? moment(interval.startTime.toDate()).format('MMM') : interval.startTime.format('DD');
 
                                         return (
                                             <Interval

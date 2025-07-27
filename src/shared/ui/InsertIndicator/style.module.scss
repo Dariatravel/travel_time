@@ -1,0 +1,23 @@
+.container {
+    height: 2px;
+    background-color: #1890ff;
+    border-radius: 2px;
+}
+
+.after {
+    position: absolute;
+    top: 0; // Индикатор появится над контейнером
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.before {
+    position: absolute;
+    bottom: 0; // Индикатор появится над контейнером
+    left: 0;
+    width: 100%;
+    z-index: 9999;
+    pointer-events: none;
+}

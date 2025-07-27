@@ -2,22 +2,8 @@ import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
-import {
-    CurrentReserveType,
-    Nullable,
-    Reserve,
-    ReserveDTO,
-    useCreateReserve,
-    useDeleteReserve,
-    useUpdateReserve,
-} from '@/shared/api/reserve/reserve';
-import {
-    Room,
-    RoomDTO,
-    useCreateRoom,
-    useGetRoomsWithReservesByHotel,
-    useUpdateRoomOrder,
-} from '@/shared/api/room/room';
+import { CurrentReserveType, Nullable, Reserve, ReserveDTO, useCreateReserve, useDeleteReserve, useUpdateReserve } from '@/shared/api/reserve/reserve';
+import { Room, RoomDTO, useCreateRoom, useGetRoomsWithReservesByHotel, useUpdateRoomOrder } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
@@ -33,6 +19,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { Flex } from 'antd';
 import { useUnit } from 'effector-react/compat';
 import { Id } from 'my-react-calendar-timeline';
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
 import hotelImage from '../hotel.svg';
@@ -47,11 +34,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     const [isMobile] = useUnit([$isMobile]);
     const filter = useUnit($hotelsFilter);
     const queryClient = useQueryClient();
-    const {
-        data,
-        isFetching: isRoomLoading,
-        refetch,
-    } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
+    const { data, isFetching: isRoomLoading, refetch } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
 
     useEffect(() => {
         refetch();
@@ -246,30 +229,18 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     };
 
     return (
-        <>
+        <div style={{ position: 'relative' }}>
             <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
-                    <HotelImage
-                        type={hotel?.type}
-                        className={cx.hotelIcon}
-                        tagClassName={cx.hotelTag}
-                        src={hotelImage.src}
-                        onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
-                    />
+                    <HotelImage type={hotel?.type} className={cx.hotelIcon} tagClassName={cx.hotelTag} src={hotelImage.src} onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)} />
 
                     <div className={cx.hotelDescription}>
-                        <HotelTitle
-                            size={isMobile ? 's' : 'xl'}
-                            className={cx.hotelTitle}
-                            href={getHotelUrl(hotel)}
-                        >
+                        <HotelTitle size={isMobile ? 's' : 'xl'} className={cx.hotelTitle} href={getHotelUrl(hotel)}>
                             {hotel?.title}
                         </HotelTitle>
                         <div>{hotel?.address}</div>
-                        <div>
-                            {hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}
-                        </div>
+                        <div>{hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}</div>
                     </div>
                 </div>
 
@@ -291,21 +262,8 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                     </div>
                 )}
             </Flex>
-            <RoomModal
-                isOpen={isRoomOpen}
-                onClose={() => setIsRoomOpen(false)}
-                onAccept={onRoomCreate}
-                isLoading={isRoomCreating}
-                currentReserve={currentReserve}
-            />
-            <ReserveModal
-                isOpen={isReserveOpen}
-                onClose={onClose}
-                onAccept={onReserveAccept}
-                onDelete={onReserveDelete}
-                currentReserve={currentReserve}
-                isLoading={reserveLoading}
-            />
-        </>
+            <RoomModal isOpen={isRoomOpen} onClose={() => setIsRoomOpen(false)} onAccept={onRoomCreate} isLoading={isRoomCreating} currentReserve={currentReserve} />
+            <ReserveModal isOpen={isReserveOpen} onClose={onClose} onAccept={onReserveAccept} onDelete={onReserveDelete} currentReserve={currentReserve} isLoading={reserveLoading} />
+        </div>
     );
 };

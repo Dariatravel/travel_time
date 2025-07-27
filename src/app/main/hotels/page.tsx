@@ -125,6 +125,7 @@ export default function Hotels() {
             />
           }
         />
+        
         <HotelModal
           isOpen={isHotelOpen}
           onClose={() => {

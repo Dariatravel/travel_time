@@ -1,23 +1,23 @@
 .loaderContainer {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .scrollContainer {
-  position: relative;
-  overflow: auto;
-  will-change: transform;
-  height: calc(100vh - 259px); /* header + search + title */
+    position: relative;
+    overflow: auto;
+    will-change: transform;
+    height: calc(100vh - 259px); /* header + search + title */
 }
 
 @media (max-width: 768px) {
-  .scrollContainer {
-    height: calc(100vh - 280px); /* header + search + title + footer */
-  }
+    .scrollContainer {
+        height: calc(100vh - 280px); /* header + search + title + footer */
+    }
 }
