@@ -9,7 +9,7 @@ import { devLog } from './logger';
 const getSession = async () => {
     try {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        //@ts-expect-error
+        // @ts-expect-error
         const { data } = await supabase.auth.getSession();
 
         return data;

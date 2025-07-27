@@ -30,7 +30,7 @@ export async function signup(formData: FormData) {
 
     try {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        //@ts-expect-error
+        // @ts-expect-error
         await supabase.auth.signUp(data);
     } catch (e) {
         console.error(e);

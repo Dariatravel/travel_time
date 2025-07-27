@@ -12,7 +12,7 @@ export const useAuthSession = async ({ className, children }: AuthControllerProp
     const {
         data: { session },
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        //@ts-expect-error
+        // @ts-expect-error
     } = await supabase.auth.getSession();
 
     if (!session) redirect('/login');
