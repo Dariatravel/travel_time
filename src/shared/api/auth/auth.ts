@@ -1,8 +1,7 @@
 import supabase from '@/shared/config/supabase';
 import { devError } from '@/shared/lib/logger';
 import { notifyError, notifySuccess, showToast } from '@/shared/ui/Toast/Toast';
-import { User } from '@supabase/auth-js';
-import { Session } from '@supabase/supabase-js';
+import { AuthSession, AuthUser } from '@supabase/supabase-js';
 import { useMutation, useQuery } from '@tanstack/react-query';
 import { redirect } from 'next/navigation';
 
@@ -11,7 +10,7 @@ export interface AuthProps {
     password: string;
 }
 
-export type TravelUser = User['user_metadata'];
+export type TravelUser = AuthUser['user_metadata'];
 
 export interface RegisterProps {
     surname: string;
@@ -100,7 +99,7 @@ export const useUser = () => useQuery({ queryFn: getUser, queryKey: ['USER'] });
 export const useGetUsers = () => useQuery({ queryFn: getListUsers, queryKey: ['USER'] });
 
 export const useGetSession = () => {
-    return useQuery<{ session: Session | null }>({
+    return useQuery<{ session: AuthSession | null }>({
         queryKey: ['session'],
         queryFn: async () => {
             const { data, error } = await supabase.auth.getSession();
