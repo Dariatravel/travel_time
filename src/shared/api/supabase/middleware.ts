@@ -30,8 +30,6 @@ export async function updateSession(request: NextRequest) {
     );
 
     // refreshing the auth token
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    //@ts-expect-error
     await supabase.auth.getUser();
 
     return supabaseResponse;

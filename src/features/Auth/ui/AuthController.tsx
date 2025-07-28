@@ -11,8 +11,6 @@ export interface AuthControllerProps {
 export const useAuthSession = async ({ className, children }: AuthControllerProps) => {
     const {
         data: { session },
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
     } = await supabase.auth.getSession();
 
     if (!session) redirect('/login');
