@@ -1,21 +1,27 @@
 .container {
-    height: 2px;
-    background-color: #1890ff;
-    border-radius: 2px;
+    // border-radius: 2px;
+
+    &::after,
+    &::before {
+        content: '';
+        width: 100%;
+        height: 2px;
+        background-color: #1890ff;
+    }
 }
 
-.before {
+.before::before {
     position: absolute;
     top: 0; // Индикатор появится над контейнером
     left: 0;
-    width: 100%;
+    // width: 100%;
     z-index: 9999;
     pointer-events: none;
 }
 
-.after {
+.after::after {
     position: absolute;
-    bottom: 0; // Индикатор появится над контейнером
+    bottom: 1px; // Индикатор появится над контейнером
     left: 0;
     width: 100%;
     z-index: 9999;
