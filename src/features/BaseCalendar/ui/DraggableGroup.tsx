@@ -32,9 +32,7 @@ export const DraggableGroup = ({ id, children, title, className }: DraggableGrou
             style={groupStyle}
             className={`${styles.draggableGroup} ${className || ''}`}
         >
-            {(insertPosition.afterId === id || insertPosition?.beforeId === id) && (
-                <InsertionIndicator />
-            )}
+            {insertPosition.beforeId === id && <InsertionIndicator type="before" />}
             <div className={styles.groupHeader}>
                 <div className={styles.dragHandle} {...attributes} {...listeners}>
                     <span className={styles.dragIcon}>
@@ -45,7 +43,7 @@ export const DraggableGroup = ({ id, children, title, className }: DraggableGrou
             </div>
 
             <div className={styles.groupContent}>{children}</div>
-            {/* {insertPosition.beforeId === id && <InsertionIndicator />} */}
+            {insertPosition.afterId === id && <InsertionIndicator type="after" />}
         </div>
     );
 };

@@ -1,9 +1,11 @@
 import {
+    Active,
     DndContext,
     DragEndEvent,
     DragOverEvent,
     DragOverlay,
     DragStartEvent,
+    Over,
     useDroppable,
 } from '@dnd-kit/core';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
@@ -42,60 +44,51 @@ export const DndTimelineWrapper = ({
 }: DndTimelineWrapperProps) => {
     const activeId = useUnit($activeId);
     const insertPosition = useUnit($insertPosition);
-    // const [activeItem, setActiveItem] = useState<DragStartEvent | null>(null);
-    // const [insertPosition, setInsertPosition] = useState<{
-    //     beforeId: UniqueIdentifier | null;
-    //     afterId: UniqueIdentifier | null;
-    // }>({ beforeId: null, afterId: null });
 
-    // const handleDragStart = (event: DragStartEvent) => {
-    //     console.log(event);
-    //     setActiveItem(event);
-    // };
+    const getIsBefore = (over: Over, active: Active): boolean => {
+        const overRect = over.rect;
+        // берём четверть от высоты, в связке с overRect.top получится корректная половина (похоже на механизмы dnd-kit)
+        const quarterHeight = overRect.height / 2 / 2;
+        // расчёт средней высоты - берём текущую координату элемента, добавляем половину его высоты
+        const verticalMiddle = overRect.top + quarterHeight;
+        const isBefore = active.rect.current.translated!.top < verticalMiddle;
+
+        return isBefore;
+    };
 
     const handleDragEnd = (event: DragEndEvent) => {
+        // здесь нужно описать логику, что если ниже середины элементы, то элемент встаёт под него, а если выше, то над ним
         const { active, over } = event;
         if (over && active.id !== over.id) {
+            // insertPosition.beforeId - вставляем перед элементом
+            // insertPosition.afterId - вставляем после элемента
             const oldIndex = groups.findIndex((group) => group.id === active.id);
-            const newIndex = groups.findIndex((group) => group.id === over.id);
-            const newOrder = [...groups.map((g) => g.id)];
-            const [removed] = newOrder.splice(oldIndex, 1);
-            newOrder.splice(newIndex, 0, removed);
-            onGroupsReorder?.(newOrder);
+            let newIndex = -1;
+            if (insertPosition.beforeId) {
+                newIndex = groups.findIndex((group) => group.id === insertPosition.beforeId);
+            } else if (insertPosition.afterId) {
+                newIndex = groups.findIndex((group) => group.id === insertPosition.afterId) + 1;
+            }
+            if (newIndex !== -1) {
+                const newOrder = [...groups.map((g) => g.id)];
+                const [removed] = newOrder.splice(oldIndex, 1);
+                newOrder.splice(newIndex > oldIndex ? newIndex - 1 : newIndex, 0, removed);
+                onGroupsReorder?.(newOrder);
+            }
         }
         dragEnded();
     };
-
-    // const handleDragOver = (event: any) => {
-    //     const { active, over } = event;
-
-    //     if (!over) return;
-
-    //     const overRect = over.rect;
-    //     const verticalMiddle = overRect.top + overRect.height / 2;
-
-    //     // Определяем позицию вставки
-    //     if (active.rect.current.translated) {
-    //         const isBefore = active.rect.current.translated.top < verticalMiddle;
-
-    //         setInsertPosition({
-    //             beforeId: isBefore ? over.id : null,
-    //             afterId: isBefore ? null : over.id,
-    //         });
-    //     }
-    // };
 
     const handleDragStart = (event: DragStartEvent) => {
         dragStarted(event.active.id.toString());
     };
 
+    // для отображения полосочки, эта же логика должна действовать для самого драга
     const handleDragOver = (event: DragOverEvent) => {
         const { active, over } = event;
         if (!over) return;
 
-        const overRect = over.rect;
-        const verticalMiddle = overRect.top + overRect.height / 2;
-        const isBefore = active.rect.current.translated!.top < verticalMiddle;
+        const isBefore = getIsBefore(over, active);
 
         positionChanged({
             beforeId: isBefore ? over.id.toString() : null,
@@ -109,7 +102,7 @@ export const DndTimelineWrapper = ({
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={() => dragCancelled()}
-            onDragOver={handleDragOver}
+            onDragMove={handleDragOver}
         >
             <TimelineDroppable id={timelineId}>
                 <SortableContext
