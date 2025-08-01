@@ -4,7 +4,7 @@
     border-radius: 2px;
 }
 
-.after {
+.before {
     position: absolute;
     top: 0; // Индикатор появится над контейнером
     left: 0;
@@ -13,7 +13,7 @@
     pointer-events: none;
 }
 
-.before {
+.after {
     position: absolute;
     bottom: 0; // Индикатор появится над контейнером
     left: 0;
