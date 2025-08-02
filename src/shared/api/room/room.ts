@@ -62,6 +62,7 @@ export async function getRoomsWithReservesByHotel(
         query.in('id', allowedRooms);
     }
 
+    query.order('order', { ascending: true, nullsFirst: false });
     const response = await query;
 
     return response.data as unknown as RoomReserves[]; // Возвращаем массив отелей
