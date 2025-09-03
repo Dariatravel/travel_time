@@ -60,3 +60,23 @@ export interface FilterChangeEvent {
     isActive: boolean;
 }
 
+export interface QueryStringFilter {
+    [key: string]: string;
+    beachType?: string;
+    beachDistance?: string;
+    eat?: string;
+    roomType?: string;
+    roomFeatures?: string;
+    features?: string;
+    price?: string;
+}
+
+export enum QueryStringFilterEnum {
+    BEACH_TYPE = 'beachType',
+    BEACH_DISTANCE = 'beachDistance',
+    EAT = 'eat',
+    ROOM_TYPE = 'roomType',
+    ROOM_FEATURES = 'roomFeatures',
+    FEATURES = 'features',
+    PRICE = 'price',
+}

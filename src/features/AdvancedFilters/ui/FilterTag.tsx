@@ -1,4 +1,4 @@
-import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import cx from 'classnames';
 import { X } from 'lucide-react';
 import React from 'react';
@@ -28,7 +28,7 @@ export const FilterTag: React.FC<FilterTagProps> = ({ option, onToggle, classNam
     };
 
     return (
-        <Badge
+        <Button
             variant={option.isActive ? 'default' : 'secondary'}
             className={cx(
                 'cursor-pointer transition-all duration-200 hover:scale-105',
@@ -48,6 +48,6 @@ export const FilterTag: React.FC<FilterTagProps> = ({ option, onToggle, classNam
                     onClick={handleRemove}
                 />
             )}
-        </Badge>
+        </Button>
     );
 };

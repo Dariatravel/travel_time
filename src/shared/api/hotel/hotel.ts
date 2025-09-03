@@ -84,7 +84,7 @@ export async function getAllHotels(
 
     const query = supabase
       .from('hotels_with_rooms_new')
-      .select('*, rooms(*)', { count: 'exact' })
+      .select('*, rooms(*), hotelOptions(*)', { count: 'exact' })
 
     if (filter?.freeHotels_id) {
       if (filter?.hotels && filter?.hotels?.length > 0) {
@@ -144,7 +144,7 @@ export async function getAllHotelsWithEmptyRooms(
 
     const query = supabase
       .from('hotels')
-      .select('*, rooms(*)', { count: 'exact' })
+      .select('*, rooms(*), hotelOptions(*)', { count: 'exact' })
 
     if (filter?.freeHotels_id) {
       query.in('id', filter?.freeHotels_id)
@@ -167,6 +167,7 @@ export async function getAllHotelsWithEmptyRooms(
  * Хук для бесконечной подгрузки отелей с поддержкой фильтрации
  * @param filter - фильтр для поиска
  * @param limit - количество элементов на странице (по умолчанию 5)
+ * @withEmptyRooms - нужно ли в результатах вернуть пустые номера
  */
 export const useInfiniteHotelsQuery = (
   filter?: TravelFilterType,

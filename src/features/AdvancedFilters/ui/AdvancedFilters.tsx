@@ -3,15 +3,17 @@ import { Button } from '@/components/ui/button';
 import {
     Dialog,
     DialogContent,
+    DialogDescription,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
 } from '@/components/ui/dialog';
 import cx from 'classnames';
-import { Filter, X } from 'lucide-react';
+import { Filter } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
 import { INITIAL_FILTERS } from '../lib/constants';
 import { AdvancedFiltersState } from '../lib/types';
+import { useFilters } from '../lib/useFilters';
 import { FilterSection } from './FilterSection';
 
 interface AdvancedFiltersProps {
@@ -38,6 +40,9 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     const [filters, setFilters] = useState<AdvancedFiltersState>(INITIAL_FILTERS);
     const [isOpen, setIsOpen] = useState(false);
 
+    const { queryStringFilters, filterParamsMap } = useFilters();
+
+    console.log({ queryStringFilters, filterParamsMap });
     const handleOptionToggle = useCallback((sectionId: string, optionId: string) => {
         setFilters((prevFilters) => {
             const newFilters = { ...prevFilters };
@@ -119,22 +124,11 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
                 <DialogHeader className="flex flex-row items-center justify-between">
                     <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setIsOpen(false)}
-                        className="h-8 w-8 p-0"
-                    >
-                        <X size={16} />
-                    </Button>
                 </DialogHeader>
-
-                <div className="space-y-6 py-4">
+                <DialogDescription>
+                    {/* <div className="space-y-6 py-4"> */}
                     {/* Фильтры по отелю */}
                     <div>
-                        <h3 className="text-lg font-medium text-foreground mb-4 border-b pb-2">
-                            Фильтры по отелю
-                        </h3>
                         <div className="space-y-2">
                             <FilterSection
                                 section={filters.hotel.city}
@@ -143,11 +137,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                         </div>
                     </div>
 
-                    {/* Фильтры по номеру */}
                     <div>
-                        <h3 className="text-lg font-medium text-foreground mb-4 border-b pb-2">
-                            Фильтры по номеру
-                        </h3>
                         <div className="space-y-2">
                             <FilterSection
                                 section={filters.room.features}
@@ -175,7 +165,8 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                             />
                         </div>
                     </div>
-                </div>
+                    {/* </div> */}
+                </DialogDescription>
 
                 {/* Кнопки действий */}
                 <div className="flex items-center justify-between pt-4 border-t">
@@ -198,4 +189,3 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         </Dialog>
     );
 };
-
