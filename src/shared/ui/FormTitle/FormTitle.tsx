@@ -1,23 +1,15 @@
-import React, {FC, ReactNode} from 'react'
-import cx from "./style.module.css";
-import {Text, TextProps} from "@consta/uikit/Text";
+import { cn } from '@/lib/utils';
+import { FC, ReactNode } from 'react';
 
-export interface FormTitleProps extends TextProps {
+export interface FormTitleProps extends React.HTMLAttributes<HTMLParagraphElement> {
     children: ReactNode;
+    className?: string;
 }
 
-
-export const FormTitle: FC<FormTitleProps> = ({children, ...rest}: FormTitleProps) => {
+export const FormTitle: FC<FormTitleProps> = ({ children, className, ...rest }: FormTitleProps) => {
     return (
-        <Text
-            as="p"
-            size="2xl"
-            view="primary"
-            weight="semibold"
-            className={cx.title}
-            {...rest}
-        >
+        <p className={cn('scroll-m-20 text-xl font-semibold tracking-tight', className)} {...rest}>
             {children}
-        </Text>
-    )
-}
+        </p>
+    );
+};

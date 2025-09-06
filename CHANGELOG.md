@@ -6,6 +6,14 @@
 
 Описание: Переведено состояние фильтров на плоский вид без разделения на `hotel` и `room`. Обновлены типы (`AdvancedFiltersState`), константы (`INITIAL_FILTERS`), редьюсеры стора, парсинг/сериализация query string и компоненты `AdvancedFilters`, `AdvancedFiltersDemo`, `FiltersSync`. Теперь в сторе используются ключи секций: `city`, `features`, `accommodation`, `nutrition`, `beach`, `beachDistance`, `price`.
 
+Дата: 05.09.2025 Добавлен Select для выбора города в HotelModal
+
+Описание: Добавлен компонент Select из Shadcn UI для выбора города в форме создания/редактирования отеля. Создан компонент `src/components/ui/select.tsx` на базе Radix UI, обновлена схема валидации `HotelFormSchema` с полем `city`, исправлены конфликты имен между Consta UI и Shadcn UI Select компонентами.
+
+Дата: 05.09.2025 Полная замена UI компонентов на Shadcn в HotelModal
+
+Описание: Заменены все инпуты и селекты в `HotelInfo.tsx` на компоненты Shadcn UI. Созданы компоненты `Input`, `Textarea`, `Label` и обновлен `Select`. Удалены зависимости от Consta UI (`TextField`, `ConstaSelect`, `GridItem`). Обновлена логика работы с типами данных для совместимости с существующей схемой валидации. Установлены зависимости `@radix-ui/react-label` и `class-variance-authority`.
+
 # Changelog
 
 ## [0.4.2] - 25.08.2025

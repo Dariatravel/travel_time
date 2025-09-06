@@ -7,7 +7,10 @@ const imageSchema = z.object({
 
 export const hotelFormSchema = z.object({
     id: z.string().optional(),
-    title: z.string().min(1, { message: 'Название отеля обязательно для заполнения' }).nonempty({ message: 'Название отеля обязательно для заполнения' }),
+    title: z
+        .string()
+        .min(1, { message: 'Название отеля обязательно для заполнения' })
+        .nonempty({ message: 'Название отеля обязательно для заполнения' }),
     type: z.object({
         id: z.string(),
         label: z.string(),
@@ -21,10 +24,27 @@ export const hotelFormSchema = z.object({
         label: z.string(),
     }),
     address: z.string().min(1, 'Адрес обязателен для заполнения'),
+    city: z.string().min(1, 'Город обязателен для заполнения'),
     phone: z.string().min(1, 'Номер телефона обязателен для заполнения'),
     telegram_url: z.string().optional(),
     description: z.string().optional().default(''),
     image_id: imageSchema.nullable().optional(),
+    beach: z.object({
+        id: z.string(),
+        label: z.string(),
+    }),
+    beach_distance: z.object({
+        id: z.string(),
+        label: z.string(),
+    }),
+    features: z.object({
+        id: z.string(),
+        label: z.string(),
+    }),
+    eat: z.object({
+        id: z.string(),
+        label: z.string(),
+    }),
 });
 
 export type HotelFormSchema = z.infer<typeof hotelFormSchema>;

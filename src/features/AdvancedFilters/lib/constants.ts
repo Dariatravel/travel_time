@@ -4,63 +4,63 @@ import { AdvancedFiltersState } from './types';
  * Константы для расширенной фильтрации
  */
 export const DEFAULT_CITIES = [
-    { id: 'sukhumi', label: 'Сухум', value: 'sukhumi' },
-    { id: 'gagra', label: 'Гагра', value: 'gagra' },
-    { id: 'gali', label: 'Гали', value: 'gali' },
-    { id: 'pitsunda', label: 'Пицунда', value: 'pitsunda' },
-    { id: 'new-athon', label: 'Новый Афон', value: 'new-athon' },
+    { value: 'sukhumi', label: 'Сухум' },
+    { value: 'gagra', label: 'Гагра' },
+    { value: 'gali', label: 'Гали' },
+    { value: 'pitsunda', label: 'Пицунда' },
+    { value: 'new-athon', label: 'Новый Афон' },
 ];
 
 export const DEFAULT_ROOM_FEATURES = [
-    { id: 'sea-view', label: 'Вид на море', value: 'sea-view' },
-    { id: 'balcony', label: 'Балкон', value: 'balcony' },
-    { id: 'pool', label: 'Бассейн', value: 'pool' },
-    { id: 'single-room', label: 'Однокомнатный', value: 'single-room' },
-    { id: 'double-room', label: 'Двухкомнатный', value: 'double-room' },
+    { value: 'sea-view', label: 'Вид на море' },
+    { value: 'balcony', label: 'Балкон' },
+    { value: 'pool', label: 'Бассейн' },
+    { value: 'single-room', label: 'Однокомнатный' },
+    { value: 'double-room', label: 'Двухкомнатный' },
 ];
 
 export const DEFAULT_FEATURES = [
-    { id: 'children-allowed', label: 'Можно с детьми', value: 'children-allowed' },
-    { id: 'pets-allowed', label: 'Можно с животными', value: 'pets-allowed' },
+    { value: 'children-allowed', label: 'Можно с детьми' },
+    { value: 'pets-allowed', label: 'Можно с животными' },
 ];
 
 export const DEFAULT_EAT = [
-    { id: 'breakfast', label: 'Завтрак', value: 'breakfast' },
-    { id: 'half-board', label: 'Полупансион', value: 'half-board' },
-    { id: 'full-board', label: 'Завтрак, обед, ужин', value: 'full-board' },
-    { id: 'cafe', label: 'Есть кафе/столовая', value: 'cafe' },
-    { id: 'no-meals', label: 'Без питания', value: 'no-meals' },
+    { value: 'breakfast', label: 'Завтрак' },
+    { value: 'half-board', label: 'Полупансион' },
+    { value: 'full-board', label: 'Завтрак, обед, ужин' },
+    { value: 'cafe', label: 'Есть кафе/столовая' },
+    { value: 'no-meals', label: 'Без питания' },
 ];
 
 export const DEFAULT_BEACH = [
-    { id: 'pebble', label: 'Галечный', value: 'pebble' },
-    { id: 'pine-pebble', label: 'Сосновый галечный', value: 'pine-pebble' },
-    { id: 'sand', label: 'Песчаный', value: 'sand' },
-    { id: 'pebble-sand', label: 'Галечно-песочный', value: 'pebble-sand' },
+    { value: 'pebble', label: 'Галечный' },
+    { value: 'pine-pebble', label: 'Сосновый галечный' },
+    { value: 'sand', label: 'Песчаный' },
+    { value: 'pebble-sand', label: 'Галечно-песочный' },
 ];
 
 export const DEFAULT_BEACH_DISTANCE = [
-    { id: 'coastal-zone', label: 'Береговая зона', value: 'coastal-zone' },
-    { id: '5-min', label: 'До 5 минут', value: '5-min' },
-    { id: '10-min', label: 'До 10 минут', value: '10-min' },
-    { id: 'more-10-min', label: 'Более 10 минут', value: 'more-10-min' },
+    { value: 'coastal-zone', label: 'Береговая зона' },
+    { value: '5-min', label: 'До 5 минут' },
+    { value: '10-min', label: 'До 10 минут' },
+    { value: 'more-10-min', label: 'Более 10 минут' },
 ];
 
 export const DEFAULT_PRICE = [
-    { id: 'up-to-3000', label: 'До 3000 руб.', value: 'up-to-3000' },
-    { id: 'up-to-4000', label: 'До 4000 руб.', value: 'up-to-4000' },
-    { id: 'up-to-5000', label: 'До 5000 руб.', value: 'up-to-5000' },
-    { id: 'up-to-6000', label: 'До 6000 руб.', value: 'up-to-6000' },
-    { id: 'up-to-7000', label: 'До 7000 руб.', value: 'up-to-7000' },
+    { value: 'up-to-3000', label: 'До 3000 руб.' },
+    { value: 'up-to-4000', label: 'До 4000 руб.' },
+    { value: 'up-to-5000', label: 'До 5000 руб.' },
+    { value: 'up-to-6000', label: 'До 6000 руб.' },
+    { value: 'up-to-7000', label: 'До 7000 руб.' },
 ];
 
 export const TRAVEL_TIME_DEFAULTS = {
     city: DEFAULT_CITIES,
-    roomFeatures: DEFAULT_ROOM_FEATURES,
+    room_features: DEFAULT_ROOM_FEATURES,
     features: DEFAULT_FEATURES,
     eat: DEFAULT_EAT,
     beach: DEFAULT_BEACH,
-    beachDistance: DEFAULT_BEACH_DISTANCE,
+    beach_distance: DEFAULT_BEACH_DISTANCE,
     price: DEFAULT_PRICE,
 };
 

@@ -1,25 +1,29 @@
+import MultipleSelector from '@/components/ui/multiple-selector';
+import { TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { TravelUser } from '@/shared/api/auth/auth';
 import { CreateHotelDTO, Hotel, HotelDTO } from '@/shared/api/hotel/hotel';
-import { uploadHotelImage } from '@/shared/api/hotel/hotelImage';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
-import { FORM_SIZE } from '@/shared/lib/const';
 import { translateUserRole } from '@/shared/lib/translateUser';
 import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { GridItem } from '@consta/uikit/Grid';
-import { Select } from '@consta/uikit/Select';
-import { TextField } from '@consta/uikit/TextField';
-import { Flex } from 'antd';
 import cn from 'classnames';
 import { FC, useCallback, useMemo } from 'react';
 import { Controller, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { FaTelegram } from 'react-icons/fa';
-import { toast } from 'react-toastify';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '../../../components/ui/select';
+import { Textarea } from '../../../components/ui/textarea';
 import { HotelFormSchema } from '../lib/validation';
 import cx from './style.module.css';
 
@@ -47,6 +51,17 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
         type: hotel?.type ? adaptToOption({ title: hotel?.type, id: hotel?.type }) : undefined,
         description: hotel?.description || '',
         image_id: hotel?.image_id ? { id: hotel.image_id, file: new File([], '') } : null,
+        beach: hotel?.beach ? adaptToOption({ title: hotel?.beach, id: hotel?.beach }) : undefined,
+        beach_distance: hotel?.beach_distance
+            ? adaptToOption({ title: hotel?.beach_distance, id: hotel?.beach_distance })
+            : undefined,
+        features: hotel?.features
+            ? hotel?.features.map((item) => adaptToOption({ title: item, id: item }))
+            : undefined,
+        eat: hotel?.eat
+            ? hotel?.eat.map((item) => adaptToOption({ title: item, id: item }))
+            : undefined,
+        city: hotel?.city ? adaptToOption({ title: hotel?.city, id: hotel?.city }) : undefined,
     };
 };
 
@@ -57,7 +72,11 @@ const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
         rating: +data.rating,
         user_id: data.user_id.id,
         description: data.description || '',
-        image_id: data.image_id?.id,
+        beach: data.beach.id,
+        beach_distance: data.beach_distance.map((item) => item.id),
+        features: data.features.id,
+        eat: data.eat.id,
+        city: data.city.id,
     };
 
     if (data.id) {
@@ -84,7 +103,6 @@ export const HotelInfo: FC<HotelInfoProps> = ({
         getValues,
         handleSubmit,
         watch,
-        setValue,
         trigger,
         formState: { errors },
     } = useForm<HotelFormSchema>({
@@ -116,167 +134,301 @@ export const HotelInfo: FC<HotelInfoProps> = ({
             return;
         }
         const formData = getValues();
-        const imageFile = formData.image_id?.file;
-
-        let imagePath: string | undefined;
-        if (imageFile) {
-            try {
-                imagePath = await uploadHotelImage(imageFile);
-            } catch (error) {
-                toast.error('Ошибка при загрузке изображения');
-                return;
-            }
-        }
 
         const serializedData = deserializeData({
             ...formData,
-            image_id: imagePath ? { id: imagePath, file: imageFile! } : null,
         });
 
         await onAccept(serializedData);
-    }, [getValues, onAccept]);
+    }, [getValues, onAccept, trigger, errors]);
 
-    const onError: SubmitErrorHandler<HotelFormSchema> = (errors) => {
+    const onError: SubmitErrorHandler<HotelFormSchema> = () => {
         showToast(`Заполните все обязательные поля`, 'error');
         return;
     };
 
     return (
-        <Flex vertical>
-            <FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>
-            <Controller
-                name="title"
-                control={control}
-                rules={{ required: 'Название отеля обязательно для заполнения' }}
-                render={({ field, fieldState: { error } }) => (
-                    <TextField
-                        {...field}
-                        placeholder="Введите название"
-                        label="Название отеля"
-                        required
-                        size={FORM_SIZE}
-                        disabled={isLoading}
-                        className={cx.fields}
-                        status={error?.message ? 'alert' : undefined}
-                        caption={error?.message}
-                    />
-                )}
-            />
+        <div className="flex flex-col gap-2">
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                <Controller
+                    name="title"
+                    control={control}
+                    rules={{ required: 'Название отеля обязательно для заполнения' }}
+                    render={({ field, fieldState: { error } }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="title">
+                                Название отеля <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                {...field}
+                                id="title"
+                                placeholder="Введите название"
+                                disabled={isLoading}
+                                className={cx.fields}
+                            />
+                            {error && <p className="text-sm text-destructive">{error.message}</p>}
+                        </div>
+                    )}
+                />
 
+                <Controller
+                    name="type"
+                    control={control}
+                    rules={{ required: 'Тип отеля обязателен для заполнения' }}
+                    render={({ field, fieldState: { error } }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="type">
+                                Тип <span className="text-destructive">*</span>
+                            </Label>
+                            <Select
+                                value={field.value?.id}
+                                onValueChange={(value) => {
+                                    const selectedType = HOTEL_TYPES.find(
+                                        (type) => type.value === value,
+                                    );
+                                    if (selectedType) {
+                                        field.onChange({
+                                            id: selectedType.value,
+                                            label: selectedType.label,
+                                        });
+                                    }
+                                }}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger className={cx.fields}>
+                                    <SelectValue placeholder="Выберите из списка" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {HOTEL_TYPES.map((type) => (
+                                        <SelectItem key={type.value} value={type.value}>
+                                            {type.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {error && <p className="text-sm text-destructive">{error.message}</p>}
+                        </div>
+                    )}
+                />
+            </div>
             <Controller
-                name="type"
                 control={control}
-                rules={{ required: 'Тип отеля обязателен для заполнения' }}
-                render={({ field, fieldState: { error } }) => (
-                    <Select
-                        {...field}
-                        items={HOTEL_TYPES}
-                        placeholder={'Выберите из списка'}
-                        label={'Тип'}
-                        required
-                        size={FORM_SIZE}
-                        dropdownClassName={cx.dropdown}
-                        disabled={isLoading}
-                        className={cx.fields}
-                        status={error?.message ? 'alert' : undefined}
-                        caption={error?.message}
-                    />
-                )}
-            />
-            <Controller
-                name="address"
-                control={control}
-                rules={{ required: 'Адрес обязателен для заполнения' }}
-                render={({ field, fieldState: { error } }) => (
-                    <TextField
-                        {...field}
-                        placeholder="Введите адрес"
-                        label="Местоположение"
-                        required
-                        size={FORM_SIZE}
-                        disabled={isLoading}
-                        className={cx.fields}
-                        status={error?.message ? 'alert' : undefined}
-                        caption={error?.message}
-                    />
-                )}
-            />
-
-            <Controller
-                name="telegram_url"
-                control={control}
+                name="city"
+                rules={{ required: 'Город обязателен для заполнения' }}
                 render={({ field }) => (
-                    <TextField
-                        {...field}
-                        placeholder="Вставьте ссылку"
-                        label="Ссылка на отель в Telegram"
-                        size={FORM_SIZE}
-                        disabled={isLoading}
-                        className={cx.fields}
-                        status={errors.telegram_url ? 'alert' : undefined}
-                        caption={errors.telegram_url?.message}
-                        rightSide={() =>
-                            formData?.telegram_url ? (
-                                <LinkIcon
-                                    icon={<FaTelegram color="2AABEE" size={'24px'} />}
-                                    link={formData?.telegram_url}
-                                />
-                            ) : null
-                        }
-                    />
+                    <div className="space-y-2">
+                        <label className="text-sm font-medium text-foreground">
+                            Город <span className="text-destructive">*</span>
+                        </label>
+                        <Select
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            disabled={isLoading}
+                        >
+                            <SelectTrigger className={cx.fields}>
+                                <SelectValue placeholder="Выберите город" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {TRAVEL_TIME_DEFAULTS.city.map((option) => (
+                                    <SelectItem key={option.value} value={option.value}>
+                                        {option.label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.city && (
+                            <p className="text-sm text-destructive">{errors.city.message}</p>
+                        )}
+                    </div>
                 )}
             />
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                <Controller
+                    name="address"
+                    control={control}
+                    rules={{ required: 'Адрес обязателен для заполнения' }}
+                    render={({ field, fieldState: { error } }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="address">
+                                Местоположение <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                {...field}
+                                id="address"
+                                placeholder="Введите адрес"
+                                disabled={isLoading}
+                                className={cx.fields}
+                            />
+                            {error && <p className="text-sm text-destructive">{error.message}</p>}
+                        </div>
+                    )}
+                />
 
-            <PhoneInput
-                control={control}
-                name="phone"
-                placeholder="+7 (...)"
-                required
-                label="Номер телефона"
-                size={FORM_SIZE}
-                disabled={isLoading}
-                className={cx.fields}
-                error={errors.phone?.message}
-            />
-            <GridItem col={4}>
+                <Controller
+                    name="telegram_url"
+                    control={control}
+                    render={({ field }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="telegram_url">Ссылка на отель в Telegram</Label>
+                            <div className="relative">
+                                <Input
+                                    {...field}
+                                    id="telegram_url"
+                                    placeholder="Вставьте ссылку"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                />
+                                {formData?.telegram_url && (
+                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                        <LinkIcon
+                                            icon={<FaTelegram color="2AABEE" size={'24px'} />}
+                                            link={formData?.telegram_url}
+                                        />
+                                    </div>
+                                )}
+                            </div>
+                            {errors.telegram_url && (
+                                <p className="text-sm text-destructive">
+                                    {errors.telegram_url.message}
+                                </p>
+                            )}
+                        </div>
+                    )}
+                />
+            </div>
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                <PhoneInput
+                    control={control}
+                    name="phone"
+                    placeholder="+7 (...)"
+                    required
+                    label="Номер телефона"
+                    disabled={isLoading}
+                    className={cx.fields}
+                    error={errors.phone?.message}
+                />
                 <Controller
                     name="user_id"
                     control={control}
                     rules={{ required: 'Отельер обязателен для заполнения' }}
                     render={({ field, fieldState: { error } }) => (
-                        <Select
-                            {...field}
-                            items={userOptions}
-                            placeholder={'Выберите отельера'}
-                            label={'Отельер'}
-                            required
-                            size={FORM_SIZE}
-                            dropdownClassName={cx.dropdown}
-                            disabled={isLoading}
-                            className={cx.fields}
-                            status={error?.message ? 'alert' : undefined}
-                            caption={error?.message}
-                        />
+                        <div className="space-y-2">
+                            <Label htmlFor="user_id">
+                                Отельер <span className="text-destructive">*</span>
+                            </Label>
+                            <Select
+                                value={field.value?.id}
+                                onValueChange={(value) => {
+                                    const selectedUser = userOptions?.find(
+                                        (user) => user.id === value,
+                                    );
+                                    field.onChange(selectedUser);
+                                }}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger className={cx.fields}>
+                                    <SelectValue placeholder="Выберите отельера" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {userOptions?.map((user) => (
+                                        <SelectItem key={user.id} value={user.id}>
+                                            {user.label}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {error && <p className="text-sm text-destructive">{error.message}</p>}
+                        </div>
                     )}
                 />
-            </GridItem>
+            </div>
+            <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                <Controller
+                    name="beach"
+                    control={control}
+                    render={({ field }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="beach">Пляж</Label>
+                            <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger className={cx.fields}>
+                                    <SelectValue placeholder="Выберите пляж" />
+                                    <SelectContent>
+                                        {TRAVEL_TIME_DEFAULTS.beach.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </SelectTrigger>
+                            </Select>
+                        </div>
+                    )}
+                />
+                <Controller
+                    name="beach_distance"
+                    control={control}
+                    render={({ field }) => (
+                        <div className="space-y-2">
+                            <Label htmlFor="beach_distance">Расстояние до пляжа</Label>
+                            <Select
+                                value={field.value}
+                                onValueChange={field.onChange}
+                                disabled={isLoading}
+                            >
+                                <SelectTrigger className={cx.fields}>
+                                    <SelectValue placeholder="Выберите расстояние до пляжа" />
+                                    <SelectContent>
+                                        {TRAVEL_TIME_DEFAULTS.beach_distance.map((option) => (
+                                            <SelectItem key={option.value} value={option.value}>
+                                                {option.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </SelectTrigger>
+                            </Select>
+                        </div>
+                    )}
+                />
+            </div>
+            <Controller
+                name="features"
+                control={control}
+                render={({ field }) => (
+                    <div className="space-y-2">
+                        <Label htmlFor="features">Особенности</Label>
+                        <MultipleSelector
+                            options={TRAVEL_TIME_DEFAULTS.features}
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            disabled={isLoading}
+                            hidePlaceholderWhenSelected
+                            placeholder="Выберите особенности размещения"
+                        />
+                    </div>
+                )}
+            />
             <Controller
                 name="description"
                 control={control}
                 render={({ field }) => (
-                    <TextField
-                        {...field}
-                        label="Комментарии"
-                        type="textarea"
-                        cols={200}
-                        rows={3}
-                        placeholder="Введите комментарий"
-                        size={FORM_SIZE}
-                        disabled={isLoading}
-                        className={cn(cx.fields, cx.description)}
-                        status={errors.description ? 'alert' : undefined}
-                        caption={errors.description?.message}
-                    />
+                    <div className="space-y-2">
+                        <Label htmlFor="description">Комментарии</Label>
+                        <Textarea
+                            {...field}
+                            id="description"
+                            placeholder="Введите комментарий"
+                            disabled={isLoading}
+                            className={cn(cx.fields, cx.description)}
+                            rows={3}
+                        />
+                        {errors.description && (
+                            <p className="text-sm text-destructive">{errors.description.message}</p>
+                        )}
+                    </div>
                 )}
             />
             <FormButtons
@@ -287,6 +439,6 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                 onAccept={handleSubmit(onAcceptForm, onError)}
                 onClose={onClose}
             />
-        </Flex>
+        </div>
     );
 };

@@ -90,11 +90,26 @@ export default function Main() {
 
     return (
         <div>
-            <HotelModal isOpen={isHotelOpen} onClose={() => setIsHotelOpen(false)} currentReserve={null} />
-            <RoomModal isOpen={isRoomOpen} onClose={() => setIsRoomOpen(false)} currentReserve={null} />
-            <ReserveModal isOpen={isReserveOpen} onClose={() => setIsReserveOpen(false)} onAccept={onReserveCreate} currentReserve={null} isLoading={isReserveLoading} />
+            {/* <HotelModal isOpen={isHotelOpen} onClose={() => setIsHotelOpen(false)} currentReserve={null} /> */}
+            <RoomModal
+                isOpen={isRoomOpen}
+                onClose={() => setIsRoomOpen(false)}
+                currentReserve={null}
+            />
+            <ReserveModal
+                isOpen={isReserveOpen}
+                onClose={() => setIsReserveOpen(false)}
+                onAccept={onReserveCreate}
+                currentReserve={null}
+                isLoading={isReserveLoading}
+            />
 
-            <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'} className={cx.title}>
+            <Text
+                size={getTextSize(isMobile)}
+                weight={'semibold'}
+                view={'success'}
+                className={cx.title}
+            >
                 Все отели
             </Text>
             <Flex gap={'middle'} style={{ maxWidth: '1280px' }} wrap>
@@ -103,7 +118,11 @@ export default function Main() {
                         <Card key={id} shadow title={title} className={cx.card}>
                             <div className={cx.image}>{image}</div>
                             <div className={cx.count}>
-                                <Text view={'success'} size={isMobile ? '3xl' : '5xl'} weight={'semibold'}>
+                                <Text
+                                    view={'success'}
+                                    size={isMobile ? '3xl' : '5xl'}
+                                    weight={'semibold'}
+                                >
                                     {count}
                                 </Text>
                             </div>
@@ -112,7 +131,18 @@ export default function Main() {
                                     <Text view={'primary'} size={isMobile ? 'l' : 'xl'}>
                                         {title}
                                     </Text>
-                                    <Button className={cx.button} label={btn.title} size={isMobile ? 's' : 'm'} onClick={btn.onClick} view={'secondary'} />
+                                    <HotelModal
+                                        isOpen={isHotelOpen}
+                                        onHandleOpen={(state) => setIsHotelOpen(state)}
+                                        currentReserve={null}
+                                    />
+                                    <Button
+                                        className={cx.button}
+                                        label={btn.title}
+                                        size={isMobile ? 's' : 'm'}
+                                        onClick={btn.onClick}
+                                        view={'secondary'}
+                                    />
                                 </div>
                             </div>
                         </Card>

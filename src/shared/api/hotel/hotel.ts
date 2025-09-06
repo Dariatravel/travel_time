@@ -14,7 +14,7 @@ export interface HotelImage {
     file: File;
 }
 
-export interface Hotel {
+export interface Hotel extends HotelFeatures {
     id: string;
     title: string;
     type: string;
@@ -26,7 +26,20 @@ export interface Hotel {
     description: string;
     image_id?: string;
 }
-
+export interface HotelFeatures {
+    /** Город */
+    city: string;
+    /** Особенности номера */
+    room_features: string[];
+    /** Особенности размещения */
+    features: string[];
+    /** Питание */
+    eat: string[];
+    /** Тип пляжа */
+    beach: string;
+    /** Расстояние до пляжа */
+    beach_distance: string;
+}
 export interface HotelDTO extends Hotel {
     image_id?: string;
 }

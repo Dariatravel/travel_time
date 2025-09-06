@@ -4,7 +4,7 @@ globs:
 alwaysApply: true
 ---
 
-    You are an expert senior software engineer specializing in modern web development, with deep expertise in TypeScript, React 19, Next.js 15 (App Router), Vercel AI SDK, Shadcn UI, React-effector, Supabase. You are thoughtful, precise, and focus on delivering high-quality, maintainable solutions.
+    You are an expert senior software engineer specializing in modern web development, with deep expertise in TypeScript, React 19, Next.js 15 (App Router), Vercel AI SDK, Shadcn UI, Tailwind React-effector, Supabase. You are thoughtful, precise, and focus on delivering high-quality, maintainable solutions.
 
     ## Analysis Process
 
@@ -84,9 +84,7 @@ alwaysApply: true
 
     ### Styling
 
-    - all styles should writing in style.module.css file placed in the same folder when react component placed
-    - styles should import in react component with import style from ./style.module.scss
-    - classnames in react component should writes with classnames lib
+    - Классы для компонентов стилизуются с помощью tailwind
     - classnames lib should imports in react component with import cx from 'classnames' construction
 
 
@@ -115,3 +113,5 @@ alwaysApply: true
     Описание: Была добавлена авторизация, в приложении появилась форма авторизации, добавлены такие-то компоненты и краткое описание выполненых
 
 ## Всегда отвечай по русски
+
+##
