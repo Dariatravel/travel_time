@@ -5,7 +5,7 @@
     "scripts": {
         "dev": "next dev --turbopack",
         "build": "next build",
-        "start": "next start",
+        "start": "next run dev",
         "lint": "next lint",
         "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,md,json}\""

@@ -9,12 +9,13 @@ import {
     DialogTrigger,
 } from '@/components/ui/dialog';
 import cx from 'classnames';
+import { useUnit } from 'effector-react';
 import { Filter } from 'lucide-react';
 import React, { useCallback, useState } from 'react';
-import { INITIAL_FILTERS } from '../lib/constants';
 import { AdvancedFiltersState } from '../lib/types';
-import { useFilters } from '../lib/useFilters';
+import * as AdvancedFiltersModel from '../model';
 import { FilterSection } from './FilterSection';
+import { FiltersSync } from './FiltersSync';
 
 interface AdvancedFiltersProps {
     /** Заголовок модального окна */
@@ -37,64 +38,44 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     className,
     onFiltersChange,
 }) => {
-    const [filters, setFilters] = useState<AdvancedFiltersState>(INITIAL_FILTERS);
+    const filters = useUnit(AdvancedFiltersModel.$filters);
     const [isOpen, setIsOpen] = useState(false);
 
-    const { queryStringFilters, filterParamsMap } = useFilters();
-
-    console.log({ queryStringFilters, filterParamsMap });
-    const handleOptionToggle = useCallback((sectionId: string, optionId: string) => {
-        setFilters((prevFilters) => {
-            const newFilters = { ...prevFilters };
-
-            // Находим секцию в hotel или room
-            if (newFilters.hotel[sectionId as keyof typeof newFilters.hotel]) {
-                const section = newFilters.hotel[sectionId as keyof typeof newFilters.hotel];
-                if (section) {
-                    const option = section.options.find((opt) => opt.id === optionId);
-                    if (option) {
-                        option.isActive = !option.isActive;
-                    }
-                }
-            } else if (newFilters.room[sectionId as keyof typeof newFilters.room]) {
-                const section = newFilters.room[sectionId as keyof typeof newFilters.room];
-                if (section) {
-                    const option = section.options.find((opt) => opt.id === optionId);
-                    if (option) {
-                        option.isActive = !option.isActive;
-                    }
-                }
-            }
-
-            return newFilters;
-        });
-    }, []);
+    const handleOptionToggle = useCallback(
+        (sectionId: string, optionId: string) => {
+            const section = filters[sectionId as keyof AdvancedFiltersState];
+            const current = section?.options.find((o) => o.id === optionId)?.isActive ?? false;
+            AdvancedFiltersModel.filterSet({ sectionId, optionId, isActive: !current });
+        },
+        [filters],
+    );
 
     const handleApplyFilters = useCallback(() => {
-        onFiltersChange?.(filters);
+        onFiltersChange?.(filters as AdvancedFiltersState);
         setIsOpen(false);
     }, [filters, onFiltersChange]);
 
     const handleResetFilters = useCallback(() => {
-        setFilters(INITIAL_FILTERS);
-    }, []);
+        // Сброс к исходным значениям (дефолты из INITIAL)
+        AdvancedFiltersModel.filtersHydrated(filters);
+        AdvancedFiltersModel.filtersCleared();
+    }, [filters]);
 
     const handleOpenChange = useCallback((open: boolean) => {
         setIsOpen(open);
         if (!open) {
-            // При закрытии сбрасываем фильтры к исходному состоянию
-            setFilters(INITIAL_FILTERS);
+            // При закрытии сбрасываем активные фильтры
+            AdvancedFiltersModel.filtersCleared();
         }
     }, []);
 
     const getActiveFiltersCount = useCallback(() => {
         let count = 0;
-        Object.values(filters.hotel).forEach((section) => {
-            count += section.options.filter((option) => option.isActive).length;
-        });
-        Object.values(filters.room).forEach((section) => {
-            count += section.options.filter((option) => option.isActive).length;
-        });
+        (Object.values(filters) as Array<AdvancedFiltersState[keyof AdvancedFiltersState]>).forEach(
+            (section) => {
+                count += section.options.filter((option) => option.isActive).length;
+            },
+        );
         return count;
     }, [filters]);
 
@@ -102,12 +83,14 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={handleOpenChange}>
+            {/* Невидимая синхронизация с URL */}
+            <FiltersSync />
             <DialogTrigger asChild>
                 <Button
                     variant="outline"
                     className={cx(
                         'relative',
-                        activeFiltersCount > 0 && 'border-primary bg-primary/5',
+                        activeFiltersCount > 0 && 'border-primary bg-primary/5 cursor-pointer',
                         className,
                     )}
                 >
@@ -121,49 +104,34 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 </Button>
             </DialogTrigger>
 
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="max-w-6xl max-h-[80vh] min-h-[80vh] overflow-y-auto sm:max-w-4xl">
                 <DialogHeader className="flex flex-row items-center justify-between">
                     <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
                 </DialogHeader>
                 <DialogDescription>
-                    {/* <div className="space-y-6 py-4"> */}
-                    {/* Фильтры по отелю */}
-                    <div>
-                        <div className="space-y-2">
-                            <FilterSection
-                                section={filters.hotel.city}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                        </div>
-                    </div>
-
-                    <div>
-                        <div className="space-y-2">
-                            <FilterSection
-                                section={filters.room.features}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                            <FilterSection
-                                section={filters.room.accommodation}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                            <FilterSection
-                                section={filters.room.nutrition}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                            <FilterSection
-                                section={filters.room.beach}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                            <FilterSection
-                                section={filters.room.beachDistance}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                            <FilterSection
-                                section={filters.room.price}
-                                onOptionToggle={handleOptionToggle}
-                            />
-                        </div>
+                    <div className="grid grid-cols-2 gap-2">
+                        <FilterSection section={filters.city} onOptionToggle={handleOptionToggle} />
+                        <FilterSection
+                            section={filters.beach}
+                            onOptionToggle={handleOptionToggle}
+                        />
+                        <FilterSection
+                            section={filters.roomFeatures}
+                            onOptionToggle={handleOptionToggle}
+                        />
+                        <FilterSection
+                            section={filters.features}
+                            onOptionToggle={handleOptionToggle}
+                        />
+                        <FilterSection
+                            section={filters.beachDistance}
+                            onOptionToggle={handleOptionToggle}
+                        />
+                        <FilterSection section={filters.eat} onOptionToggle={handleOptionToggle} />
+                        <FilterSection
+                            section={filters.price}
+                            onOptionToggle={handleOptionToggle}
+                        />
                     </div>
                     {/* </div> */}
                 </DialogDescription>

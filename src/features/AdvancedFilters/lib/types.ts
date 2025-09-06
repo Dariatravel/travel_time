@@ -24,31 +24,21 @@ export interface FilterSection {
     isExpanded?: boolean;
 }
 
-export interface HotelFilters {
-    /** Фильтр по городу */
+export interface AdvancedFiltersState {
+    /** Город */
     city: FilterSection;
-}
-
-export interface RoomFilters {
     /** Особенности номера */
-    features: FilterSection;
+    roomFeatures: FilterSection;
     /** Особенности размещения */
-    accommodation: FilterSection;
+    features: FilterSection;
     /** Питание */
-    nutrition: FilterSection;
+    eat: FilterSection;
     /** Тип пляжа */
     beach: FilterSection;
     /** Расстояние до пляжа */
     beachDistance: FilterSection;
     /** Ценовой диапазон */
     price: FilterSection;
-}
-
-export interface AdvancedFiltersState {
-    /** Фильтры по отелю */
-    hotel: HotelFilters;
-    /** Фильтры по номеру */
-    room: RoomFilters;
 }
 
 export interface FilterChangeEvent {
@@ -61,7 +51,7 @@ export interface FilterChangeEvent {
 }
 
 export interface QueryStringFilter {
-    [key: string]: string;
+    [key: string]: string | undefined;
     beachType?: string;
     beachDistance?: string;
     eat?: string;
@@ -72,6 +62,7 @@ export interface QueryStringFilter {
 }
 
 export enum QueryStringFilterEnum {
+    CITY = 'city',
     BEACH_TYPE = 'beachType',
     BEACH_DISTANCE = 'beachDistance',
     EAT = 'eat',

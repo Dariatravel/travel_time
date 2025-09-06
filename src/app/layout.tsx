@@ -1,8 +1,10 @@
 'use client';
 
 import { SafeHydrate } from '@/components/SafeHydrate/SafeHydrate';
+import { EffectorLogger } from '@/features/EffectorLogger';
 import '@/features/lib/zIndexes.css';
 import { queryClient } from '@/shared/config/reactQuery';
+import { THEME_PRESET } from '@/shared/config/theme';
 import '@/shared/ui/globals.scss';
 import '@consta/themes/Theme_color_highlightsGreenDefault';
 import { Theme } from '@consta/uikit/Theme';
@@ -15,7 +17,6 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import React from 'react';
 import './globals.css';
 import styles from './styles.module.css';
-import { THEME_PRESET } from '@/shared/config/theme';
 
 moment.locale('ru'); // Для локализации дат
 
@@ -45,6 +46,8 @@ export default function RootLayout({
                 />
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable}`}>
+                {process.env.NODE_ENV === 'development' && <EffectorLogger />}
+
                 <ConfigProvider
                     theme={{
                         token: {

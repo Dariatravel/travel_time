@@ -12,12 +12,11 @@ export const AdvancedFiltersDemo: React.FC = () => {
 
         // Подсчитываем активные фильтры
         let totalActive = 0;
-        Object.values(filters.hotel).forEach((section) => {
-            totalActive += section.options.filter((option) => option.isActive).length;
-        });
-        Object.values(filters.room).forEach((section) => {
-            totalActive += section.options.filter((option) => option.isActive).length;
-        });
+        (Object.values(filters) as Array<AdvancedFiltersState[keyof AdvancedFiltersState]>).forEach(
+            (section) => {
+                totalActive += section.options.filter((option) => option.isActive).length;
+            },
+        );
 
         alert(`Применено фильтров: ${totalActive}`);
     };
@@ -47,30 +46,6 @@ export const AdvancedFiltersDemo: React.FC = () => {
                         onFiltersChange={handleFiltersChange}
                     />
                 </div>
-
-                <div className="p-6 border rounded-lg bg-card">
-                    <h2 className="text-xl font-semibold mb-4">Фильтры по номеру</h2>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        Фильтрация по особенностям номера, размещению, питанию и цене.
-                    </p>
-                    <AdvancedFilters
-                        title="Фильтры по номеру"
-                        triggerText="Фильтры номера"
-                        onFiltersChange={handleFiltersChange}
-                    />
-                </div>
-
-                <div className="p-6 border rounded-lg bg-card">
-                    <h2 className="text-xl font-semibold mb-4">Полные фильтры</h2>
-                    <p className="text-sm text-muted-foreground mb-4">
-                        Все доступные фильтры в одном модальном окне.
-                    </p>
-                    <AdvancedFilters
-                        title="Расширенные фильтры"
-                        triggerText="Все фильтры"
-                        onFiltersChange={handleFiltersChange}
-                    />
-                </div>
             </div>
 
             <div className="mt-8 p-6 border rounded-lg bg-muted/50">
@@ -87,4 +62,3 @@ export const AdvancedFiltersDemo: React.FC = () => {
         </div>
     );
 };
-
