@@ -1,4 +1,4 @@
-import MultipleSelector from '@/components/ui/multiple-selector';
+'use client';
 import { TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { TravelUser } from '@/shared/api/auth/auth';
@@ -10,21 +10,16 @@ import { FormButtons } from '@/shared/ui/FormButtons/FormButtons';
 import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { PhoneInput } from '@/shared/ui/PhoneInput/PhoneInput';
 import { showToast } from '@/shared/ui/Toast/Toast';
+import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
 import { FC, useCallback, useMemo } from 'react';
 import { Controller, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { FaTelegram } from 'react-icons/fa';
-import { Input } from '../../../components/ui/input';
-import { Label } from '../../../components/ui/label';
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from '../../../components/ui/select';
-import { Textarea } from '../../../components/ui/textarea';
-import { HotelFormSchema } from '../lib/validation';
+import { HotelFormSchema, hotelFormSchema } from '../lib/validation';
+import { FormInput } from './components/FormInput';
+import { FormMultipleSelector } from './components/FormMultipleSelector';
+import { FormSelect } from './components/FormSelect';
+import { FormTextarea } from './components/FormTextarea';
 import cx from './style.module.css';
 
 export interface HotelInfoProps {
@@ -55,12 +50,8 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
         beach_distance: hotel?.beach_distance
             ? adaptToOption({ title: hotel?.beach_distance, id: hotel?.beach_distance })
             : undefined,
-        features: hotel?.features
-            ? hotel?.features.map((item) => adaptToOption({ title: item, id: item }))
-            : undefined,
-        eat: hotel?.eat
-            ? hotel?.eat.map((item) => adaptToOption({ title: item, id: item }))
-            : undefined,
+        features: hotel?.features ? hotel?.features.map((item) => ({ id: item, label: item })) : [],
+        eat: hotel?.eat ? hotel?.eat.map((item) => ({ id: item, label: item })) : [],
         city: hotel?.city ? adaptToOption({ title: hotel?.city, id: hotel?.city }) : undefined,
     };
 };
@@ -73,9 +64,9 @@ const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
         user_id: data.user_id.id,
         description: data.description || '',
         beach: data.beach.id,
-        beach_distance: data.beach_distance.map((item) => item.id),
-        features: data.features.id,
-        eat: data.eat.id,
+        beach_distance: data.beach_distance.id,
+        features: data.features.map((item) => item.id),
+        eat: data.eat.map((item) => item.id),
         city: data.city.id,
     };
 
@@ -100,16 +91,14 @@ export const HotelInfo: FC<HotelInfoProps> = ({
 }: HotelInfoProps) => {
     const {
         control,
-        getValues,
         handleSubmit,
         watch,
-        trigger,
         formState: { errors },
     } = useForm<HotelFormSchema>({
         defaultValues: getInitialValue(currentReserve?.hotel),
         mode: 'onBlur',
         reValidateMode: 'onBlur',
-        // resolver: zodResolver(hotelFor`mSchema),
+        resolver: zodResolver(hotelFormSchema),
     });
 
     const userOptions = useMemo(() => {
@@ -121,28 +110,18 @@ export const HotelInfo: FC<HotelInfoProps> = ({
         );
     }, [users]);
 
-    const formData = watch();
+    const telegramUrl = watch('telegram_url');
 
-    const onAcceptForm = useCallback(async () => {
-        const isValid = await trigger();
-
-        if (!isValid) {
-            const errorsTmp = Object.values(errors)
-                .map((error) => error?.message)
-                .join(', ');
-            showToast(`${errorsTmp}`, 'error');
-            return;
-        }
-        const formData = getValues();
-
-        const serializedData = deserializeData({
-            ...formData,
-        });
-
-        await onAccept(serializedData);
-    }, [getValues, onAccept, trigger, errors]);
+    const onAcceptForm = useCallback(
+        async (data: HotelFormSchema) => {
+            const serializedData = deserializeData(data);
+            await onAccept(serializedData);
+        },
+        [onAccept],
+    );
 
     const onError: SubmitErrorHandler<HotelFormSchema> = () => {
+        console.log('data', { values: watch() });
         showToast(`Заполните все обязательные поля`, 'error');
         return;
     };
@@ -155,19 +134,17 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     control={control}
                     rules={{ required: 'Название отеля обязательно для заполнения' }}
                     render={({ field, fieldState: { error } }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="title">
-                                Название отеля <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                {...field}
-                                id="title"
-                                placeholder="Введите название"
-                                disabled={isLoading}
-                                className={cx.fields}
-                            />
-                            {error && <p className="text-sm text-destructive">{error.message}</p>}
-                        </div>
+                        <FormInput
+                            label="Название отеля"
+                            required
+                            error={error?.message}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Введите название"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="title"
+                        />
                     )}
                 />
 
@@ -176,38 +153,28 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     control={control}
                     rules={{ required: 'Тип отеля обязателен для заполнения' }}
                     render={({ field, fieldState: { error } }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="type">
-                                Тип <span className="text-destructive">*</span>
-                            </Label>
-                            <Select
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedType = HOTEL_TYPES.find(
-                                        (type) => type.value === value,
-                                    );
-                                    if (selectedType) {
-                                        field.onChange({
-                                            id: selectedType.value,
-                                            label: selectedType.label,
-                                        });
-                                    }
-                                }}
-                                disabled={isLoading}
-                            >
-                                <SelectTrigger className={cx.fields}>
-                                    <SelectValue placeholder="Выберите из списка" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {HOTEL_TYPES.map((type) => (
-                                        <SelectItem key={type.value} value={type.value}>
-                                            {type.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {error && <p className="text-sm text-destructive">{error.message}</p>}
-                        </div>
+                        <FormSelect
+                            label="Тип"
+                            required
+                            error={error?.message}
+                            value={field.value?.id}
+                            onValueChange={(value) => {
+                                const selectedType = HOTEL_TYPES.find(
+                                    (type) => type.value === value,
+                                );
+                                if (selectedType) {
+                                    field.onChange({
+                                        id: selectedType.value,
+                                        label: selectedType.label,
+                                    });
+                                }
+                            }}
+                            options={HOTEL_TYPES}
+                            placeholder="Выберите из списка"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="type"
+                        />
                     )}
                 />
             </div>
@@ -215,31 +182,29 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                 control={control}
                 name="city"
                 rules={{ required: 'Город обязателен для заполнения' }}
-                render={({ field }) => (
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-foreground">
-                            Город <span className="text-destructive">*</span>
-                        </label>
-                        <Select
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={isLoading}
-                        >
-                            <SelectTrigger className={cx.fields}>
-                                <SelectValue placeholder="Выберите город" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {TRAVEL_TIME_DEFAULTS.city.map((option) => (
-                                    <SelectItem key={option.value} value={option.value}>
-                                        {option.label}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.city && (
-                            <p className="text-sm text-destructive">{errors.city.message}</p>
-                        )}
-                    </div>
+                render={({ field, fieldState: { error } }) => (
+                    <FormSelect
+                        label="Город"
+                        required
+                        error={error?.message}
+                        value={field.value?.id}
+                        onValueChange={(value) => {
+                            const selectedCity = TRAVEL_TIME_DEFAULTS.city.find(
+                                (city) => city.value === value,
+                            );
+                            if (selectedCity) {
+                                field.onChange({
+                                    id: selectedCity.value,
+                                    label: selectedCity.label,
+                                });
+                            }
+                        }}
+                        options={TRAVEL_TIME_DEFAULTS.city}
+                        placeholder="Выберите город"
+                        disabled={isLoading}
+                        className={cx.fields}
+                        htmlFor="city"
+                    />
                 )}
             />
             <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
@@ -248,49 +213,42 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     control={control}
                     rules={{ required: 'Адрес обязателен для заполнения' }}
                     render={({ field, fieldState: { error } }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="address">
-                                Местоположение <span className="text-destructive">*</span>
-                            </Label>
-                            <Input
-                                {...field}
-                                id="address"
-                                placeholder="Введите адрес"
-                                disabled={isLoading}
-                                className={cx.fields}
-                            />
-                            {error && <p className="text-sm text-destructive">{error.message}</p>}
-                        </div>
+                        <FormInput
+                            label="Местоположение"
+                            required
+                            error={error?.message}
+                            value={field.value}
+                            onChange={field.onChange}
+                            placeholder="Введите адрес"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="address"
+                        />
                     )}
                 />
 
                 <Controller
                     name="telegram_url"
                     control={control}
-                    render={({ field }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="telegram_url">Ссылка на отель в Telegram</Label>
-                            <div className="relative">
-                                <Input
-                                    {...field}
-                                    id="telegram_url"
-                                    placeholder="Вставьте ссылку"
-                                    disabled={isLoading}
-                                    className={cx.fields}
-                                />
-                                {formData?.telegram_url && (
-                                    <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                        <LinkIcon
-                                            icon={<FaTelegram color="2AABEE" size={'24px'} />}
-                                            link={formData?.telegram_url}
-                                        />
-                                    </div>
-                                )}
-                            </div>
-                            {errors.telegram_url && (
-                                <p className="text-sm text-destructive">
-                                    {errors.telegram_url.message}
-                                </p>
+                    render={({ field, fieldState: { error } }) => (
+                        <div className="relative space-y-2">
+                            <FormInput
+                                label="Ссылка на отель в Telegram"
+                                error={error?.message}
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Вставьте ссылку"
+                                disabled={isLoading}
+                                className={cx.fields}
+                                htmlFor="telegram_url"
+                            />
+                            {telegramUrl && (
+                                <div className="absolute right-3 top-1/2 -translate-y-1/2">
+                                    <LinkIcon
+                                        icon={<FaTelegram color="2AABEE" size={'24px'} />}
+                                        link={telegramUrl}
+                                    />
+                                </div>
                             )}
                         </div>
                     )}
@@ -304,7 +262,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     required
                     label="Номер телефона"
                     disabled={isLoading}
-                    className={cx.fields}
+                    className={`$cx.fields}`}
                     error={errors.phone?.message}
                 />
                 <Controller
@@ -312,33 +270,26 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     control={control}
                     rules={{ required: 'Отельер обязателен для заполнения' }}
                     render={({ field, fieldState: { error } }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="user_id">
-                                Отельер <span className="text-destructive">*</span>
-                            </Label>
-                            <Select
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedUser = userOptions?.find(
-                                        (user) => user.id === value,
-                                    );
-                                    field.onChange(selectedUser);
-                                }}
-                                disabled={isLoading}
-                            >
-                                <SelectTrigger className={cx.fields}>
-                                    <SelectValue placeholder="Выберите отельера" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {userOptions?.map((user) => (
-                                        <SelectItem key={user.id} value={user.id}>
-                                            {user.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {error && <p className="text-sm text-destructive">{error.message}</p>}
-                        </div>
+                        <FormSelect
+                            label="Отельер"
+                            required
+                            error={error?.message}
+                            value={field.value?.id}
+                            onValueChange={(value) => {
+                                const selectedUser = userOptions?.find((user) => user.id === value);
+                                field.onChange(selectedUser);
+                            }}
+                            options={
+                                userOptions?.map((user) => ({
+                                    value: user.id,
+                                    label: user.label,
+                                })) || []
+                            }
+                            placeholder="Выберите отельера"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="user_id"
+                        />
                     )}
                 />
             </div>
@@ -346,89 +297,131 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                 <Controller
                     name="beach"
                     control={control}
-                    render={({ field }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="beach">Пляж</Label>
-                            <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                                disabled={isLoading}
-                            >
-                                <SelectTrigger className={cx.fields}>
-                                    <SelectValue placeholder="Выберите пляж" />
-                                    <SelectContent>
-                                        {TRAVEL_TIME_DEFAULTS.beach.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </SelectTrigger>
-                            </Select>
-                        </div>
+                    render={({ field, fieldState: { error } }) => (
+                        <FormSelect
+                            label="Пляж"
+                            error={error?.message}
+                            value={field.value?.id}
+                            onValueChange={(value) => {
+                                const selectedBeach = TRAVEL_TIME_DEFAULTS.beach.find(
+                                    (beach) => beach.value === value,
+                                );
+                                if (selectedBeach) {
+                                    field.onChange({
+                                        id: selectedBeach.value,
+                                        label: selectedBeach.label,
+                                    });
+                                }
+                            }}
+                            options={TRAVEL_TIME_DEFAULTS.beach}
+                            placeholder="Выберите пляж"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="beach"
+                        />
                     )}
                 />
                 <Controller
                     name="beach_distance"
                     control={control}
-                    render={({ field }) => (
-                        <div className="space-y-2">
-                            <Label htmlFor="beach_distance">Расстояние до пляжа</Label>
-                            <Select
-                                value={field.value}
-                                onValueChange={field.onChange}
-                                disabled={isLoading}
-                            >
-                                <SelectTrigger className={cx.fields}>
-                                    <SelectValue placeholder="Выберите расстояние до пляжа" />
-                                    <SelectContent>
-                                        {TRAVEL_TIME_DEFAULTS.beach_distance.map((option) => (
-                                            <SelectItem key={option.value} value={option.value}>
-                                                {option.label}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </SelectTrigger>
-                            </Select>
-                        </div>
+                    render={({ field, fieldState: { error } }) => (
+                        <FormSelect
+                            label="Расстояние до пляжа"
+                            error={error?.message}
+                            value={field.value?.id}
+                            onValueChange={(value) => {
+                                const selectedDistance = TRAVEL_TIME_DEFAULTS.beach_distance.find(
+                                    (distance) => distance.value === value,
+                                );
+                                if (selectedDistance) {
+                                    field.onChange({
+                                        id: selectedDistance.value,
+                                        label: selectedDistance.label,
+                                    });
+                                }
+                            }}
+                            options={TRAVEL_TIME_DEFAULTS.beach_distance}
+                            placeholder="Выберите расстояние до пляжа"
+                            disabled={isLoading}
+                            className={cx.fields}
+                            htmlFor="beach_distance"
+                        />
                     )}
                 />
             </div>
             <Controller
                 name="features"
                 control={control}
-                render={({ field }) => (
-                    <div className="space-y-2">
-                        <Label htmlFor="features">Особенности</Label>
-                        <MultipleSelector
-                            options={TRAVEL_TIME_DEFAULTS.features}
-                            value={field.value}
-                            onValueChange={field.onChange}
-                            disabled={isLoading}
-                            hidePlaceholderWhenSelected
-                            placeholder="Выберите особенности размещения"
-                        />
-                    </div>
+                render={({ field, fieldState: { error } }) => (
+                    <FormMultipleSelector
+                        label="Особенности"
+                        error={error?.message}
+                        value={
+                            field.value?.map((item) => ({ value: item.id, label: item.label })) ||
+                            []
+                        }
+                        onChange={(options) =>
+                            field.onChange(
+                                options.map((option) => ({
+                                    id: option.value,
+                                    label: option.label,
+                                })),
+                            )
+                        }
+                        options={TRAVEL_TIME_DEFAULTS.features.map((item) => ({
+                            value: item.value,
+                            label: item.label,
+                        }))}
+                        placeholder="Выберите особенности размещения"
+                        disabled={isLoading}
+                        htmlFor="features"
+                    />
+                )}
+            />
+            <Controller
+                name="eat"
+                control={control}
+                render={({ field, fieldState: { error } }) => (
+                    <FormMultipleSelector
+                        label="Питание"
+                        error={error?.message}
+                        value={
+                            field.value?.map((item) => ({ value: item.id, label: item.label })) ||
+                            []
+                        }
+                        onChange={(options) =>
+                            field.onChange(
+                                options.map((option) => ({
+                                    id: option.value,
+                                    label: option.label,
+                                })),
+                            )
+                        }
+                        options={TRAVEL_TIME_DEFAULTS.eat.map((item) => ({
+                            value: item.value,
+                            label: item.label,
+                        }))}
+                        placeholder="Выберите варианты питания"
+                        disabled={isLoading}
+                        htmlFor="eat"
+                    />
                 )}
             />
             <Controller
                 name="description"
                 control={control}
-                render={({ field }) => (
-                    <div className="space-y-2">
-                        <Label htmlFor="description">Комментарии</Label>
-                        <Textarea
-                            {...field}
-                            id="description"
-                            placeholder="Введите комментарий"
-                            disabled={isLoading}
-                            className={cn(cx.fields, cx.description)}
-                            rows={3}
-                        />
-                        {errors.description && (
-                            <p className="text-sm text-destructive">{errors.description.message}</p>
-                        )}
-                    </div>
+                render={({ field, fieldState: { error } }) => (
+                    <FormTextarea
+                        label="Комментарии"
+                        error={error?.message}
+                        value={field.value}
+                        onChange={field.onChange}
+                        placeholder="Введите комментарий"
+                        disabled={isLoading}
+                        className={cn(cx.fields, cx.description)}
+                        htmlFor="description"
+                        rows={3}
+                    />
                 )}
             />
             <FormButtons
