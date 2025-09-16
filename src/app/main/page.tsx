@@ -14,7 +14,6 @@ import { showToast } from '@/shared/ui/Toast/Toast';
 import { Button } from '@consta/uikit/Button';
 import { Card } from '@consta/uikit/Card';
 import { Text } from '@consta/uikit/Text';
-import { Flex } from 'antd';
 import { nanoid } from 'nanoid';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -112,7 +111,7 @@ export default function Main() {
             >
                 Все отели
             </Text>
-            <Flex gap={'middle'} style={{ maxWidth: '1280px' }} wrap>
+            <div className="flex item-center justify-center" style={{ maxWidth: '1280px' }}>
                 {cards.map(({ count, btn, image, title, id }) => {
                     return (
                         <Card key={id} shadow title={title} className={cx.card}>
@@ -148,7 +147,7 @@ export default function Main() {
                         </Card>
                     );
                 })}
-            </Flex>
+            </div>
             <ToastContainer />
         </div>
     );

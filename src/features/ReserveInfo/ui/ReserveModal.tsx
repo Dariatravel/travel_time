@@ -1,42 +1,37 @@
-import React, { FC } from "react";
-import { Modal } from "@/shared/ui/Modal/Modal";
-import { CurrentReserveType, Nullable } from "@/shared/api/reserve/reserve";
-import { ReserveInfo } from "@/features/ReserveInfo/ui/ReserveInfo";
+import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { ReserveInfo } from '@/features/ReserveInfo/ui/ReserveInfo';
+import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
+import { FC } from 'react';
 
 export interface ReserveModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onAccept: (args?: any) => void;
-  onDelete?: (id: string) => void;
-  currentReserve?: Nullable<CurrentReserveType>;
-  isLoading?: boolean;
+    isOpen: boolean;
+    onClose: () => void;
+    onAccept: (args?: unknown) => void;
+    onDelete?: (id: string) => void;
+    currentReserve?: Nullable<CurrentReserveType>;
+    isLoading?: boolean;
 }
 
 export const ReserveModal: FC<ReserveModalProps> = ({
-  isOpen = false,
-  onAccept,
-  onClose,
-  onDelete,
-  currentReserve,
-  isLoading = false,
+    isOpen = false,
+    onAccept,
+    onClose,
+    onDelete,
+    currentReserve,
+    isLoading = false,
 }: ReserveModalProps) => {
-  return (
-    <Modal
-      hasOverlay
-      isOpen={isOpen}
-      // onClickOutside={onClose}
-      onEsc={onClose}
-      loading={isLoading}
-      onClose={onClose}
-    >
-      <ReserveInfo
-        isEdit={!!currentReserve?.reserve?.id}
-        onClose={onClose}
-        currentReserve={currentReserve}
-        onAccept={onAccept}
-        onDelete={onDelete}
-        isLoading={isLoading}
-      />
-    </Modal>
-  );
+    return (
+        <Dialog open={isOpen} onOpenChange={onClose}>
+            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+                <ReserveInfo
+                    isEdit={!!currentReserve?.reserve?.id}
+                    onClose={onClose}
+                    currentReserve={currentReserve}
+                    onAccept={onAccept}
+                    onDelete={onDelete}
+                    isLoading={isLoading}
+                />
+            </DialogContent>
+        </Dialog>
+    );
 };

@@ -3,7 +3,6 @@ import { getTextSize } from '@/shared/lib/const';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { Text } from '@consta/uikit/Text';
-import { Flex } from 'antd';
 import cn from 'classnames';
 import React from 'react';
 import styles from './style.module.scss';
@@ -33,7 +32,7 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
         }
     };
     return (
-        <Flex className={cn(styles.headingContainer, className)}>
+        <div className={cn(styles.headingContainer, 'flex items-center gap-2', className)}>
             <div>
                 <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>
                     {title}
@@ -46,9 +45,14 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
             </div>
             {buttonProps && (
                 <div className={styles.buttonContainer}>
-                    <TravelButton label={buttonProps.label} onClick={buttonProps.onClick} size={isMobile ? 's' : 'm'} className={styles.button} />
+                    <TravelButton
+                        label={buttonProps.label}
+                        onClick={buttonProps.onClick}
+                        size={isMobile ? 's' : 'm'}
+                        className={styles.button}
+                    />
                 </div>
             )}
-        </Flex>
+        </div>
     );
 };

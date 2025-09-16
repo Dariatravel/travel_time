@@ -1,7 +1,7 @@
 import { InsertionIndicator } from '@/shared/ui/InsertIndicator/InsertIndicator';
-import { MenuOutlined } from '@ant-design/icons';
 import { useSortable } from '@dnd-kit/sortable';
 import { useUnit } from 'effector-react/compat';
+import { MenuIcon } from 'lucide-react';
 import React from 'react';
 import { $insertPosition } from './model/dnd';
 import styles from './style.module.scss';
@@ -36,7 +36,7 @@ export const DraggableGroup = ({ id, children, title, className }: DraggableGrou
             <div className={styles.groupHeader}>
                 <div className={styles.dragHandle} {...attributes} {...listeners}>
                     <span className={styles.dragIcon}>
-                        <MenuOutlined />
+                        <MenuIcon />
                     </span>
                 </div>
                 <div className={styles.groupTitle}>{title}</div>

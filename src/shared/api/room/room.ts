@@ -16,6 +16,7 @@ export type RoomDTO = {
     image_title: string; // Название изображения
     image_path: string; // Путь к изображению
     comment?: string; // Комментарий к номеру
+    room_features?: string[]; // Особенности номера
     order?: number;
 };
 
@@ -28,6 +29,7 @@ export type RoomReserves = {
     image_title: string; // Название изображения
     image_path: string; // Путь к изображению
     comment?: string; // Комментарий к номеру
+    room_features?: string[]; // Особенности номера
     order?: number; // Порядок отображения
     reserves: ReserveDTO[]; // Список бронирований для этого номера
 };

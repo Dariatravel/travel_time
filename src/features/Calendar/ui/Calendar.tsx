@@ -30,10 +30,10 @@ import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Flex } from 'antd';
 import { useUnit } from 'effector-react/compat';
 import { Id } from 'my-react-calendar-timeline';
 
+import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
 import hotelImage from '../hotel.svg';
@@ -248,7 +248,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     return (
         <div style={{ position: 'relative' }}>
-            <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
+            <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
                     <HotelImage
@@ -291,7 +291,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         />
                     </div>
                 )}
-            </Flex>
+            </div>
             <RoomModal
                 isOpen={isRoomOpen}
                 onClose={() => setIsRoomOpen(false)}

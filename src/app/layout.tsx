@@ -48,7 +48,7 @@ export default function RootLayout({
             <body className={`${geistSans.variable} ${geistMono.variable}`}>
                 {process.env.NODE_ENV === 'development' && <EffectorLogger />}
 
-                <ConfigProvider
+                {/* <ConfigProvider
                     theme={{
                         token: {
                             // Seed Token
@@ -61,7 +61,7 @@ export default function RootLayout({
                             // colorBgContainer: '#f6ffed',
                         },
                     }}
-                >
+                > */}
                     <QueryClientProvider client={queryClient}>
                         <Theme preset={THEME_PRESET}>
                             <SafeHydrate>
@@ -71,7 +71,7 @@ export default function RootLayout({
                         </Theme>
                         <ReactQueryDevtools />
                     </QueryClientProvider>
-                </ConfigProvider>
+                {/* </ConfigProvider> */}
             </body>
         </html>
     );

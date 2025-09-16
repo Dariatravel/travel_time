@@ -34,7 +34,7 @@ interface AdvancedFiltersProps {
  */
 export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     title = 'Расширенные фильтры',
-    triggerText = 'Фильтры',
+    triggerText,
     className,
     onFiltersChange,
 }) => {
@@ -94,8 +94,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                         className,
                     )}
                 >
-                    <Filter size={16} className="mr-2" />
-                    {triggerText}
+                    <Filter size={16} />
                     {activeFiltersCount > 0 && (
                         <span className="absolute -top-2 -right-2 bg-primary text-primary-foreground text-xs rounded-full w-5 h-5 flex items-center justify-center">
                             {activeFiltersCount}
