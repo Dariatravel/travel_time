@@ -22,21 +22,21 @@ import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC } from 'react';
 
-export interface ReserveModalProps {
+export interface HotelModalProps {
     isOpen: boolean;
-    onHandleOpen: (state: boolean) => void;
+    onClose: () => void;
     onAccept?: (hotel?: Hotel) => void;
     currentReserve: Nullable<CurrentReserveType>;
     isLoading?: boolean;
 }
 
-export const HotelModal: FC<ReserveModalProps> = ({
+export const HotelModal: FC<HotelModalProps> = ({
     isOpen = false,
     onAccept,
-    onHandleOpen,
+    onClose,
     currentReserve = null,
     isLoading = false,
-}: ReserveModalProps) => {
+}: HotelModalProps) => {
     const {
         isError: isHotelError,
         isPending: isHotelLoading,
@@ -45,7 +45,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
         () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
-            onHandleOpen(false);
+            onClose();
 
             showToast('Отель добавлен');
         },
@@ -69,7 +69,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
         queryClient.invalidateQueries({
             queryKey: [...QUERY_KEYS.hotels],
         });
-        onHandleOpen(false);
+        onClose();
         showToast('Информация в отели обновлена');
     });
 
@@ -77,7 +77,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
         queryClient.invalidateQueries({
             queryKey: [...QUERY_KEYS.hotels],
         });
-        onHandleOpen(false);
+        onClose();
         showToast('Отель удалён');
     });
 
@@ -114,7 +114,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
     const { data: users, isFetching: isUsersLoading } = useGetUsers();
     const loading = isLoading || isHotelLoading || isHotelUpdating || isHotelDeleting;
     return (
-        <Dialog open={isOpen} onOpenChange={onHandleOpen}>
+        <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogTrigger asChild>
                 <Button variant="outline" className="cursor-pointer">
                     Добавить отель
@@ -127,7 +127,7 @@ export const HotelModal: FC<ReserveModalProps> = ({
                 <DialogDescription>
                     <HotelInfo
                         users={users ?? []}
-                        onClose={() => onHandleOpen(false)}
+                        onClose={() => onClose()}
                         currentReserve={currentReserve}
                         isEdit={isEdit}
                         // eslint-disable-next-line @typescript-eslint/ban-ts-comment

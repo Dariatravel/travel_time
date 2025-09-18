@@ -60,6 +60,7 @@ export default function MainLayout({ children }: LayoutProps) {
                     className={styles.menuContainer}
                 >
                     <TravelMenu />
+                    
                 </Col> */}
                 <div className={styles.contentContainer}>
                     <div className={styles.content} style={{ backgroundColor: 'transparent' }}>

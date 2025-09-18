@@ -1,7 +1,10 @@
 'use client';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardTitle } from '@/components/ui/card';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
+import { cn } from '@/lib/utils';
 import { useGetSession } from '@/shared/api/auth/auth';
 import { useGetAllCounts } from '@/shared/api/hotel/hotel';
 import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
@@ -11,8 +14,6 @@ import { devLog } from '@/shared/lib/logger';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { Button } from '@consta/uikit/Button';
-import { Card } from '@consta/uikit/Card';
 import { Text } from '@consta/uikit/Text';
 import { nanoid } from 'nanoid';
 import Image from 'next/image';
@@ -38,11 +39,7 @@ export default function Main() {
         }
     }, [sessionData]);
 
-    const {
-        isPending: isReserveLoading,
-        mutate: createReserve,
-        error: reserveError,
-    } = useCreateReserve(
+    const { isPending: isReserveLoading, mutate: createReserve } = useCreateReserve(
         () => {
             queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
             setIsReserveOpen(false);
@@ -77,7 +74,7 @@ export default function Main() {
                 image: <Image src={key.src} alt={''} width={115} height={140} />,
             },
         ],
-        [countsData, isCountsLoading],
+        [countsData],
     );
 
     const onReserveCreate = useCallback((reserve: Reserve) => {
@@ -89,7 +86,12 @@ export default function Main() {
 
     return (
         <div>
-            {/* <HotelModal isOpen={isHotelOpen} onClose={() => setIsHotelOpen(false)} currentReserve={null} /> */}
+            {/* Модальные окна для каждой карточки */}
+            <HotelModal
+                isOpen={isHotelOpen}
+                onClose={() => setIsHotelOpen(false)}
+                currentReserve={null}
+            />
             <RoomModal
                 isOpen={isRoomOpen}
                 onClose={() => setIsRoomOpen(false)}
@@ -111,39 +113,32 @@ export default function Main() {
             >
                 Все отели
             </Text>
-            <div className="flex item-center justify-center" style={{ maxWidth: '1280px' }}>
+            <div className="grid grid-cols-3 gap-4" style={{ maxWidth: '1280px' }}>
                 {cards.map(({ count, btn, image, title, id }) => {
                     return (
-                        <Card key={id} shadow title={title} className={cx.card}>
-                            <div className={cx.image}>{image}</div>
-                            <div className={cx.count}>
-                                <Text
-                                    view={'success'}
-                                    size={isMobile ? '3xl' : '5xl'}
-                                    weight={'semibold'}
-                                >
-                                    {count}
-                                </Text>
-                            </div>
-                            <div className={cx.container}>
-                                <div className={cx.info}>
-                                    <Text view={'primary'} size={isMobile ? 'l' : 'xl'}>
-                                        {title}
+                        <Card key={id} className={cn(cx.card, 'overflow-hidden')}>
+                            <CardTitle className="flex flex-col align-center justify-end">
+                                {title}
+                            </CardTitle>
+                            <CardContent className="ml-auto flex align-center justify-end ">
+                                <div className={cx.image}>{image}</div>
+                                <div className={cx.count}>
+                                    <Text
+                                        view={'success'}
+                                        size={isMobile ? '3xl' : '5xl'}
+                                        weight={'semibold'}
+                                    >
+                                        {count}
                                     </Text>
-                                    <HotelModal
-                                        isOpen={isHotelOpen}
-                                        onHandleOpen={(state) => setIsHotelOpen(state)}
-                                        currentReserve={null}
-                                    />
-                                    <Button
-                                        className={cx.button}
-                                        label={btn.title}
-                                        size={isMobile ? 's' : 'm'}
-                                        onClick={btn.onClick}
-                                        view={'secondary'}
-                                    />
                                 </div>
-                            </div>
+                                <div className={cn(cx.container, 'w-full')}>
+                                    <div className={cx.info}>
+                                        <Button className={cx.button} onClick={btn.onClick}>
+                                            {btn.title}
+                                        </Button>
+                                    </div>
+                                </div>
+                            </CardContent>
                         </Card>
                     );
                 })}
