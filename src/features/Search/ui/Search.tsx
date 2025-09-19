@@ -1,9 +1,7 @@
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -18,6 +16,7 @@ import {
     FilterOption,
 } from '@/features/AdvancedFilters';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
+import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import {
     FreeHotelsDTO,
     getHotelsWithFreeRooms,
@@ -26,19 +25,27 @@ import {
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { adaptToAntOption } from '@/shared/lib/adaptHotel';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
+import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import cn from 'classnames';
-import dayjs from 'dayjs';
 import { useUnit } from 'effector-react';
 import { cloneDeep } from 'lodash';
-import { CalendarIcon, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import { FC, useState } from 'react';
+import { Controller, useForm } from 'react-hook-form';
+import z from 'zod';
 import styles from './style.module.scss';
 
 export interface SearchFeatureProps {
     onSearchCb?: () => void;
 }
+
+export const searchFormSchema = z.object({
+    hotels: z.array(z.string()),
+});
+
+export type SearchFormSchema = z.infer<typeof searchFormSchema>;
 
 export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeatureProps) => {
     const [date, setValue] = useState<[Date?, Date?] | null>(null);
@@ -153,6 +160,12 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
 
     const hotelOptions = hotels?.map((hotel) => adaptToAntOption(hotel)) ?? [];
 
+    const { control } = useForm<SearchFormSchema>({
+        defaultValues: {
+            hotels: [],
+        },
+    });
+
     return (
         <Card className={cn('w-full', styles.wrapper)}>
             <CardHeader>
@@ -183,130 +196,50 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                     </div>
                     {/* Период бронирования */}
                     <div className="min-w-[250px] max-w-[250px]">
-                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                            Период бронирования
-                        </Label>
-                        <Popover>
-                            <PopoverTrigger asChild>
-                                <Button
-                                    variant="outline"
-                                    className={cn(
-                                        'w-full justify-start text-left font-normal',
-                                        !date && 'text-muted-foreground',
-                                        styles.datePicker,
-                                    )}
-                                >
-                                    <CalendarIcon className="mr-2 h-4 w-4" />
-                                    {date && date[0] && date[1]
-                                        ? `${dayjs(date[0]).format('DD.MM.YYYY')} - ${dayjs(date[1]).format('DD.MM.YYYY')}`
-                                        : 'Выберите даты'}
-                                </Button>
-                            </PopoverTrigger>
-                            <PopoverContent className="w-auto p-0" align="start">
-                                <Calendar
-                                    mode="range"
-                                    selected={date ? { from: date[0], to: date[1] } : undefined}
-                                    onSelect={(range) => {
-                                        if (range?.from && range?.to) {
-                                            setValue([range.from, range.to]);
-                                        } else {
-                                            setValue(null);
-                                        }
-                                    }}
-                                    numberOfMonths={2}
-                                    initialFocus
-                                />
-                            </PopoverContent>
-                        </Popover>
-                    </div>
-                    {/* Выбор отелей */}
+                        <Datepicker
+                            selected={date ? { from: date[0], to: date[1] } : undefined}
+                            onSelect={(range) => {
+                                if (range?.from && range?.to) {
+                                    setValue([range.from, range.to]);
+                                } else {
+                                    setValue(null);
+                                }
+                            }}
+                            label="Период бронирования"
+                        />
+                    </div>{' '}
                     <div className="min-w-[250px] max-w-[250px]">
-                        <Label className="text-sm font-medium text-gray-700 mb-2 block">
-                            Выберите отели
-                        </Label>
-                        <div className="relative">
-                            <Select
-                                value={selectedHotels.length > 0 ? selectedHotels[0] : undefined}
-                                onValueChange={(value) => {
-                                    if (value) {
-                                        if (selectedHotels.includes(String(value))) {
-                                            setSelectedHotels(
-                                                selectedHotels.filter((id) => id !== String(value)),
-                                            );
-                                        } else {
-                                            setSelectedHotels([...selectedHotels, String(value)]);
-                                        }
-                                    } else {
-                                        setSelectedHotels([]);
+                        <Controller
+                            name="hotels"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormMultipleSelector
+                                    label="Выберите отель"
+                                    error={undefined}
+                                    value={
+                                        field.value?.map((item) => ({
+                                            value: item.id,
+                                            label: item.label,
+                                        })) || []
                                     }
-                                }}
-                            >
-                                <SelectTrigger className="w-full">
-                                    <SelectValue
-                                        placeholder={
-                                            selectedHotels.length > 0
-                                                ? `Выбрано отелей: ${selectedHotels.length}`
-                                                : 'Выберите отели'
-                                        }
-                                    />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {hotelOptions.map((hotel) => (
-                                        <SelectItem
-                                            key={String(hotel.value)}
-                                            value={String(hotel.value)}
-                                            className={cn(
-                                                selectedHotels.includes(String(hotel.value)) &&
-                                                    'bg-accent',
-                                            )}
-                                        >
-                                            <div className="flex items-center gap-2">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={selectedHotels.includes(
-                                                        String(hotel.value),
-                                                    )}
-                                                    onChange={() => {}}
-                                                    className="h-4 w-4"
-                                                />
-                                                {hotel.label}
-                                            </div>
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            {selectedHotels.length > 0 && (
-                                <div className="absolute top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-sm">
-                                    <div className="flex flex-wrap gap-1">
-                                        {selectedHotels.map((hotelId) => {
-                                            const hotel = hotelOptions.find(
-                                                (h) => h.value === hotelId,
-                                            );
-                                            return (
-                                                <span
-                                                    key={hotelId}
-                                                    className="inline-flex items-center gap-1 px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded-full"
-                                                >
-                                                    {hotel?.label}
-                                                    <button
-                                                        onClick={() =>
-                                                            setSelectedHotels(
-                                                                selectedHotels.filter(
-                                                                    (id) => id !== hotelId,
-                                                                ),
-                                                            )
-                                                        }
-                                                        className="ml-1 text-blue-600 hover:text-blue-800"
-                                                    >
-                                                        ×
-                                                    </button>
-                                                </span>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
+                                    onChange={(options) =>
+                                        field.onChange(
+                                            options.map((option) => ({
+                                                id: option.value,
+                                                label: option.label,
+                                            })),
+                                        )
+                                    }
+                                    options={hotelOptions.map((item) => ({
+                                        value: item.value,
+                                        label: item.label,
+                                    }))}
+                                    placeholder="Выберите особенности размещения"
+                                    htmlFor="hotels"
+                                    // disabled={isLoading}
+                                />
                             )}
-                        </div>
+                        />
                     </div>
                     {/* Количество гостей */}
                     <div className="min-w-[75px] max-w-[75px]">

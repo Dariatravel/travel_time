@@ -5,12 +5,11 @@ import { EffectorLogger } from '@/features/EffectorLogger';
 import '@/features/lib/zIndexes.css';
 import { queryClient } from '@/shared/config/reactQuery';
 import { THEME_PRESET } from '@/shared/config/theme';
-import '@/shared/ui/globals.scss';
+// import '@/shared/ui/globals.scss';
 import '@consta/themes/Theme_color_highlightsGreenDefault';
 import { Theme } from '@consta/uikit/Theme';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
-import { ConfigProvider } from 'antd';
 import moment from 'moment';
 import 'moment/locale/ru';
 import { Geist, Geist_Mono } from 'next/font/google';
@@ -62,15 +61,15 @@ export default function RootLayout({
                         },
                     }}
                 > */}
-                    <QueryClientProvider client={queryClient}>
-                        <Theme preset={THEME_PRESET}>
-                            <SafeHydrate>
-                                <div className={styles.layout} />
-                                {children}
-                            </SafeHydrate>
-                        </Theme>
-                        <ReactQueryDevtools />
-                    </QueryClientProvider>
+                <QueryClientProvider client={queryClient}>
+                    <Theme preset={THEME_PRESET}>
+                        <SafeHydrate>
+                            <div className={styles.layout}>{children}</div>
+                            {/* {children} */}
+                        </SafeHydrate>
+                    </Theme>
+                    <ReactQueryDevtools />
+                </QueryClientProvider>
                 {/* </ConfigProvider> */}
             </body>
         </html>

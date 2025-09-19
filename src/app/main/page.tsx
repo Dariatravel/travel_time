@@ -117,10 +117,8 @@ export default function Main() {
                 {cards.map(({ count, btn, image, title, id }) => {
                     return (
                         <Card key={id} className={cn(cx.card, 'overflow-hidden')}>
-                            <CardTitle className="flex flex-col align-center justify-end">
-                                {title}
-                            </CardTitle>
-                            <CardContent className="ml-auto flex align-center justify-end ">
+                            <CardTitle className="flex align-center text-lg">{title}</CardTitle>
+                            <CardContent className="flex align-center ">
                                 <div className={cx.image}>{image}</div>
                                 <div className={cx.count}>
                                     <Text

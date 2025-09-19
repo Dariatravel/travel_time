@@ -1,11 +1,4 @@
-import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTrigger,
-} from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog';
 import { HotelInfo } from '@/features/HotelModal/ui/HotelInfo';
 import { useGetUsers } from '@/shared/api/auth/auth';
 import {
@@ -115,11 +108,11 @@ export const HotelModal: FC<HotelModalProps> = ({
     const loading = isLoading || isHotelLoading || isHotelUpdating || isHotelDeleting;
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogTrigger asChild>
+            {/* <DialogTrigger asChild>
                 <Button variant="outline" className="cursor-pointer">
                     Добавить отель
                 </Button>
-            </DialogTrigger>
+            </DialogTrigger> */}
             <DialogContent className="md:max-w-2xl max-h-[80vh] min-h-[80vh] overflow-y-auto">
                 <DialogHeader>
                     <FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>

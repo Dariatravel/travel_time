@@ -52,7 +52,7 @@ export default function MainLayout({ children }: LayoutProps) {
                 <Navbar navigationLinks={navLink} />
             </div>
             {/* <LayoutExampleBig /> */}
-            <div style={{ backgroundColor: '#FFF' }}>
+            <div>
                 {/* <Col
                     xs={{ flex: 'auto', order: 2 }}
                     sm={{ flex: 'auto', order: 2 }}
@@ -60,7 +60,7 @@ export default function MainLayout({ children }: LayoutProps) {
                     className={styles.menuContainer}
                 >
                     <TravelMenu />
-                    
+
                 </Col> */}
                 <div className={styles.contentContainer}>
                     <div className={styles.content} style={{ backgroundColor: 'transparent' }}>
