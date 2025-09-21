@@ -5,9 +5,9 @@ import { RoomDTO } from '@/shared/api/room/room';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
-import { IconEdit } from '@consta/icons/IconEdit';
 import { Button } from 'antd';
 import cn from 'classnames';
+import { Edit } from 'lucide-react';
 import React from 'react';
 import hotelImage from './room.svg';
 import styles from './style.module.scss';
@@ -45,7 +45,7 @@ export const Room = ({ className, room, onEdit }: HotelProps) => {
                                 <div className="flex items-center justify-between">
                                     <HotelTitle>{title}</HotelTitle>
                                     <Button
-                                        icon={<IconEdit />}
+                                        icon={<Edit className="w-4 h-4" />}
                                         color={'primary'}
                                         type={'text'}
                                         onClick={() => onEdit(room)}

@@ -9,8 +9,7 @@ import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
 import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { getHotelUrl } from '@/utils/getHotelUrl';
-import { IconEdit } from '@consta/icons/IconEdit';
-import { IconForward } from '@consta/icons/IconForward';
+import { ArrowRight, Edit } from 'lucide-react';
 // ConstaButton заменен на Shadcn Button
 import cn from 'classnames';
 import Link from 'next/link';
@@ -65,7 +64,7 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
                                         {title}
                                     </HotelTitle>
                                     <Button onClick={() => onEdit(hotel)}>
-                                        <IconEdit />
+                                        <Edit className="w-4 h-4" />
                                     </Button>
                                 </div>
 
@@ -96,7 +95,7 @@ export const Hotel = ({ className, hotel, onDelete, onEdit }: HotelProps) => {
                                             className="flex items-center gap-1"
                                         >
                                             Подробнее
-                                            <IconForward />
+                                            <ArrowRight className="w-4 h-4" />
                                         </Button>
                                     </Link>
                                 </div>

@@ -64,6 +64,87 @@ export const TRAVEL_TIME_DEFAULTS = {
     price: DEFAULT_PRICE,
 };
 
+/**
+ * Функции для маппинга значений в русские названия
+ */
+export const getCityLabel = (value: string): string => {
+    const city = INITIAL_FILTERS.city.options.find((option) => option.value === value);
+    return city?.label || value;
+};
+
+export const getFeatureLabel = (value: string): string => {
+    const feature =
+        INITIAL_FILTERS.features.options.find((option) => option.value === value) ||
+        INITIAL_FILTERS.roomFeatures.options.find((option) => option.value === value) ||
+        INITIAL_FILTERS.eat.options.find((option) => option.value === value) ||
+        INITIAL_FILTERS.beach.options.find((option) => option.value === value) ||
+        INITIAL_FILTERS.beachDistance.options.find((option) => option.value === value) ||
+        INITIAL_FILTERS.price.options.find((option) => option.value === value);
+    return feature?.label || value;
+};
+
+/**
+ * Маппинг для быстрого поиска русских названий
+ */
+export const VALUE_TO_LABEL_MAP = {
+    // Города
+    sukhumi: 'Сухум',
+    gagra: 'Гагра',
+    gali: 'Гали',
+    pitsunda: 'Пицунда',
+    'new-athon': 'Новый Афон',
+
+    // Особенности номера
+    'sea-view': 'Вид на море',
+    balcony: 'Балкон',
+    pool: 'Бассейн',
+    'single-room': 'Однокомнатный',
+    'double-room': 'Двухкомнатный',
+    kitchen: 'Своя кухня',
+    'air-conditioning': 'Кондиционер',
+
+    // Особенности размещения
+    'children-allowed': 'Можно с детьми',
+    'pets-allowed': 'Можно с животными',
+
+    // Питание
+    breakfast: 'Завтрак',
+    'half-board': 'Полупансион',
+    'full-board': 'Завтрак, обед, ужин',
+    cafe: 'Есть кафе/столовая',
+    'no-meals': 'Без питания',
+
+    // Пляж
+    pebble: 'Галечный',
+    'pine-pebble': 'Сосновый галечный',
+    sand: 'Песчаный',
+    'pebble-sand': 'Галечно-песочный',
+
+    // Расстояние до пляжа
+    'coastal-zone': 'Береговая зона',
+    '5-min': 'До 5 минут',
+    '10-min': 'До 10 минут',
+    'more-10-min': 'Более 10 минут',
+
+    // Цена
+    'up-to-3000': 'До 3000 руб.',
+    'up-to-4000': 'До 4000 руб.',
+    'up-to-5000': 'До 5000 руб.',
+    'up-to-6000': 'До 6000 руб.',
+    'up-to-7000': 'До 7000 руб.',
+    'up-to-8000': 'До 8000 руб.',
+    'up-to-9000': 'До 9000 руб.',
+    'up-to-10000': 'До 10000 руб.',
+    'over-10000': 'Свыше 10000 руб.',
+} as const;
+
+/**
+ * Функция для получения русского названия по значению
+ */
+export const getValueLabel = (value: string): string => {
+    return VALUE_TO_LABEL_MAP[value as keyof typeof VALUE_TO_LABEL_MAP] || value;
+};
+
 export const INITIAL_FILTERS: AdvancedFiltersState = {
     city: {
         id: 'city',
