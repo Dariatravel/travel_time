@@ -3,8 +3,9 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '@/components/ui/drawer';
 import { Navbar, NavbarNavItem } from '@/features/NavBar';
-import { SearchFeature } from '@/features/Search/ui/Search';
+import { SearchForm } from '@/features/Search';
 import { Today } from '@/features/Today/Today';
+import { cn } from '@/lib/utils';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { useAuth } from '@/shared/lib/useAuth';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
@@ -26,8 +27,8 @@ moment.locale('ru');
 
 const navLink: NavbarNavItem[] = [
     { href: routes[PagesEnum.MAIN], label: 'Главная', icon: HomeIcon, active: true },
-    { href: routes[PagesEnum.HOTELS], label: 'Отели', icon: Calendar },
-    { href: routes[PagesEnum.RESERVATION], label: 'Бронирование', icon: FileTextIcon },
+    { href: routes[PagesEnum.HOTELS], label: 'Отели', icon: FileTextIcon },
+    { href: routes[PagesEnum.RESERVATION], label: 'Бронирование', icon: Calendar },
 ];
 
 export default function MainLayout({ children }: LayoutProps) {
@@ -53,38 +54,34 @@ export default function MainLayout({ children }: LayoutProps) {
             </div>
             {/* <LayoutExampleBig /> */}
             <div>
-                {/* <Col
-                    xs={{ flex: 'auto', order: 2 }}
-                    sm={{ flex: 'auto', order: 2 }}
-                    xl={{ flex: '80px', order: 0 }}
-                    className={styles.menuContainer}
-                >
-                    <TravelMenu />
-
-                </Col> */}
                 <div className={styles.contentContainer}>
-                    <div className={styles.content} style={{ backgroundColor: 'transparent' }}>
-                        {/* <Flex gap={'middle'} className={styles.widgetContainer}> */}
-                        <div className="grid grid-cols-[1fr_300px] gap-1">
-                            {isMobile ? (
-                                <Drawer open={isFilterOpen} onClose={() => onToggleFilter(false)}>
-                                    <DrawerHeader>
-                                        {' '}
-                                        <DrawerTitle>Фильтр</DrawerTitle>
-                                    </DrawerHeader>
-                                    {/* </Theme> */}
-                                    <DrawerContent>
-                                        <SearchFeature />
-                                    </DrawerContent>
-                                </Drawer>
-                            ) : (
-                                <div className={styles.searchContainer}>
-                                    {!isReservationSlug && <SearchFeature />}
-                                </div>
-                            )}
+                    <div className={cn(styles.content, 'bg-transparent')}>
+                        <div className="grid grid-cols-[1fr_400px] gap-1">
+                            <div className="w-full">
+                                {isMobile ? (
+                                    <Drawer
+                                        open={isFilterOpen}
+                                        onClose={() => onToggleFilter(false)}
+                                    >
+                                        <DrawerHeader>
+                                            <DrawerTitle>Фильтр</DrawerTitle>
+                                        </DrawerHeader>
+                                        {/* </Theme> */}
+                                        <DrawerContent>
+                                            {/* <SearchFeature /> */}
+                                            <SearchForm />
+                                        </DrawerContent>
+                                    </Drawer>
+                                ) : (
+                                    <div className={styles.searchContainer}>
+                                        {/* {!isReservationSlug && <SearchFeature />} */}
+                                        {!isReservationSlug && <SearchForm />}
+                                    </div>
+                                )}{' '}
+                            </div>
                             {!isReservationSlug && (
                                 <Card>
-                                    <CardContent>
+                                    <CardContent className="p-2">
                                         <Today currentDate={currentDate} />
                                         {isMobile && (
                                             <div>
@@ -97,7 +94,6 @@ export default function MainLayout({ children }: LayoutProps) {
                                 </Card>
                             )}
                         </div>
-                        {/* </Flex> */}
                         <div className={styles.childrenContainer}>{children}</div>
                     </div>
                 </div>

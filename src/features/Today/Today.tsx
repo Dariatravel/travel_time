@@ -1,13 +1,13 @@
 'use client';
-import React, { useState } from 'react';
-import styles from './style.module.scss';
-import cn from 'classnames';
-import { Text } from '@consta/uikit/Text';
 import cx from '@/app/main/layout.module.scss';
-import { FaCaretDown } from 'react-icons/fa';
-import { DateTime } from '@consta/uikit/DateTime';
-import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { getTextSize } from '@/shared/lib/const';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { DateTime } from '@consta/uikit/DateTime';
+import { Text } from '@consta/uikit/Text';
+import cn from 'classnames';
+import React, { useState } from 'react';
+import { FaCaretDown } from 'react-icons/fa';
+import styles from './style.module.scss';
 
 export interface TodayProps {
     children?: React.ReactNode;
@@ -27,7 +27,14 @@ export const Today = ({ className, onToggle, open, currentDate }: TodayProps) =>
                 Сегодня
             </Text>
             <div className={styles.dateContainer}>
-                <Text size={isMobile ? 'l' : '2xl'} weight={'semibold'} view={'success'} cursor={'pointer'} onClick={() => setIsCalendarOpen((prev) => !prev)} className={styles.currentDate}>
+                <Text
+                    size={isMobile ? 'l' : '2xl'}
+                    weight={'semibold'}
+                    view={'success'}
+                    cursor={'pointer'}
+                    onClick={() => setIsCalendarOpen((prev) => !prev)}
+                    className={cn(styles.currentDate, 'flex items-center gap-2')}
+                >
                     <span>{currentDate}</span>
                     <FaCaretDown size={14} />
                 </Text>

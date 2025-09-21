@@ -182,7 +182,7 @@ export const useInfiniteHotelsQuery = (
     withEmptyRooms?: boolean,
 ) => {
     return useInfiniteQuery({
-        queryKey: [QUERY_KEYS.hotels, filter],
+        queryKey: [...QUERY_KEYS.hotels],
         queryFn: async ({ pageParam = 0 }) => {
             const result = withEmptyRooms
                 ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
@@ -267,7 +267,7 @@ export const useGetAllHotels = (
     select?: (hotels: HotelRoomsDTO[]) => HotelRoomsDTO[],
 ) => {
     return useQuery({
-        queryKey: [QUERY_KEYS.hotels, filter],
+        queryKey: [...QUERY_KEYS.hotels],
         queryFn: async () => {
             const result = await getAllHotels(filter);
             return result.data;

@@ -20,8 +20,17 @@ export default function Hotels() {
 
     // Используем бесконечный запрос
     const PAGE_SIZE = 6;
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
-        useInfiniteHotelsQuery(undefined, PAGE_SIZE, true);
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        error,
+        refetch,
+        isFetching,
+        isPending,
+    } = useInfiniteHotelsQuery(undefined, PAGE_SIZE, true);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
 
@@ -182,7 +191,7 @@ export default function Hotels() {
                         </div>
                     ))}
                 </div>
-                {isFetchingNextPage && <FullWidthLoader />}
+                {(isFetchingNextPage || isFetching || isPending) && <FullWidthLoader />}
             </div>
             <HotelModal
                 isOpen={isHotelOpen}

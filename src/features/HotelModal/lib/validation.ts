@@ -26,21 +26,28 @@ export const hotelFormSchema = z.object({
         { message: 'Отельер обязателен для заполнения' },
     ),
     address: z.string({ message: 'Адрес обязателен для заполнения' }),
-    city: z.object({
-        id: z.string(),
-        label: z.string(),
-    }),
+    city: z
+        .object(
+            {
+                id: z.string(),
+                label: z.string(),
+            },
+            { message: 'Город обязателен для заполнения' },
+        )
+        .optional(),
     phone: z.string().min(1, 'Номер телефона обязателен для заполнения'),
     telegram_url: z.string().optional(),
     description: z.string().optional(),
     image_id: imageSchema.nullable().optional(),
-    beach: z.object(
-        {
-            id: z.string(),
-            label: z.string(),
-        },
-        { message: 'Пляж обязателен для заполнения' },
-    ),
+    beach: z
+        .object(
+            {
+                id: z.string(),
+                label: z.string(),
+            },
+            { message: 'Пляж обязателен для заполнения' },
+        )
+        .optional(),
     beach_distance: z
         .object({
             id: z.string(),

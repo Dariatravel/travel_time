@@ -4,6 +4,7 @@ import {
     Dialog,
     DialogContent,
     DialogDescription,
+    DialogFooter,
     DialogHeader,
     DialogTitle,
     DialogTrigger,
@@ -103,11 +104,11 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 </Button>
             </DialogTrigger>
 
-            <DialogContent className="max-w-6xl max-h-[80vh] min-h-[80vh] overflow-y-auto sm:max-w-4xl">
+            <DialogContent className="max-w-6xl overflow-y-auto sm:max-w-4xl">
                 <DialogHeader className="flex flex-row items-center justify-between">
                     <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
                 </DialogHeader>
-                <DialogDescription>
+                <DialogDescription className="max-h-[70vh] overflow-y-auto">
                     <div className="grid grid-cols-2 gap-2">
                         <FilterSection section={filters.city} onOptionToggle={handleOptionToggle} />
                         <FilterSection
@@ -136,7 +137,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                 </DialogDescription>
 
                 {/* Кнопки действий */}
-                <div className="flex items-center justify-between pt-4 border-t">
+                <DialogFooter>
                     <Button
                         variant="outline"
                         onClick={handleResetFilters}
@@ -151,7 +152,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                         </Button>
                         <Button onClick={handleApplyFilters}>Применить фильтры</Button>
                     </div>
-                </div>
+                </DialogFooter>
             </DialogContent>
         </Dialog>
     );

@@ -28,25 +28,28 @@ export const FormButtons: FC<FormButtonsProps> = ({
     return (
         <div className={cn(className, styles.container)}>
             {isEdit && onDelete && (
-                <div className={styles.deleteContainer}>
+                <div className={cn(styles.deleteContainer, 'flex justify-end mb-2')}>
                     <Popover>
                         <PopoverTrigger asChild>
                             <Button variant="outline"> {deleteText}</Button>
                         </PopoverTrigger>
-                        <PopoverContent className="w-80">
-                            <div className="grid gap-4">
-                                <Button
-                                    aria-label={'Удалить бронь'}
-                                    variant="outline"
-                                    className="text-red-500"
-                                    onClick={onDelete}
-                                >
-                                    {deleteText}
-                                    <TrashIcon />
-                                </Button>
-                                <PopoverClose>
-                                    <Button variant="outline">Отмена</Button>
-                                </PopoverClose>
+                        <PopoverContent className="w-80 py-4 px-1">
+                            <div className="flex flex-col gap-4 items-center">
+                                <div className="font-medium text-red-500">Потвердите удаление</div>
+                                <div className="flex gap-2">
+                                    <Button
+                                        aria-label={'Удалить бронь'}
+                                        variant="outline"
+                                        className="text-red-500"
+                                        onClick={onDelete}
+                                    >
+                                        {deleteText}
+                                        <TrashIcon />
+                                    </Button>
+                                    <PopoverClose>
+                                        <Button variant="outline">Отмена</Button>
+                                    </PopoverClose>
+                                </div>
                             </div>
                         </PopoverContent>
                     </Popover>

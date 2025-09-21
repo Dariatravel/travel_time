@@ -1,5 +1,5 @@
 'use client';
-import { TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
+import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { PhoneInput } from '@/shared';
 import { TravelUser } from '@/shared/api/auth/auth';
@@ -50,8 +50,14 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
         beach_distance: hotel?.beach_distance
             ? adaptToOption({ title: hotel?.beach_distance, id: hotel?.beach_distance })
             : undefined,
-        features: hotel?.features ? hotel?.features.map((item) => ({ id: item, label: item })) : [],
-        eat: hotel?.eat ? hotel?.eat.map((item) => ({ id: item, label: item })) : [],
+        features: hotel?.features
+            ? INITIAL_FILTERS.features.options.filter((item) =>
+                  hotel?.features.includes(item.value),
+              )
+            : [],
+        eat: hotel?.eat
+            ? INITIAL_FILTERS.eat.options.filter((item) => hotel?.eat.includes(item.value))
+            : [],
         city: hotel?.city ? adaptToOption({ title: hotel?.city, id: hotel?.city }) : undefined,
     };
 };
@@ -60,17 +66,18 @@ const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
     const hotelData = {
         ...data,
         type: data.type.label,
-        rating: +data.rating,
-        user_id: data.user_id.id,
-        description: data.description || '',
-        beach: data.beach.id,
-        beach_distance: data.beach_distance.id,
-        features: data.features.map((item) => item.id),
-        eat: data.eat.map((item) => item.id),
-        city: data.city.id,
+        rating: +data?.rating,
+        user_id: data?.user_id?.id,
+        description: data?.description || '',
+        beach: data?.beach?.id,
+        beach_distance: data?.beach_distance?.id,
+        features: data?.features?.map((item) => item.id),
+        eat: data?.eat?.map((item) => item.id),
+        city: data?.city?.id,
     };
 
-    if (data.id) {
+    console.log({ data });
+    if (data?.id) {
         return {
             ...hotelData,
             id: data.id,
@@ -187,7 +194,6 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                     render={({ field, fieldState: { error } }) => (
                         <FormSelect
                             label="Город"
-                            required
                             error={error?.message}
                             value={field.value?.id}
                             onValueChange={(value) => {
