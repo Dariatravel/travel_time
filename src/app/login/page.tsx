@@ -1,29 +1,19 @@
 'use client';
 import { Card, CardContent } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Login } from '@/features/Auth/ui/Login';
 import { Register } from '@/features/Auth/ui/Register';
 import { devLog } from '@/shared/lib/logger';
 import { setUser } from '@/shared/models/auth';
-import { Tabs, TabsProps } from 'antd';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import style from './style.module.scss';
 
-const items: TabsProps['items'] = [
-    {
-        key: '1',
-        label: 'Вход',
-        children: <Login />,
-    },
-    {
-        key: '2',
-        label: 'Регистрация',
-        children: <Register />,
-    },
-];
-
 export default function LoginPage() {
-    const onChange = (key: string) => {
-        devLog('LoginPage', key);
+    const [activeTab, setActiveTab] = useState('login');
+
+    const handleTabChange = (value: string) => {
+        setActiveTab(value);
+        devLog('LoginPage', value);
     };
 
     useEffect(() => {
@@ -35,12 +25,18 @@ export default function LoginPage() {
     return (
         <Card className={style.card}>
             <CardContent>
-                <Tabs
-                    defaultActiveKey="1"
-                    items={items}
-                    onChange={onChange}
-                    style={{ width: '100%' }}
-                />
+                <Tabs defaultValue="login" onValueChange={handleTabChange} className="w-full">
+                    <TabsList className="grid w-full grid-cols-2">
+                        <TabsTrigger value="login">Вход</TabsTrigger>
+                        <TabsTrigger value="register">Регистрация</TabsTrigger>
+                    </TabsList>
+                    <TabsContent value="login" className="mt-4">
+                        <Login />
+                    </TabsContent>
+                    <TabsContent value="register" className="mt-4">
+                        <Register />
+                    </TabsContent>
+                </Tabs>
             </CardContent>
         </Card>
     );

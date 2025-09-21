@@ -9,7 +9,7 @@ import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
-import { Flex } from 'antd';
+// Flex заменен на Tailwind CSS
 import { useParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import style from './page.module.scss';
@@ -73,7 +73,7 @@ export default function Rooms() {
                 }}
             />
             <div className={style.roomsContainer}>
-                <Flex wrap gap={'small'}>
+                <div className="flex flex-wrap gap-2">
                     {sortedRooms?.map((room) => (
                         <Room
                             room={room}
@@ -84,7 +84,7 @@ export default function Rooms() {
                             }}
                         />
                     ))}
-                </Flex>
+                </div>
             </div>
 
             <RoomModal

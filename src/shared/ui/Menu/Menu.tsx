@@ -1,7 +1,7 @@
 'use client';
 import { Text } from '@/components/ui/typography';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { Flex } from 'antd';
+// Flex заменен на Tailwind CSS
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import { FaRegCalendar } from 'react-icons/fa';
@@ -53,10 +53,10 @@ export const TravelMenu = () => {
                         prefetch={false}
                     >
                         <div className={cx.container}>
-                            <Flex vertical align="center">
+                            <div className="flex flex-col items-center">
                                 <div className={cx.icon}>{page?.icon}</div>
                                 <Text>{page.label}</Text>
-                            </Flex>
+                            </div>
                         </div>
                     </Link>
                 );
