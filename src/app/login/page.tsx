@@ -1,9 +1,9 @@
 'use client';
+import { Card, CardContent } from '@/components/ui/card';
 import { Login } from '@/features/Auth/ui/Login';
 import { Register } from '@/features/Auth/ui/Register';
 import { devLog } from '@/shared/lib/logger';
 import { setUser } from '@/shared/models/auth';
-import { Card } from '@consta/uikit/Card';
 import { Tabs, TabsProps } from 'antd';
 import { useEffect } from 'react';
 import style from './style.module.scss';
@@ -34,7 +34,14 @@ export default function LoginPage() {
 
     return (
         <Card className={style.card}>
-            <Tabs defaultActiveKey="1" items={items} onChange={onChange} style={{ width: '100%' }} />
+            <CardContent>
+                <Tabs
+                    defaultActiveKey="1"
+                    items={items}
+                    onChange={onChange}
+                    style={{ width: '100%' }}
+                />
+            </CardContent>
         </Card>
     );
 }

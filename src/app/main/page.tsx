@@ -1,6 +1,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardTitle } from '@/components/ui/card';
+import { Text } from '@/components/ui/typography';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
@@ -14,7 +15,6 @@ import { devLog } from '@/shared/lib/logger';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { Text } from '@consta/uikit/Text';
 import { nanoid } from 'nanoid';
 import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';

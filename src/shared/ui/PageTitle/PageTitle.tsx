@@ -1,8 +1,8 @@
 'use client';
+import { Text } from '@/components/ui/typography';
 import { getTextSize } from '@/shared/lib/const';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { TravelButton } from '@/shared/ui/Button/Button';
-import { Text } from '@consta/uikit/Text';
 import cn from 'classnames';
 import React from 'react';
 import styles from './style.module.scss';

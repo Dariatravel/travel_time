@@ -1,4 +1,5 @@
 'use client';
+import { NoDataAvailable } from '@/components/ui/empty-state';
 import { Calendar } from '@/features/Calendar/ui/Calendar';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
 import { useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
@@ -8,7 +9,6 @@ import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { Loader } from '@/shared/ui/Loader/Loader';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
-import { ResponsesNothingFound } from '@consta/uikit/ResponsesNothingFound';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { useUnit } from 'effector-react/compat';
 import 'my-react-calendar-timeline/style.css';
@@ -33,7 +33,8 @@ export default function Home() {
     const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
     const PAGE_SIZE = 3;
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } = useInfiniteHotelsQuery(filter, PAGE_SIZE);
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
+        useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
     console.log({ data });
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
@@ -47,10 +48,22 @@ export default function Home() {
 
     useEffect(() => {
         const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
-        if (lastItem && lastItem.index >= hotelsWithRooms.length - 1 && hasNextPage && !isFetchingNextPage && hotelsWithRooms.length > 0) {
+        if (
+            lastItem &&
+            lastItem.index >= hotelsWithRooms.length - 1 &&
+            hasNextPage &&
+            !isFetchingNextPage &&
+            hotelsWithRooms.length > 0
+        ) {
             fetchNextPage();
         }
-    }, [rowVirtualizer.getVirtualItems(), hasNextPage, isFetchingNextPage, hotelsWithRooms.length, fetchNextPage]);
+    }, [
+        rowVirtualizer.getVirtualItems(),
+        hasNextPage,
+        isFetchingNextPage,
+        hotelsWithRooms.length,
+        fetchNextPage,
+    ]);
 
     useEffect(() => {
         refetch();
@@ -83,7 +96,10 @@ export default function Home() {
         return (
             <>
                 <PageTitle title={'Все отели'} hotels={0} />
-                <ResponsesNothingFound actions={<></>} title={'Не найдено ни одной брони'} description={'Попробуйте изменить условия поиска'} />
+                <NoDataAvailable
+                    title="Не найдено ни одной брони"
+                    description="Попробуйте изменить условия поиска"
+                />
             </>
         );
     }

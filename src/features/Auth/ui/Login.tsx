@@ -1,12 +1,11 @@
 'use client';
-import React from 'react';
-import styles from './style.module.css';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { AuthProps, useLogin } from '@/shared/api/auth/auth';
+import React from 'react';
 import { Controller, useForm } from 'react-hook-form';
-import { Grid, GridItem } from '@consta/uikit/Grid';
-import { FORM_SIZE } from '@/shared/lib/const';
-import { TextField } from '@consta/uikit/TextField';
-import { Button } from '@consta/uikit/Button';
+import styles from './style.module.css';
 
 export interface LoginProps {
     children?: React.ReactNode;
@@ -27,35 +26,61 @@ export const Login = ({ className }: LoginProps) => {
     const formData = watch();
 
     return (
-        <div>
-            <Grid cols={6} gap={FORM_SIZE}>
-                <GridItem col={6}>
-                    <Controller
-                        name="email"
-                        control={control}
-                        rules={{ required: true }}
-                        render={({ field }) => <TextField {...field} autoComplete={'off'} placeholder={'Введите почту'} label={'Почта'} required size={FORM_SIZE} className={styles.fields} />}
-                    />
-                </GridItem>
-                <GridItem col={6}>
-                    <Controller
-                        name="password"
-                        control={control}
-                        render={({ field }) => <TextField {...field} placeholder="Введите пароль" label="Пароль" type="password" required min={1} max={5} size={FORM_SIZE} className={styles.fields} />}
-                    />
-                </GridItem>
-                <GridItem col={2}>
-                    <Button
-                        label={'Войти'}
-                        onClick={async () => {
-                            await mutateAsync({
-                                email: formData.email,
-                                password: formData.password,
-                            });
-                        }}
-                    />
-                </GridItem>
-            </Grid>
+        <div className="space-y-4">
+            <div className="space-y-2">
+                <Label htmlFor="email">Почта</Label>
+                <Controller
+                    name="email"
+                    control={control}
+                    rules={{ required: 'Email обязателен для заполнения' }}
+                    render={({ field, fieldState: { error } }) => (
+                        <div>
+                            <Input
+                                {...field}
+                                id="email"
+                                type="email"
+                                autoComplete="off"
+                                placeholder="Введите почту"
+                                className={styles.fields}
+                            />
+                            {error && <p className="text-sm text-red-600 mt-1">{error.message}</p>}
+                        </div>
+                    )}
+                />
+            </div>
+
+            <div className="space-y-2">
+                <Label htmlFor="password">Пароль</Label>
+                <Controller
+                    name="password"
+                    control={control}
+                    rules={{ required: 'Пароль обязателен для заполнения' }}
+                    render={({ field, fieldState: { error } }) => (
+                        <div>
+                            <Input
+                                {...field}
+                                id="password"
+                                type="password"
+                                placeholder="Введите пароль"
+                                className={styles.fields}
+                            />
+                            {error && <p className="text-sm text-red-600 mt-1">{error.message}</p>}
+                        </div>
+                    )}
+                />
+            </div>
+
+            <Button
+                className="w-full"
+                onClick={async () => {
+                    await mutateAsync({
+                        email: formData.email,
+                        password: formData.password,
+                    });
+                }}
+            >
+                Войти
+            </Button>
         </div>
     );
 };

@@ -4,10 +4,8 @@ import { SafeHydrate } from '@/components/SafeHydrate/SafeHydrate';
 import { EffectorLogger } from '@/features/EffectorLogger';
 import '@/features/lib/zIndexes.css';
 import { queryClient } from '@/shared/config/reactQuery';
-import { THEME_PRESET } from '@/shared/config/theme';
 // import '@/shared/ui/globals.scss';
-import '@consta/themes/Theme_color_highlightsGreenDefault';
-import { Theme } from '@consta/uikit/Theme';
+// import '@consta/themes/Theme_color_highlightsGreenDefault';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import moment from 'moment';
@@ -62,12 +60,12 @@ export default function RootLayout({
                     }}
                 > */}
                 <QueryClientProvider client={queryClient}>
-                    <Theme preset={THEME_PRESET}>
-                        <SafeHydrate>
-                            <div className={styles.layout}>{children}</div>
-                            {/* {children} */}
-                        </SafeHydrate>
-                    </Theme>
+                    {/* <Theme preset={THEME_PRESET}> */}
+                    <SafeHydrate>
+                        <div className={styles.layout}>{children}</div>
+                        {/* {children} */}
+                    </SafeHydrate>
+                    {/* </Theme> */}
                     <ReactQueryDevtools />
                 </QueryClientProvider>
                 {/* </ConfigProvider> */}

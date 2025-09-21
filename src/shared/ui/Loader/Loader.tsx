@@ -1,34 +1,60 @@
-import React, {
-  ComponentProps,
-  CSSProperties,
-  FC,
-  useCallback,
-  useEffect,
-  useState,
-} from 'react'
-import { Loader as LoaderConsta } from '@consta/uikit/Loader'
-import cx from './style.module.scss'
-import cn from 'classnames'
+import cn from 'classnames';
+import { Loader2 } from 'lucide-react';
+import { CSSProperties, FC } from 'react';
+import cx from './style.module.scss';
 
-export interface LoaderProps extends ComponentProps<typeof LoaderConsta> {
-  style?: CSSProperties
-  className?: string
+export interface LoaderProps {
+    /** Дополнительные стили */
+    style?: CSSProperties;
+    /** CSS класс */
+    className?: string;
+    /** Размер лоадера */
+    size?: 'xs' | 's' | 'm' | 'l' | 'xl';
+    /** Цвет лоадера */
+    color?: string;
 }
 
-export const Loader: FC<LoaderProps> = ({ style, ...props }) => {
-  return (
-    <LoaderConsta className={cx.loader} type={'dots'} size={'m'} {...props} />
-  )
-}
-
-export const FullWidthLoader: FC<LoaderProps> = ({
-  style,
-  className,
-  ...props
+/**
+ * Компонент загрузчика на основе lucide-react Loader2
+ */
+export const Loader: FC<LoaderProps> = ({
+    style,
+    className,
+    size = 'm',
+    color = 'currentColor',
+    ...props
 }) => {
-  return (
-    <div className={cn(cx.container, className)}>
-      <Loader />
-    </div>
-  )
-}
+    const sizeMap = {
+        xs: 12,
+        s: 16,
+        m: 24,
+        l: 32,
+        xl: 48,
+    };
+
+    return (
+        <Loader2
+            className={cn('animate-spin', cx.loader, className)}
+            style={{ color, ...style }}
+            size={sizeMap[size]}
+            {...props}
+        />
+    );
+};
+
+/**
+ * Полноширинный лоадер для страниц и модальных окон
+ */
+export const FullWidthLoader: FC<LoaderProps> = ({ style, className, size = 'l', ...props }) => {
+    return (
+        <div
+            className={cn(
+                cx.container,
+                'flex items-center justify-center min-h-[200px]',
+                className,
+            )}
+        >
+            <Loader size={size} {...props} />
+        </div>
+    );
+};

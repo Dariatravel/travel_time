@@ -1,6 +1,6 @@
 'use client';
+import { Text } from '@/components/ui/typography';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { Text } from '@consta/uikit/Text';
 import { Flex } from 'antd';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
