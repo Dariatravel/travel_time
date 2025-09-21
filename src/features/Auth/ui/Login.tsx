@@ -26,7 +26,7 @@ export const Login = ({ className }: LoginProps) => {
     const formData = watch();
 
     return (
-        <div className="space-y-4">
+        <div className="space-y-4 ">
             <div className="space-y-2">
                 <Label htmlFor="email">Почта</Label>
                 <Controller

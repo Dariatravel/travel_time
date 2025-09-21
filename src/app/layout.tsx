@@ -3,9 +3,8 @@
 import { SafeHydrate } from '@/components/SafeHydrate/SafeHydrate';
 import { EffectorLogger } from '@/features/EffectorLogger';
 import '@/features/lib/zIndexes.css';
+import { cn } from '@/lib/utils';
 import { queryClient } from '@/shared/config/reactQuery';
-// import '@/shared/ui/globals.scss';
-// import '@consta/themes/Theme_color_highlightsGreenDefault';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
 import moment from 'moment';
@@ -45,30 +44,12 @@ export default function RootLayout({
             <body className={`${geistSans.variable} ${geistMono.variable}`}>
                 {process.env.NODE_ENV === 'development' && <EffectorLogger />}
 
-                {/* <ConfigProvider
-                    theme={{
-                        token: {
-                            // Seed Token
-                            colorLink: '#00b96b',
-                            colorPrimary: '#00b96b',
-                            borderRadius: 4,
-                            fontSize: 16,
-
-                            // Alias Token
-                            // colorBgContainer: '#f6ffed',
-                        },
-                    }}
-                > */}
                 <QueryClientProvider client={queryClient}>
-                    {/* <Theme preset={THEME_PRESET}> */}
                     <SafeHydrate>
-                        <div className={styles.layout}>{children}</div>
-                        {/* {children} */}
+                        <div className={cn(styles.layout, 'min-h-screen')}>{children}</div>
                     </SafeHydrate>
-                    {/* </Theme> */}
                     <ReactQueryDevtools />
                 </QueryClientProvider>
-                {/* </ConfigProvider> */}
             </body>
         </html>
     );

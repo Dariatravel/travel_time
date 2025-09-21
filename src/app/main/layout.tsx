@@ -12,7 +12,7 @@ import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { setIsMobile } from '@/shared/models/mobile';
 import { useUnit } from 'effector-react/compat';
-import { Calendar, FileTextIcon, FilterIcon, HomeIcon } from 'lucide-react';
+import { Building2, Calendar, FilterIcon, HomeIcon } from 'lucide-react';
 import moment from 'moment/moment';
 import { usePathname } from 'next/navigation';
 import React, { useLayoutEffect, useState } from 'react';
@@ -27,7 +27,7 @@ moment.locale('ru');
 
 const navLink: NavbarNavItem[] = [
     { href: routes[PagesEnum.MAIN], label: 'Главная', icon: HomeIcon, active: true },
-    { href: routes[PagesEnum.HOTELS], label: 'Отели', icon: FileTextIcon },
+    { href: routes[PagesEnum.HOTELS], label: 'Отели', icon: Building2 },
     { href: routes[PagesEnum.RESERVATION], label: 'Бронирование', icon: Calendar },
 ];
 
@@ -48,7 +48,7 @@ export default function MainLayout({ children }: LayoutProps) {
     }, [isMobile]);
 
     return (
-        <div>
+        <>
             <div className="relative w-full">
                 <Navbar navigationLinks={navLink} />
             </div>
@@ -98,6 +98,6 @@ export default function MainLayout({ children }: LayoutProps) {
                     </div>
                 </div>
             </div>
-        </div>
+        </>
     );
 }
