@@ -1,5 +1,4 @@
 'use client';
-import { Badge } from '@/components/ui/badge';
 import cn from 'classnames';
 import Image from 'next/image';
 import React from 'react';
@@ -17,11 +16,6 @@ export interface HotelImageProps {
 export const HotelImage = ({ type, className, src, onClick, tagClassName }: HotelImageProps) => {
     return (
         <div className={cn(styles.container, className)} onClick={onClick}>
-            {type && (
-                <Badge className={cn(styles.tag, tagClassName)} variant="secondary">
-                    {type}
-                </Badge>
-            )}
             <Image
                 className={styles.hotelIcon}
                 src={src}

@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
+import { Calendar } from '@/components/ui/calendar';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -18,6 +19,7 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
+import { User } from '@/shared';
 import { ChevronDownIcon, HamburgerIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
@@ -64,11 +66,9 @@ const UserMenu = ({
                 </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onItemClick?.('profile')}>Profile</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onItemClick?.('settings')}>Settings</DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onItemClick?.('billing')}>Billing</DropdownMenuItem>
+            {/* <DropdownMenuItem onClick={() => onItemClick?.('profile')}>Profile</DropdownMenuItem> */}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => onItemClick?.('logout')}>Log out</DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onItemClick?.('logout')}>Выйти</DropdownMenuItem>
         </DropdownMenuContent>
     </DropdownMenu>
 );
@@ -88,6 +88,9 @@ export interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
     userAvatar?: string;
     onNavItemClick?: (href: string) => void;
     onUserItemClick?: (item: string) => void;
+    /** Текущая дата для отображения в навбаре */
+    currentDate?: string;
+    user?: User;
 }
 
 // Default navigation links with icons
@@ -102,6 +105,8 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
             userAvatar,
             onNavItemClick,
             onUserItemClick,
+            currentDate,
+            user,
             ...props
         },
         ref,
@@ -262,14 +267,71 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                             )}
                         </div>
                     </div>
+
+                    {/* Center - Today component with calendar */}
+                    {currentDate && (
+                        <div className="hidden md:flex items-center justify-center ">
+                            <Popover>
+                                <PopoverTrigger asChild>
+                                    <Button
+                                        variant="ghost"
+                                        className="text-center hover:bg-accent px-6 transition-colors p-3 rounded-lg"
+                                    >
+                                        <div>
+                                            <div className="text-sm font-medium text-muted-foreground">
+                                                Сегодня
+                                            </div>
+                                            <div className="text-base font-semibold text-foreground">
+                                                {currentDate}
+                                            </div>
+                                        </div>
+                                    </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="center">
+                                    <div className="[&_.rdp]:bg-background [&_.rdp-month]:text-foreground [&_.rdp-day]:text-foreground">
+                                        <Calendar
+                                            mode="single"
+                                            selected={new Date()}
+                                            classNames={{
+                                                months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
+                                                month: 'space-y-4',
+                                                caption:
+                                                    'flex justify-center pt-1 relative items-center',
+                                                caption_label: 'text-sm font-medium',
+                                                nav: 'space-x-1 flex items-center',
+                                                nav_button:
+                                                    'h-7 w-7 bg-transparent p-0 opacity-50 hover:opacity-100',
+                                                nav_button_previous: 'absolute left-1',
+                                                nav_button_next: 'absolute right-1',
+                                                table: 'w-full border-collapse space-y-1',
+                                                head_row: 'flex',
+                                                head_cell:
+                                                    'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
+                                                row: 'flex w-full mt-2',
+                                                cell: 'h-9 w-9 text-center text-sm p-0 relative',
+                                                day: 'h-9 w-9 p-0 font-normal aria-selected:opacity-100 hover:bg-accent hover:text-accent-foreground rounded-md',
+                                                day_selected:
+                                                    'bg-primary text-primary-foreground hover:bg-primary hover:text-primary-foreground focus:bg-primary focus:text-primary-foreground',
+                                                day_today:
+                                                    'bg-accent text-accent-foreground font-semibold',
+                                                day_outside: 'text-muted-foreground opacity-50',
+                                                day_disabled: 'text-muted-foreground opacity-50',
+                                            }}
+                                        />
+                                    </div>
+                                </PopoverContent>
+                            </Popover>
+                        </div>
+                    )}
+
                     {/* Right side */}
                     <div className="flex items-center gap-2">
                         {/* User menu */}
                         <UserMenu
-                            userName={userName}
-                            userEmail={userEmail}
-                            userAvatar={userAvatar}
+                            userAvatar={user?.user_metadata?.avatar}
                             onItemClick={onUserItemClick}
+                            userName={user?.name}
+                            userEmail={user?.email}
                         />
                     </div>
                 </div>

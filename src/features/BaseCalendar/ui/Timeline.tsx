@@ -1,9 +1,14 @@
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Interval } from '@/features/Calendar/ui/Intervals';
+import { cn } from '@/lib/utils';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
 import { $isMobile } from '@/shared/models/mobile';
+import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
+import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
+import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import 'moment/locale/ru';
@@ -70,7 +75,7 @@ export const Timeline = ({
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
 
     const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 100 : 230);
-
+    const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({
         item,
@@ -228,18 +233,64 @@ export const Timeline = ({
                     <SidebarHeader>
                         {({ getRootProps }) => {
                             return (
-                                <div {...getRootProps()} className={styles.calendarHeader}>
-                                    {onCreateRoom && (
-                                        <Button variant="link" onClick={onCreateRoom}>
-                                            <CiSquarePlus size={24} />
-                                        </Button>
+                                <div
+                                    {...getRootProps()}
+                                    className={cn(
+                                        styles.calendarTitle,
+                                        'flex gap-2 flex-col items-start bg-transparent!',
                                     )}
-                                    <Button variant="link" onClick={() => onZoomIn(currentUnit)}>
-                                        <CiZoomIn size={24} />
-                                    </Button>
-                                    <Button variant="link" onClick={() => onZoomOut(currentUnit)}>
-                                        <CiZoomOut size={24} />
-                                    </Button>
+                                >
+                                    <div>
+                                        {' '}
+                                        <div>
+                                            {hotel?.type && (
+                                                <Badge
+                                                    // className={cn(cx.tag, cx.hotelTag)}
+                                                    variant="secondary"
+                                                    // onClick={() =>
+                                                    //     onHotelClick
+                                                    //         ? onHotelClick(hotel?.id)
+                                                    //         : undefined
+                                                    // }
+                                                >
+                                                    {hotel?.type}
+                                                </Badge>
+                                            )}
+                                        </div>
+                                        <HotelTitle
+                                            size={isMobile ? 's' : 'xl'}
+                                            // className={cx.hotelTitle}
+                                            href={getHotelUrl(hotel)}
+                                            className="text-zinc-500"
+                                        >
+                                            {hotel?.title}
+                                        </HotelTitle>
+                                        <div className="text-gray-500">{hotel?.address}</div>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        {onCreateRoom && (
+                                            <Button variant="link" onClick={onCreateRoom}>
+                                                <CiSquarePlus size={24} />
+                                            </Button>
+                                        )}
+                                        <Button
+                                            variant="link"
+                                            onClick={() => onZoomIn(currentUnit)}
+                                        >
+                                            <CiZoomIn size={24} />
+                                        </Button>
+                                        <Button
+                                            variant="link"
+                                            onClick={() => onZoomOut(currentUnit)}
+                                        >
+                                            <CiZoomOut size={24} />
+                                        </Button>{' '}
+                                        <div>
+                                            {hotel?.telegram_url && (
+                                                <HotelTelegram url={hotel?.telegram_url} />
+                                            )}
+                                        </div>
+                                    </div>
                                 </div>
                             );
                         }}
@@ -254,13 +305,28 @@ export const Timeline = ({
                             const isYear = unit === 'year';
                             return (
                                 <div {...getRootProps()}>
-                                    {intervals.map((interval) => {
+                                    {intervals.map((interval, i) => {
+                                        console.log({ intervals, i });
+                                        // Используем дату интервала для стабильного цвета
+                                        const intervalDate = moment(interval.startTime.toDate());
+                                        let colorIndex;
+
+                                        if (isYear) {
+                                            // Для годов используем год
+                                            colorIndex = intervalDate.year() % 3;
+                                        } else {
+                                            // Для месяцев используем месяц
+                                            colorIndex = intervalDate.month() % 3;
+                                        }
+
+                                        const backgroundColor = monthColors[colorIndex];
                                         const dateText = isYear
                                             ? moment(interval.startTime.toDate()).format('YYYY')
                                             : moment(interval.startTime.toDate()).format('MMM');
 
                                         return (
                                             <Interval
+                                                key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
                                                 interval={interval}
                                                 unit={unit}
                                                 getIntervalProps={getIntervalProps}
@@ -268,10 +334,9 @@ export const Timeline = ({
                                                 dateText={dateText}
                                                 showPeriod={showPeriod}
                                                 intervalStyles={{
-                                                    backgroundColor: 'var(--color-bg-success)',
-                                                    color: 'var(--color-control-typo-primary)',
+                                                    backgroundColor: backgroundColor,
+                                                    color: '#fff',
                                                 }}
-                                                key={nanoid()}
                                             />
                                         );
                                     })}

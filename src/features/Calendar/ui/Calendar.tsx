@@ -23,12 +23,8 @@ import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { $isMobile } from '@/shared/models/mobile';
-import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
-import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
-import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUnit } from 'effector-react/compat';
 import { Id } from 'my-react-calendar-timeline';
@@ -36,7 +32,6 @@ import { Id } from 'my-react-calendar-timeline';
 import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
-import hotelImage from '../hotel.svg';
 import cx from './style.module.scss';
 
 export interface CalendarProps {
@@ -247,19 +242,28 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     };
 
     return (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative' }} className="p-4">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}>
-                    <HotelImage
+                    {' '}
+                    {/* {hotel?.type && (
+                        <Badge
+                            className={cn(cx.tag, cx.hotelTag)}
+                            variant="secondary"
+                            onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
+                        >
+                            {hotel?.type}
+                        </Badge>
+                    )} */}
+                    {/* <HotelImage
                         type={hotel?.type}
                         className={cx.hotelIcon}
                         tagClassName={cx.hotelTag}
                         src={hotelImage.src}
                         onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
-                    />
-
-                    <div className={cx.hotelDescription}>
+                    /> */}
+                    {/* <div className={cx.hotelDescription}>
                         <HotelTitle
                             size={isMobile ? 's' : 'xl'}
                             className={cx.hotelTitle}
@@ -271,7 +275,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                         <div>
                             {hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}
                         </div>
-                    </div>
+                    </div> */}
                 </div>
 
                 {!!hotelRooms?.length && (

@@ -1,7 +1,8 @@
 'use client';
 import { NoDataAvailable } from '@/components/ui/empty-state';
-import { Calendar } from '@/features/Calendar/ui/Calendar';
+import { Calendar } from '@/features/Calendar';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
+import { SearchForm } from '@/features/Search';
 import { useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { routes } from '@/shared/config/routes';
@@ -29,7 +30,7 @@ export default function Home() {
     // Определяем размеры в зависимости от устройства
 
     const ITEM_GAP = 32;
-    const ITEM_HEIGHT = isMobile ? 375 : 300;
+    const ITEM_HEIGHT = isMobile ? 375 : 350;
     const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
     const PAGE_SIZE = 3;
 
@@ -95,6 +96,9 @@ export default function Home() {
     if (hotelsWithRooms.length === 0) {
         return (
             <>
+                <div className="mt-3">
+                    <SearchForm />
+                </div>
                 <PageTitle title={'Все отели'} hotels={0} />
                 <NoDataAvailable
                     title="Не найдено ни одной брони"
@@ -105,7 +109,12 @@ export default function Home() {
     }
 
     return (
-        <div>
+        <div className="mt-6 space-y-6">
+            {/* Поисковая форма */}
+            <div className="mt-3">
+                <SearchForm />
+            </div>
+
             <PageTitle title={'Все отели'} hotels={hotelsWithRooms.length} />
             <div ref={parentRef} className={cx.scrollContainer}>
                 <div

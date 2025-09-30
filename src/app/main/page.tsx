@@ -5,6 +5,7 @@ import { HotelInfoCard, ReservationInfoCard, RoomInfoCard } from '@/features/Mai
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { cn } from '@/lib/utils';
+import { Loader } from '@/shared';
 import { useGetSession } from '@/shared/api/auth/auth';
 import { useGetAllCounts } from '@/shared/api/hotel/hotel';
 import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
@@ -12,7 +13,6 @@ import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { getTextSize } from '@/shared/lib/const';
 import { devLog } from '@/shared/lib/logger';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { Building2, Calendar, Key } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
@@ -52,7 +52,12 @@ export default function Main() {
         createReserve(reserve);
     }, []);
 
-    if (isCountsLoading) return <FullWidthLoader />;
+    if (isCountsLoading)
+        return (
+            <div className="flex justify-center items-center h-full min-h-[calc(100vh-100px)]">
+                <Loader />
+            </div>
+        );
 
     return (
         <div>

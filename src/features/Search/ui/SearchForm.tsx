@@ -213,7 +213,9 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                         </Label>
                                         <ClearableSelect
                                             value={field.value || ''}
-                                            onValueChange={field.onChange}
+                                            onValueChange={(value) =>
+                                                field.onChange(value === '' ? undefined : value)
+                                            }
                                             options={HOTEL_TYPES}
                                             clearable
                                             placeholder="Выберите категорию"
