@@ -367,10 +367,12 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                             label="Особенности"
                             error={error?.message}
                             value={
-                                field.value?.map((item) => ({
-                                    value: item?.id || '',
-                                    label: item?.label || '',
-                                })).filter(item => item.value && item.label) || []
+                                field.value
+                                    ?.map((item) => ({
+                                        value: item?.id || '',
+                                        label: item?.label || '',
+                                    }))
+                                    .filter((item) => item.value && item.label) || []
                             }
                             onChange={(options) =>
                                 field.onChange(
@@ -398,10 +400,12 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                             label="Питание"
                             error={error?.message}
                             value={
-                                field.value?.map((item) => ({
-                                    value: item?.id || '',
-                                    label: item?.label || '',
-                                })).filter(item => item.value && item.label) || []
+                                field.value
+                                    ?.map((item) => ({
+                                        value: item?.id || '',
+                                        label: item?.label || '',
+                                    }))
+                                    .filter((item) => item.value && item.label) || []
                             }
                             onChange={(options) =>
                                 field.onChange(
