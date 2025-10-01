@@ -2,6 +2,7 @@
 
 import { ChevronDownIcon, XIcon } from 'lucide-react';
 import { type DateRange } from 'react-day-picker';
+import { ru } from 'react-day-picker/locale';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -92,6 +93,7 @@ export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: Da
                 </PopoverTrigger>
                 <PopoverContent className="w-auto overflow-hidden p-0" align="start">
                     <Calendar
+                        locale={ru}
                         mode="range"
                         numberOfMonths={numberOfMonths}
                         selected={selected}

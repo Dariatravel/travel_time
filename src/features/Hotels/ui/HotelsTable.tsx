@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
     Table,
@@ -29,8 +29,39 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import cx from 'classnames';
-import { Bed, Building2, Edit, MapPin, Phone, Search, Star, X } from 'lucide-react';
+import { Bed, Building2, Edit, HouseIcon, MapPin, Phone, Search, Star, X } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
+
+/**
+ * Функция для определения правильного окончания слова "номер" в зависимости от количества
+ * @param count - количество номеров
+ * @returns строка с правильным окончанием
+ */
+const getRoomDeclension = (count: number): string => {
+    if (count === 0) return 'номеров';
+
+    const lastDigit = count % 10;
+    const lastTwoDigits = count % 100;
+
+    // Исключения для чисел от 11 до 19
+    if (lastTwoDigits >= 11 && lastTwoDigits <= 19) {
+        return 'номеров';
+    }
+
+    // Правила для последней цифры
+    if (lastDigit === 1) return 'номер';
+    if (lastDigit >= 2 && lastDigit <= 4) return 'номера';
+    return 'номеров';
+};
+
+/**
+ * Функция для получения строки с количеством номеров и правильным окончанием
+ * @param count - количество номеров
+ * @returns строка вида "5 номеров"
+ */
+const getRoomsCountText = (count: number): string => {
+    return `${count} ${getRoomDeclension(count)}`;
+};
 
 /**
  * Интерфейс пропсов для компонента HotelsTable
@@ -78,6 +109,10 @@ const MobileHotelCard: React.FC<{
     onViewRooms?: (hotel: HotelRoomsDTO) => void;
     isDeleting: boolean;
 }> = ({ hotel, onEdit, onDelete, onViewRooms, isDeleting }) => {
+    const getRoomsCount = (hotel: HotelRoomsDTO): string => {
+        const count = hotel.rooms?.length || 0;
+        return `${getRoomsCountText(count)}`;
+    };
     return (
         <Card className="mb-4">
             <CardHeader className="pb-3">
@@ -124,16 +159,20 @@ const MobileHotelCard: React.FC<{
                     <div className="flex items-start gap-2">
                         <MapPin className="w-4 h-4 mt-0.5 text-muted-foreground flex-shrink-0" />
                         <span className="text-sm text-muted-foreground leading-relaxed">
-                            {hotel.address}
+                            <Badge variant="outline">{hotel.address}</Badge>
                         </span>
                     </div>
 
                     {/* Телефон */}
                     <div className="flex items-center gap-2">
                         <Phone className="w-4 h-4 text-muted-foreground" />
-                        <span className="text-sm">{hotel.phone}</span>
+                        <Badge variant="outline">{hotel.phone}</Badge>
                     </div>
-
+                    {/* Всего номеров */}
+                    <div className="space-y-2 flex items-center gap-1">
+                        <HouseIcon className="w-4 h-4 text-muted-foreground" />
+                        <Badge variant="outline"> {getRoomsCount(hotel)}</Badge>
+                    </div>
                     {/* Особенности */}
                     {hotel.features && hotel.features.length > 0 && (
                         <div className="space-y-2">
@@ -197,6 +236,8 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
         () => [
             {
                 accessorKey: 'title',
+                size: 300,
+                enableResizing: true,
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -209,11 +250,12 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                         {column.getIsSorted() === 'desc' && <span>↓</span>}
                     </Button>
                 ),
+
                 cell: ({ row }) => (
                     <TooltipProvider>
                         <Tooltip>
                             <TooltipTrigger asChild>
-                                <div className="max-w-[200px] truncate font-medium cursor-help">
+                                <div className=" truncate font-medium cursor-help">
                                     {row.getValue('title')}
                                 </div>
                             </TooltipTrigger>
@@ -223,21 +265,6 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                         </Tooltip>
                     </TooltipProvider>
                 ),
-            },
-            {
-                accessorKey: 'type',
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                        className="h-auto p-0"
-                    >
-                        Тип
-                        {column.getIsSorted() === 'asc' && <span className="ml-1">↑</span>}
-                        {column.getIsSorted() === 'desc' && <span className="ml-1">↓</span>}
-                    </Button>
-                ),
-                cell: ({ row }) => <Badge variant="secondary">{row.getValue('type')}</Badge>,
             },
             {
                 accessorKey: 'city',
@@ -255,6 +282,22 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 ),
                 cell: ({ row }) => <div>{getValueLabel(row.getValue('city'))}</div>,
             },
+            {
+                accessorKey: 'type',
+                header: ({ column }) => (
+                    <Button
+                        variant="ghost"
+                        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+                        className="h-auto p-0"
+                    >
+                        Тип
+                        {column.getIsSorted() === 'asc' && <span className="ml-1">↑</span>}
+                        {column.getIsSorted() === 'desc' && <span className="ml-1">↓</span>}
+                    </Button>
+                ),
+                cell: ({ row }) => <Badge variant="secondary">{row.getValue('type')}</Badge>,
+            },
+
             {
                 accessorKey: 'address',
                 header: 'Адрес',
@@ -276,7 +319,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             {
                 accessorKey: 'phone',
                 header: () => (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1 min-w-[125px] max-w-[125px]">
                         <Phone className="w-4 h-4" />
                         Телефон
                     </div>
@@ -287,7 +330,9 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 id: 'rooms',
                 header: 'Номера',
                 cell: ({ row }) => (
-                    <Badge variant="outline">{row.original.rooms?.length || 0} номеров</Badge>
+                    <Badge variant="outline">
+                        {getRoomsCountText(row.original.rooms?.length || 0)}
+                    </Badge>
                 ),
             },
             {
@@ -395,7 +440,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 <CardHeader>
                     <CardTitle>Загрузка отелей...</CardTitle>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="min-h-[500px]">
                     <div className="animate-pulse space-y-4">
                         {[...Array(5)].map((_, i) => (
                             <div key={i} className="h-16 bg-gray-200 rounded"></div>
@@ -407,8 +452,8 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
     }
 
     return (
-        <Card>
-            <CardHeader className="pb-4">
+        <Card className="shadow-none border-none bg-transparent lg:bg-card">
+            <CardHeader className="pb-4 pt-0 lg:pb-4 lg:pt-2 shadow-md border-md rounded-md lg:shadow-none lg:border-none lg:rounded-none">
                 <div
                     className={cx(
                         'flex items-center gap-4',
@@ -453,10 +498,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 </div>
             </CardHeader>
 
-            <CardContent>
+            <CardContent className="min-h-[65vh] p-0">
                 {/* Мобильная версия - карточки */}
                 {isMobile ? (
-                    <div className="space-y-4">
+                    <div className="space-y-0">
                         {table.getRowModel().rows?.length ? (
                             table
                                 .getRowModel()
@@ -472,9 +517,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                                 ))
                         ) : (
                             <div className="text-center py-8 text-muted-foreground">
-                                {globalFilter
-                                    ? 'Отели не найдены по заданному критерию поиска'
-                                    : 'Отели отсутствуют'}
+                                {globalFilter ? 'Отели не найдены' : 'Отели отсутствуют'}
                             </div>
                         )}
                     </div>
@@ -531,11 +574,12 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                         </Table>
                     </div>
                 )}
-
+            </CardContent>
+            <CardFooter className="p-0">
                 {/* Пагинация */}
                 {isMobile ? (
                     /* Мобильная пагинация */
-                    <div className="flex flex-col space-y-4 py-4">
+                    <div className="flex flex-col py-4 px-2 space-y-0 shadow-md rounded-md border w-full bg-background">
                         <div className="flex items-center justify-center space-x-2">
                             <p className="text-sm text-muted-foreground">
                                 Страница {table.getState().pagination.pageIndex + 1} из{' '}
@@ -582,7 +626,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                     </div>
                 ) : (
                     /* Десктопная пагинация */
-                    <div className="flex items-center justify-between space-x-2 py-4">
+                    <div className="flex items-center justify-between p-4 w-full">
                         <div className="flex items-center space-x-2">
                             <p className="text-sm font-medium">Строк на странице</p>
                             <select
@@ -600,11 +644,8 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                             </select>
                         </div>
                         <div className="flex items-center space-x-6 lg:space-x-8">
-                            <div className="flex w-[120px] items-center justify-center text-sm font-medium">
-                                Страница {table.getState().pagination.pageIndex + 1} из{' '}
-                                {table.getPageCount()}
-                            </div>
                             <div className="flex items-center space-x-2">
+                                {table.getPageCount() > 1 && <></>}
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -613,22 +654,30 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                                 >
                                     Первая
                                 </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => table.previousPage()}
-                                    disabled={!table.getCanPreviousPage()}
-                                >
-                                    Предыдущая
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={() => table.nextPage()}
-                                    disabled={!table.getCanNextPage()}
-                                >
-                                    Следующая
-                                </Button>
+                                <div className="flex items-center space-x-1">
+                                    {Array.from(
+                                        { length: Math.min(5, table.getPageCount()) },
+                                        (_, i) => {
+                                            const pageIndex = i;
+                                            return (
+                                                <Button
+                                                    key={pageIndex}
+                                                    variant={
+                                                        table.getState().pagination.pageIndex ===
+                                                        pageIndex
+                                                            ? 'default'
+                                                            : 'outline'
+                                                    }
+                                                    size="sm"
+                                                    onClick={() => table.setPageIndex(pageIndex)}
+                                                    className="h-8 w-8 p-0"
+                                                >
+                                                    {pageIndex + 1}
+                                                </Button>
+                                            );
+                                        },
+                                    )}
+                                </div>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -641,7 +690,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                         </div>
                     </div>
                 )}
-            </CardContent>
+            </CardFooter>
         </Card>
     );
 };

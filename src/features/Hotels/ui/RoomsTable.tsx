@@ -2,7 +2,7 @@
 
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import {
     Table,
@@ -358,7 +358,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                 </div>
             </CardHeader>
 
-            <CardContent className="p-1">
+            <CardContent className="p-1 min-h-[65vh]">
                 {/* Мобильная версия - карточки */}
                 {isMobile ? (
                     <div className="space-y-4">
@@ -435,10 +435,11 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                         </Table>
                     </div>
                 )}
-
+            </CardContent>
+            <CardFooter>
                 {/* Пагинация */}
                 {table.getPageCount() > 1 && (
-                    <div className="flex items-center justify-between space-x-2 py-4">
+                    <div className="flex items-center justify-between p-0 w-full">
                         <div className="text-sm text-muted-foreground">
                             Показано{' '}
                             {table.getState().pagination.pageIndex *
@@ -496,7 +497,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                         </div>
                     </div>
                 )}
-            </CardContent>
+            </CardFooter>
         </Card>
     );
 };

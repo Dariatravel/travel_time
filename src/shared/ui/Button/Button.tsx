@@ -27,11 +27,7 @@ export const TravelButton: FC<TravelButtonProps> = ({
     ...props
 }) => {
     return (
-        <Button
-            style={{ minWidth: '166px', ...style }}
-            className={cn('min-w-[166px]', className)}
-            {...props}
-        >
+        <Button style={{ ...style }} className={cn(className)} {...props}>
             {label || children}
         </Button>
     );

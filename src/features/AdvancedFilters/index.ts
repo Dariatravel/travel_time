@@ -1,4 +1,4 @@
-export { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from './lib/constants';
+export { INITIAL_FILTERS, INITIAL_ROOM_FEATURES, TRAVEL_TIME_DEFAULTS } from './lib/constants';
 export type {
     AdvancedFiltersState,
     FilterChangeEvent,

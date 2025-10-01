@@ -6,6 +6,7 @@ import { getTextSize } from '@/shared/lib/const';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import cn from 'classnames';
 import React, { useState } from 'react';
+import { ru } from 'react-day-picker/locale';
 import { FaCaretDown } from 'react-icons/fa';
 import styles from './style.module.scss';
 
@@ -42,12 +43,8 @@ export const Today = ({ className, onToggle, open, currentDate }: TodayProps) =>
                             <FaCaretDown size={14} />
                         </Text>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                            mode="single"
-                            selected={new Date()}
-                            className="rounded-md border"
-                        />
+                    <PopoverContent className="w-auto overflow-hidden p-0" align="start">
+                        <Calendar locale={ru} mode="single" selected={new Date()} />
                     </PopoverContent>
                 </Popover>
             </div>

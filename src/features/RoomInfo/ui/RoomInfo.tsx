@@ -10,8 +10,9 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { INITIAL_ROOM_FEATURES } from '@/features/AdvancedFilters';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components/FormMultipleSelector';
-import { RoomForm, useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
+import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
@@ -36,10 +37,8 @@ export interface RoomInfoProps {
  * RoomFormSchema — схема валидации для формы создания/редактирования номера.
  */
 export const RoomFormSchema = z.object({
-    hotel_id: z.object({
-        id: z.string().min(1, 'Отель обязателен для выбора'),
-        title: z.string().min(1, 'Название отеля обязательно'),
-    }),
+    hotel_id: z.string().min(1, 'Отель обязателен для выбора'),
+
     title: z.string().min(1, 'Название номера обязательно'),
     price: z
         .string()
@@ -60,27 +59,6 @@ export const RoomFormSchema = z.object({
 
 export type RoomFormSchemaType = z.infer<typeof RoomFormSchema>;
 
-/**
- * Опции особенностей номера для Combobox
- */
-const ROOM_FEATURES_OPTIONS = [
-    { value: 'wifi', label: 'Wi-Fi' },
-    { value: 'air_conditioning', label: 'Кондиционер' },
-    { value: 'minibar', label: 'Мини-бар' },
-    { value: 'tv', label: 'Телевизор' },
-    { value: 'balcony', label: 'Балкон' },
-    { value: 'sea_view', label: 'Вид на море' },
-    { value: 'jacuzzi', label: 'Джакузи' },
-    { value: 'kitchenette', label: 'Кухонный уголок' },
-    { value: 'safe', label: 'Сейф' },
-    { value: 'refrigerator', label: 'Холодильник' },
-    { value: 'washing_machine', label: 'Стиральная машина' },
-    { value: 'iron', label: 'Утюг' },
-    { value: 'hair_dryer', label: 'Фен' },
-    { value: 'towels', label: 'Полотенца' },
-    { value: 'linen', label: 'Постельное белье' },
-];
-
 export const RoomInfo: FC<RoomInfoProps> = ({
     onAccept,
     onClose,
@@ -96,28 +74,25 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     const form = useForm<RoomFormSchemaType>({
         resolver: zodResolver(RoomFormSchema),
         defaultValues: {
-            hotel_id: currentReserve?.hotel
-                ? adaptToOption({
-                      id: currentReserve?.hotel?.id,
-                      title: currentReserve?.hotel?.title,
-                  })
-                : { id: '', title: '' },
+            hotel_id: currentReserve?.hotel?.id ? currentReserve?.hotel?.id : '',
             title: currentReserve?.room?.title || '',
             comment: currentReserve?.room?.comment || '',
             quantity: currentReserve?.room?.quantity ?? 3,
             price: String(currentReserve?.room?.price ?? ''),
             room_features: currentReserve?.room?.room_features ?? [],
         },
-        mode: 'all',
+        mode: 'onBlur',
         reValidateMode: 'onBlur',
     });
 
-    const { control, watch } = form;
+    const { control, handleSubmit, formState } = form;
+    const { errors, isValid, isDirty } = formState;
+
+    console.log('Состояние формы:', { errors, isValid, isDirty });
     const hotelOptions = useMemo(() => {
         const hotelsTmp = hotels?.map(adaptToOption);
         return hotelsTmp ?? [];
     }, [hotels]);
-    const formData = watch();
 
     const deserializeData = (data: RoomFormSchemaType): Room | RoomDTO => {
         return {
@@ -126,22 +101,49 @@ export const RoomInfo: FC<RoomInfoProps> = ({
             quantity: typeof data.quantity === 'string' ? Number(data.quantity) : data.quantity,
             comment: data.comment,
             room_features: data.room_features || [],
-            hotel_id: data.hotel_id?.id || '',
+            hotel_id: data.hotel_id || '',
             image_path: '',
             image_title: '',
             ...(currentReserve?.room?.id && { id: currentReserve.room.id }),
         };
     };
 
-    const onAcceptForm = async () => {
-        const data = deserializeData(formData);
+    const onAcceptForm = async (data: RoomFormSchemaType) => {
+        console.log('Данные формы перед отправкой:', data);
+        const serializedData = deserializeData(data);
 
-        devLog('onAcceptForm', data);
-        onAccept(data);
+        devLog('onAcceptForm', serializedData);
+        onAccept(serializedData);
     };
 
-    const onError: SubmitErrorHandler<RoomForm> = () => {
-        showToast(`Заполните все обязательные поля`, 'error');
+    const onError: SubmitErrorHandler<RoomFormSchemaType> = (errors) => {
+        console.log('Ошибки валидации:', errors);
+        console.log('Значения формы:', form.watch());
+
+        // Маппинг полей на понятные названия
+        const fieldNames: Record<string, string> = {
+            hotel_id: 'Отель',
+            title: 'Название номера',
+            price: 'Стоимость',
+            quantity: 'Вместимость',
+            room_features: 'Особенности номера',
+            comment: 'Комментарий',
+        };
+
+        // Получаем список полей с ошибками
+        const errorFields = Object.keys(errors);
+        const errorMessages = errorFields.map((field) => {
+            const error = errors[field as keyof typeof errors];
+            const fieldName = fieldNames[field] || field;
+            return error?.message || `${fieldName} содержит ошибку`;
+        });
+
+        const errorText =
+            errorMessages.length > 0
+                ? `Ошибки в полях: ${errorMessages.join(', ')}`
+                : 'Заполните все обязательные поля';
+
+        showToast(errorText, 'error');
         return;
     };
 
@@ -149,32 +151,24 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         <div className={cx.container}>
             <FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>
             <Form {...form}>
-                <form
-                    onSubmit={(event) => {
-                        console.log('хэлоу');
-                        event.preventDefault();
-                        event.stopPropagation();
-                        form.handleSubmit(onAcceptForm, onError)(event);
-                    }}
-                >
+                <form onSubmit={handleSubmit(onAcceptForm, onError)}>
                     <div className="space-y-4">
                         <Controller
                             name="hotel_id"
                             control={control}
-                            rules={{ required: 'Отель обязателен для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="hotel_id">
                                         Название отеля <span className="text-red-500">*</span>
                                     </Label>
                                     <Select
-                                        value={field.value?.id}
+                                        value={field.value}
                                         onValueChange={(value) => {
                                             const selectedHotel = hotelOptions.find(
                                                 (hotel) => hotel.id === value,
                                             );
                                             if (selectedHotel) {
-                                                field.onChange(selectedHotel);
+                                                field.onChange(selectedHotel.id);
                                             }
                                         }}
                                         disabled={loading || !!currentReserve?.hotel?.id}
@@ -196,11 +190,9 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                 </div>
                             )}
                         />
-
                         <Controller
                             name="title"
                             control={control}
-                            rules={{ required: 'Название номера обязательно для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="title">
@@ -218,16 +210,38 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     )}
                                 </div>
                             )}
+                        />{' '}
+                        <Controller
+                            name="room_features"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormMultipleSelector
+                                    label="Особенности номера"
+                                    placeholder="Выберите особенности номера"
+                                    options={INITIAL_ROOM_FEATURES}
+                                    value={
+                                        field.value?.map((feature) => ({
+                                            value: feature,
+                                            label:
+                                                INITIAL_ROOM_FEATURES.find(
+                                                    (opt) => opt.value === feature,
+                                                )?.label || feature,
+                                        })) || []
+                                    }
+                                    onChange={(options) => {
+                                        field.onChange(options.map((option) => option.value));
+                                    }}
+                                    disabled={loading}
+                                    error={error?.message}
+                                    className={cx.fields}
+                                />
+                            )}
                         />
-
                         <div className="grid grid-cols-3 gap-4">
                             <div className="col-span-2">
                                 <Controller
                                     name="price"
                                     control={control}
-                                    rules={{
-                                        required: 'Стоимость номера обязательна для заполнения',
-                                    }}
                                     render={({ field, fieldState: { error } }) => (
                                         <div className="space-y-2">
                                             <Label htmlFor="price">
@@ -255,7 +269,6 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                 <Controller
                                     name="quantity"
                                     control={control}
-                                    rules={{ required: 'Вместимость обязательна для заполнения' }}
                                     render={({ field, fieldState: { error } }) => (
                                         <div className="space-y-2">
                                             <Label htmlFor="quantity">
@@ -279,11 +292,10 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     )}
                                 />
                             </div>
-                        </div>
+                        </div>{' '}
                         <Controller
                             name="comment"
                             control={control}
-                            rules={{ required: true }}
                             render={({ field }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="comment">Комментарии</Label>
@@ -298,38 +310,10 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                 </div>
                             )}
                         />
-
-                        <Controller
-                            name="room_features"
-                            control={control}
-                            render={({ field, fieldState: { error } }) => (
-                                <FormMultipleSelector
-                                    label="Особенности номера"
-                                    placeholder="Выберите особенности номера"
-                                    options={ROOM_FEATURES_OPTIONS}
-                                    value={
-                                        field.value?.map((feature) => ({
-                                            value: feature,
-                                            label:
-                                                ROOM_FEATURES_OPTIONS.find(
-                                                    (opt) => opt.value === feature,
-                                                )?.label || feature,
-                                        })) || []
-                                    }
-                                    onChange={(options) => {
-                                        field.onChange(options.map((option) => option.value));
-                                    }}
-                                    disabled={loading}
-                                    error={error?.message}
-                                    className={cx.fields}
-                                />
-                            )}
-                        />
-
                         <FormButtons
                             className={cx.buttons}
                             isLoading={loading}
-                            onAccept={onAcceptForm}
+                            onAccept={handleSubmit(onAcceptForm, onError)}
                             onClose={onClose}
                             isEdit={isEdit}
                             onDelete={() =>

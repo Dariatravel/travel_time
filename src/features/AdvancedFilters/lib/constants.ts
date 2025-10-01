@@ -102,18 +102,18 @@ export const VALUE_TO_LABEL_MAP = {
     'double-room': 'Двухкомнатный',
     kitchen: 'Своя кухня',
     'air-conditioning': 'Кондиционер',
-    wifi: 'Wi-Fi',
-    minibar: 'Мини-бар',
-    tv: 'Телевизор',
-    jacuzzi: 'Джакузи',
-    kitchenette: 'Кухонный уголок',
-    safe: 'Сейф',
-    refrigerator: 'Холодильник',
-    'washing-machine': 'Стиральная машина',
-    iron: 'Утюг',
-    'hair-dryer': 'Фен',
-    towels: 'Полотенца',
-    linen: 'Постельное белье',
+    // wifi: 'Wi-Fi',
+    // minibar: 'Мини-бар',
+    // tv: 'Телевизор',
+    // jacuzzi: 'Джакузи',
+    // kitchenette: 'Кухонный уголок',
+    // safe: 'Сейф',
+    // refrigerator: 'Холодильник',
+    // 'washing-machine': 'Стиральная машина',
+    // iron: 'Утюг',
+    // 'hair-dryer': 'Фен',
+    // towels: 'Полотенца',
+    // linen: 'Постельное белье',
 
     // Особенности размещения
     'children-allowed': 'Можно с детьми',
@@ -269,3 +269,5 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
         isExpanded: true,
     },
 };
+
+export const INITIAL_ROOM_FEATURES = INITIAL_FILTERS.roomFeatures.options;

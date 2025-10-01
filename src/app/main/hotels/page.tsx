@@ -73,7 +73,7 @@ export default function Hotels() {
     }
 
     return (
-        <div className="container mx-auto p-4">
+        <div className="w-full p-0 mt-2">
             <HotelsTable
                 hotels={hotels}
                 onEdit={handleEditHotel}

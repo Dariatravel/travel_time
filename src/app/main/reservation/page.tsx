@@ -1,20 +1,24 @@
 'use client';
+import { Badge } from '@/components/ui/badge';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NoDataAvailable } from '@/components/ui/empty-state';
 import { Calendar } from '@/features/Calendar';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
 import { SearchForm } from '@/features/Search';
+import { FullWidthLoader, Loader } from '@/shared';
 import { useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { routes } from '@/shared/config/routes';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
-import { Loader } from '@/shared/ui/Loader/Loader';
+import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
+import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useUnit } from 'effector-react/compat';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import './calendar.scss';
 import cx from './page.module.css';
 
@@ -25,13 +29,7 @@ export default function Home() {
     const filter = useUnit($hotelsFilter);
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
 
-    const parentRef = useRef<HTMLDivElement>(null);
-
-    // Определяем размеры в зависимости от устройства
-
-    const ITEM_GAP = 32;
-    const ITEM_HEIGHT = isMobile ? 375 : 350;
-    const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
     const PAGE_SIZE = 2;
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
@@ -40,31 +38,27 @@ export default function Home() {
     console.log({ data });
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
     const hotelsWithRooms = hotels.filter((hotel) => hotel?.rooms?.length > 0);
-    const rowVirtualizer = useVirtualizer({
-        count: hotelsWithRooms.length,
-        getScrollElement: () => parentRef.current,
-        estimateSize: () => VIRTUAL_HEIGHT,
-        overscan: 1,
-    });
 
-    useEffect(() => {
-        const [lastItem] = [...rowVirtualizer.getVirtualItems()].reverse();
-        if (
-            lastItem &&
-            lastItem.index >= hotelsWithRooms.length - 1 &&
-            hasNextPage &&
-            !isFetchingNextPage &&
-            hotelsWithRooms.length > 0
-        ) {
+    // Обработчик скролла для подгрузки новых данных
+    const handleScroll = useCallback(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        const { scrollTop, scrollHeight, clientHeight } = container;
+        const isNearBottom = scrollTop + clientHeight >= scrollHeight - 150; // 100px до конца
+
+        if (isNearBottom && hasNextPage && !isFetchingNextPage && hotelsWithRooms.length > 0) {
             fetchNextPage();
         }
-    }, [
-        rowVirtualizer.getVirtualItems(),
-        hasNextPage,
-        isFetchingNextPage,
-        hotelsWithRooms.length,
-        fetchNextPage,
-    ]);
+    }, [hasNextPage, isFetchingNextPage, hotelsWithRooms.length, fetchNextPage]);
+
+    useEffect(() => {
+        const container = scrollContainerRef.current;
+        if (!container) return;
+
+        container.addEventListener('scroll', handleScroll);
+        return () => container.removeEventListener('scroll', handleScroll);
+    }, [handleScroll]);
 
     useEffect(() => {
         refetch();
@@ -111,42 +105,64 @@ export default function Home() {
     return (
         <div className="mt-6 space-y-6">
             {/* Поисковая форма */}
-            <div className="mt-3">
+            <div className="mt-1">
                 <SearchForm />
             </div>
 
-            <PageTitle title={'Все отели'} hotels={hotelsWithRooms.length} />
-            <div ref={parentRef} className={cx.scrollContainer}>
-                <div
-                    style={{
-                        height: `500px`,
-                        width: '100%',
-                        position: 'relative',
-                    }}
-                >
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                        const hotel = hotelsWithRooms[virtualRow.index];
-                        if (!hotel) return null;
-                        return (
-                            <div
-                                key={hotel.id}
-                                style={{
-                                    position: 'absolute',
-                                    top: 0,
-                                    left: 0,
-                                    width: '100%',
-                                    height: `${VIRTUAL_HEIGHT}px`,
-                                    transform: `translateY(${virtualRow.start}px)`,
-                                    willChange: 'transform',
-                                }}
-                            >
-                                <Calendar hotel={hotel} onHotelClick={onHotelClick} />
-                            </div>
-                        );
-                    })}
-                </div>
+            {/* <PageTitle title={'Все отели'} hotels={hotelsWithRooms.length} /> */}
+            <div
+                ref={scrollContainerRef}
+                className="overflow-y-auto space-y-2 p-0 max-h-[75vh] mb-4"
+            >
+                {hotelsWithRooms.map((hotel) => (
+                    <Card key={hotel.id}>
+                        <CardHeader className="p-0">
+                            <CardTitle>
+                                <div className="p-2">
+                                    <div className="flex gap-2 items-center">
+                                        {hotel?.type && (
+                                            <Badge
+                                                // className={cn(cx.tag, cx.hotelTag)}
+                                                variant="secondary"
+                                                onClick={() =>
+                                                    onHotelClick
+                                                        ? onHotelClick(hotel?.id)
+                                                        : undefined
+                                                }
+                                            >
+                                                {hotel?.type}
+                                            </Badge>
+                                        )}
+                                        <HotelTitle
+                                            size={isMobile ? 's' : 'xl'}
+                                            // className={cx.hotelTitle}
+                                            href={getHotelUrl(hotel)}
+                                            className="text-zinc-500"
+                                        >
+                                            {hotel?.title}
+                                        </HotelTitle>
+                                    </div>
+                                    <div className="flex gap-2 items-center">
+                                        {' '}
+                                        <div>
+                                            {hotel?.telegram_url && (
+                                                <HotelTelegram url={hotel?.telegram_url} />
+                                            )}
+                                        </div>
+                                        <div className="text-gray-500">
+                                            адрес:{hotel?.address}
+                                        </div>{' '}
+                                    </div>
+                                </div>
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-0">
+                            <Calendar hotel={hotel} onHotelClick={onHotelClick} />
+                        </CardContent>
+                    </Card>
+                ))}
             </div>
-            {isFetchingNextPage && <Loader />}
+            {isFetchingNextPage && <FullWidthLoader />}
         </div>
     );
 }

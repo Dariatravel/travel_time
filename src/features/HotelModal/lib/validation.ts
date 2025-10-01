@@ -8,34 +8,34 @@ const imageSchema = z.object({
 export const hotelFormSchema = z.object({
     id: z.string().optional(),
     title: z
-        .string({ message: 'Название отеля обязательно для заполнения' })
-        .min(1, { message: 'Название отеля обязательно для заполнения' })
-        .nonempty({ message: 'Название отеля обязательно для заполнения' }),
+        .string({ message: 'Название отеля обязательно' })
+        .min(1, { message: 'Название отеля обязательно' })
+        .nonempty({ message: 'Название отеля обязательно' }),
     type: z.object(
         {
             id: z.string(),
             label: z.string(),
         },
-        { message: 'Тип отеля обязателен для заполнения' },
+        { message: 'Тип отеля обязателен' },
     ),
     user_id: z.object(
         {
             id: z.string(),
             label: z.string(),
         },
-        { message: 'Отельер обязателен для заполнения' },
+        { message: 'Отельер обязателен' },
     ),
-    address: z.string({ message: 'Адрес обязателен для заполнения' }),
+    address: z.string({ message: 'Адрес обязателен' }),
     city: z
         .object(
             {
                 id: z.string(),
                 label: z.string(),
             },
-            { message: 'Город обязателен для заполнения' },
+            { message: 'Город обязателен' },
         )
         .optional(),
-    phone: z.string().min(1, 'Номер телефона обязателен для заполнения'),
+    phone: z.string().min(1, 'Номер телефона обязателен'),
     telegram_url: z.string().optional(),
     description: z.string().optional(),
     image_id: imageSchema.nullable().optional(),
@@ -45,7 +45,7 @@ export const hotelFormSchema = z.object({
                 id: z.string(),
                 label: z.string(),
             },
-            { message: 'Пляж обязателен для заполнения' },
+            { message: 'Пляж обязателен' },
         )
         .optional(),
     beach_distance: z

@@ -4,6 +4,7 @@ import { getTextSize } from '@/shared/lib/const';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import cn from 'classnames';
+import { ChevronLeftIcon } from 'lucide-react';
 import React from 'react';
 import styles from './style.module.scss';
 
@@ -47,10 +48,11 @@ export const PageTitle = ({
             <div className="flex items-center gap-4">
                 {backButtonProps && (
                     <TravelButton
-                        label={backButtonProps.label || 'Назад'}
                         onClick={backButtonProps.onClick}
-                        className="shrink-0"
-                    />
+                        className="shrink-0 min-w-[120px]"
+                    >
+                        <ChevronLeftIcon /> {backButtonProps.label || 'Назад'}
+                    </TravelButton>
                 )}
                 <div>
                     <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>

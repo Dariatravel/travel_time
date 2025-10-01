@@ -1,4 +1,3 @@
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Interval } from '@/features/Calendar/ui/Intervals';
 import { cn } from '@/lib/utils';
@@ -6,10 +5,8 @@ import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
 import { $isMobile } from '@/shared/models/mobile';
-import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
-import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
-import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useUnit } from 'effector-react/compat';
+import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import moment from 'moment';
 import 'moment/locale/ru';
 import {
@@ -21,7 +18,6 @@ import {
 } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
 import React, { useRef, useState } from 'react';
-import { CiSquarePlus, CiZoomIn, CiZoomOut } from 'react-icons/ci';
 import { DndTimelineWrapper } from './DndTimelineWrapper';
 import { DraggableGroup } from './DraggableGroup';
 import styles from './style.module.scss';
@@ -240,56 +236,25 @@ export const Timeline = ({
                                         'flex gap-2 flex-col items-start bg-transparent!',
                                     )}
                                 >
-                                    <div>
-                                        {' '}
-                                        <div>
-                                            {hotel?.type && (
-                                                <Badge
-                                                    // className={cn(cx.tag, cx.hotelTag)}
-                                                    variant="secondary"
-                                                    // onClick={() =>
-                                                    //     onHotelClick
-                                                    //         ? onHotelClick(hotel?.id)
-                                                    //         : undefined
-                                                    // }
-                                                >
-                                                    {hotel?.type}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <HotelTitle
-                                            size={isMobile ? 's' : 'xl'}
-                                            // className={cx.hotelTitle}
-                                            href={getHotelUrl(hotel)}
-                                            className="text-zinc-500"
-                                        >
-                                            {hotel?.title}
-                                        </HotelTitle>
-                                        <div className="text-gray-500">{hotel?.address}</div>
-                                    </div>
                                     <div className="flex gap-2 items-center">
                                         {onCreateRoom && (
                                             <Button variant="link" onClick={onCreateRoom}>
-                                                <CiSquarePlus size={24} />
+                                                <Plus size={24} />
                                             </Button>
                                         )}
                                         <Button
+                                            size="icon"
                                             variant="link"
                                             onClick={() => onZoomIn(currentUnit)}
                                         >
-                                            <CiZoomIn size={24} />
+                                            <ZoomIn size={48} />
                                         </Button>
                                         <Button
                                             variant="link"
                                             onClick={() => onZoomOut(currentUnit)}
                                         >
-                                            <CiZoomOut size={24} />
-                                        </Button>{' '}
-                                        <div>
-                                            {hotel?.telegram_url && (
-                                                <HotelTelegram url={hotel?.telegram_url} />
-                                            )}
-                                        </div>
+                                            <ZoomOut size={24} />
+                                        </Button>
                                     </div>
                                 </div>
                             );

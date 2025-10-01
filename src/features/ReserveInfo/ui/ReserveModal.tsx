@@ -22,7 +22,7 @@ export const ReserveModal: FC<ReserveModalProps> = ({
 }: ReserveModalProps) => {
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="min-w-[600px]  max-h-[90vh] overflow-y-auto">
                 <ReserveInfo
                     isEdit={!!currentReserve?.reserve?.id}
                     onClose={onClose}

@@ -45,16 +45,15 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     const queryClient = useQueryClient();
     const {
         data,
-        isFetching: isRoomLoading,
+        // isFetching: isRoomLoading,
+        // isLoading: isRoomLoading,
+        isPending: isRoomLoading,
         refetch,
     } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
 
     useEffect(() => {
         refetch();
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-        });
-    }, [filter]);
+    }, [filter, refetch]);
 
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
@@ -217,14 +216,25 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
 
-    const isEmpty = !hotelRooms?.length;
+    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
+    const reserveLoading = isReserveCreating || isReserveUpdating;
 
+    // Показываем лоадер во время загрузки, даже если данных нет
+    if (isLoading) {
+        return (
+            <div style={{ position: 'relative' }} className="p-4">
+                <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
+                    <FullWidthLoader />
+                </div>
+            </div>
+        );
+    }
+
+    // Возвращаем null только если данные загружены, но пустые
+    const isEmpty = !hotelRooms?.length;
     if (isEmpty) {
         return null;
     }
-
-    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
-    const reserveLoading = isReserveCreating || isReserveUpdating;
 
     // Уникальный ID для этого Timeline
     const timelineId = `calendar-${hotel.id}`;
@@ -244,69 +254,33 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     return (
         <div style={{ position: 'relative' }} className="p-4">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
-                {isLoading && <FullWidthLoader />}
-                <div className={cx.hotelInfo}>
-                    {' '}
-                    {/* {hotel?.type && (
-                        <Badge
-                            className={cn(cx.tag, cx.hotelTag)}
-                            variant="secondary"
-                            onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
-                        >
-                            {hotel?.type}
-                        </Badge>
-                    )} */}
-                    {/* <HotelImage
-                        type={hotel?.type}
-                        className={cx.hotelIcon}
-                        tagClassName={cx.hotelTag}
-                        src={hotelImage.src}
-                        onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
-                    /> */}
-                    {/* <div className={cx.hotelDescription}>
-                        <HotelTitle
-                            size={isMobile ? 's' : 'xl'}
-                            className={cx.hotelTitle}
-                            href={getHotelUrl(hotel)}
-                        >
-                            {hotel?.title}
-                        </HotelTitle>
-                        <div>{hotel?.address}</div>
-                        <div>
-                            {hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}
-                        </div>
-                    </div> */}
+                <div className={cx.calendarContainer}>
+                    <Timeline
+                        hotel={hotel}
+                        hotelRooms={hotelRooms}
+                        hotelReserves={hotelReserves}
+                        timelineClassName="travel-timeline"
+                        sidebarWidth={sidebarWidth}
+                        onReserveAdd={onReserveAdd}
+                        onItemClick={onItemClick}
+                        onCreateRoom={onCreate}
+                        calendarItemClassName={cx.calendarItem}
+                        timelineId={timelineId}
+                        onGroupsReorder={handleGroupsReorder}
+                    />
                 </div>
-
-                {!!hotelRooms?.length && (
-                    <div className={cx.calendarContainer}>
-                        <Timeline
-                            hotel={hotel}
-                            hotelRooms={hotelRooms}
-                            hotelReserves={hotelReserves}
-                            timelineClassName="travel-timeline"
-                            sidebarWidth={sidebarWidth}
-                            onReserveAdd={onReserveAdd}
-                            onItemClick={onItemClick}
-                            onCreateRoom={onCreate}
-                            calendarItemClassName={cx.calendarItem}
-                            timelineId={timelineId}
-                            onGroupsReorder={handleGroupsReorder}
-                        />
-                    </div>
-                )}
             </div>
             <RoomModal
                 isOpen={isRoomOpen}
                 onClose={() => setIsRoomOpen(false)}
-                onAccept={onRoomCreate}
+                onAccept={(room: unknown) => onRoomCreate(room as Room)}
                 isLoading={isRoomCreating}
                 currentReserve={currentReserve}
             />
             <ReserveModal
                 isOpen={isReserveOpen}
                 onClose={onClose}
-                onAccept={onReserveAccept}
+                onAccept={(reserve: unknown) => onReserveAccept(reserve as Reserve)}
                 onDelete={onReserveDelete}
                 currentReserve={currentReserve}
                 isLoading={reserveLoading}

@@ -1,5 +1,4 @@
 'use client';
-import { Text } from '@/components/ui/typography';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { HotelInfoCard, ReservationInfoCard, RoomInfoCard } from '@/features/Main';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
@@ -10,14 +9,12 @@ import { useGetSession } from '@/shared/api/auth/auth';
 import { useGetAllCounts } from '@/shared/api/hotel/hotel';
 import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
-import { getTextSize } from '@/shared/lib/const';
 import { devLog } from '@/shared/lib/logger';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { Building2, Calendar, Key } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import { ToastContainer } from 'react-toastify';
-import cx from './page.module.scss';
 
 export default function Main() {
     const [isHotelOpen, setIsHotelOpen] = useState<boolean>(false);
@@ -80,20 +77,9 @@ export default function Main() {
                 isLoading={isReserveLoading}
             />
 
-            <div className="mb-8">
-                <Text
-                    size={getTextSize(isMobile)}
-                    weight="semibold"
-                    view="success"
-                    className={cx.title}
-                >
-                    Панель управления
-                </Text>
-            </div>
-
             <div
                 className={cn(
-                    'grid gap-6 max-w-6xl mx-auto',
+                    'grid gap-6 max-w-6xl mx-auto mt-4',
                     isMobile ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3',
                 )}
             >
