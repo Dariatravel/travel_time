@@ -199,8 +199,8 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                         <Datepicker
                             selected={date ? { from: date[0], to: date[1] } : undefined}
                             onSelect={(range) => {
-                                if (range?.from && range?.to) {
-                                    setValue([range.from, range.to]);
+                                if (range?.from) {
+                                    setValue([range.from, range.to || range.from]);
                                 } else {
                                     setValue(null);
                                 }

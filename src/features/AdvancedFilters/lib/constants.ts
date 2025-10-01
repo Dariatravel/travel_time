@@ -102,6 +102,18 @@ export const VALUE_TO_LABEL_MAP = {
     'double-room': 'Двухкомнатный',
     kitchen: 'Своя кухня',
     'air-conditioning': 'Кондиционер',
+    wifi: 'Wi-Fi',
+    minibar: 'Мини-бар',
+    tv: 'Телевизор',
+    jacuzzi: 'Джакузи',
+    kitchenette: 'Кухонный уголок',
+    safe: 'Сейф',
+    refrigerator: 'Холодильник',
+    'washing-machine': 'Стиральная машина',
+    iron: 'Утюг',
+    'hair-dryer': 'Фен',
+    towels: 'Полотенца',
+    linen: 'Постельное белье',
 
     // Особенности размещения
     'children-allowed': 'Можно с детьми',
@@ -175,7 +187,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
                 isActive: false,
             },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
     features: {
         id: 'features',
@@ -194,7 +206,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
                 isActive: false,
             },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
     eat: {
         id: 'eat',
@@ -211,7 +223,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
             { id: 'cafe', label: 'Есть кафе/столовая', value: 'cafe', isActive: false },
             { id: 'no-meals', label: 'Без питания', value: 'no-meals', isActive: false },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
     beach: {
         id: 'beach',
@@ -227,7 +239,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
             { id: 'sand', label: 'Песчаный', value: 'sand', isActive: false },
             { id: 'pebble-sand', label: 'Галечно-песочный', value: 'pebble-sand', isActive: false },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
     beachDistance: {
         id: 'beachDistance',
@@ -238,7 +250,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
             { id: '10-min', label: 'До 10 минут', value: '10-min', isActive: false },
             { id: 'more-10-min', label: 'Более 10 минут', value: 'more-10-min', isActive: false },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
     price: {
         id: 'price',
@@ -254,6 +266,6 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
             { id: 'up-to-10000', label: 'До 10000 руб.', value: 'up-to-10000', isActive: false },
             { id: 'over-10000', label: 'Свыше 10000 руб.', value: 'over-10000', isActive: false },
         ],
-        isExpanded: false,
+        isExpanded: true,
     },
 };

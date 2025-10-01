@@ -6,9 +6,11 @@ import { HotelDTO, useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
 import { Nullable } from '@/shared/api/reserve/reserve';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 
 export default function Hotels() {
+    const router = useRouter();
     const [isHotelOpen, setIsHotelOpen] = useState(false);
     const [currentHotel, setIsCurrentHotel] = useState<Nullable<HotelDTO>>(null);
 
@@ -34,6 +36,13 @@ export default function Hotels() {
      */
     const handleAddHotel = () => {
         setIsHotelOpen(true);
+    };
+
+    /**
+     * Обработчик перехода к номерам отеля
+     */
+    const handleViewRooms = (hotel: HotelDTO) => {
+        router.push(`/main/hotels/${hotel.id}`);
     };
 
     if (isLoading) {
@@ -70,6 +79,7 @@ export default function Hotels() {
                 onEdit={handleEditHotel}
                 isLoading={isLoading}
                 onAddHotel={handleAddHotel}
+                onViewRooms={handleViewRooms}
             />
 
             <HotelModal

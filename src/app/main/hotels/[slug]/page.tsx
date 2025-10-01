@@ -1,6 +1,6 @@
 'use client';
 import { NoDataAvailable } from '@/components/ui/empty-state';
-import { Room } from '@/features/Room/Room';
+import { RoomsTable } from '@/features/Hotels/ui/RoomsTable';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { useHotelById } from '@/shared/api/hotel/hotel';
 import { Nullable } from '@/shared/api/reserve/reserve';
@@ -10,12 +10,13 @@ import { TravelButton } from '@/shared/ui/Button/Button';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
 // Flex заменен на Tailwind CSS
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import style from './page.module.scss';
 
 export default function Rooms() {
     const params = useParams();
+    const router = useRouter();
 
     const [isRoomOpen, setIsRoomOpen] = useState(false);
     const [currentRoom, setIsCurrentRoom] = useState<Nullable<RoomDTO>>(null);
@@ -38,10 +39,20 @@ export default function Rooms() {
 
     const sortedRooms = rooms.sort((a, b) => a?.title?.localeCompare(b?.title));
 
+    const handleBackToHotels = () => {
+        router.push('/main/hotels');
+    };
+
     if (!sortedRooms?.length) {
         return (
             <div>
-                <PageTitle title={'Все номера'} rooms={0} />
+                <PageTitle
+                    title={'Все номера'}
+                    rooms={0}
+                    backButtonProps={{
+                        onClick: handleBackToHotels,
+                    }}
+                />
                 <NoDataAvailable
                     title="Номер пока не добавлен"
                     description="В настоящий момент не добавлено ни одного номера"
@@ -63,29 +74,23 @@ export default function Rooms() {
 
     return (
         <div className={style.container}>
-            {/*{isLoading && <FullWidthLoader />}*/}
             <PageTitle
                 title={hotel?.title}
                 rooms={sortedRooms?.length}
-                buttonProps={{
-                    label: 'Добавить номер',
-                    onClick: () => setIsRoomOpen(true),
+                backButtonProps={{
+                    onClick: handleBackToHotels,
                 }}
             />
-            <div className={style.roomsContainer}>
-                <div className="flex flex-wrap gap-2">
-                    {sortedRooms?.map((room) => (
-                        <Room
-                            room={room}
-                            key={room.id}
-                            onEdit={(room) => {
-                                setIsCurrentRoom(room);
-                                setIsRoomOpen(true);
-                            }}
-                        />
-                    ))}
-                </div>
-            </div>
+
+            <RoomsTable
+                rooms={sortedRooms}
+                onEdit={(room) => {
+                    setIsCurrentRoom(room);
+                    setIsRoomOpen(true);
+                }}
+                onAddRoom={() => setIsRoomOpen(true)}
+                hotelId={hotel?.id}
+            />
 
             <RoomModal
                 isOpen={isRoomOpen}

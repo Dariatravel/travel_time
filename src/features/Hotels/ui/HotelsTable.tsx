@@ -29,7 +29,7 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import cx from 'classnames';
-import { Building2, Edit, MapPin, Phone, Search, Star, Trash2 } from 'lucide-react';
+import { Bed, Building2, Edit, MapPin, Phone, Search, Star, X } from 'lucide-react';
 import React, { useMemo, useState } from 'react';
 
 /**
@@ -44,6 +44,8 @@ export interface HotelsTableProps {
     isLoading?: boolean;
     /** Обработчик добавления нового отеля */
     onAddHotel?: () => void;
+    /** Обработчик перехода к номерам отеля */
+    onViewRooms?: (hotel: HotelRoomsDTO) => void;
 }
 
 /**
@@ -73,8 +75,9 @@ const MobileHotelCard: React.FC<{
     hotel: HotelRoomsDTO;
     onEdit: (hotel: HotelRoomsDTO) => void;
     onDelete: (id: string, title: string) => void;
+    onViewRooms?: (hotel: HotelRoomsDTO) => void;
     isDeleting: boolean;
-}> = ({ hotel, onEdit, onDelete, isDeleting }) => {
+}> = ({ hotel, onEdit, onDelete, onViewRooms, isDeleting }) => {
     return (
         <Card className="mb-4">
             <CardHeader className="pb-3">
@@ -91,22 +94,25 @@ const MobileHotelCard: React.FC<{
                         </div>
                     </div>
                     <div className="flex gap-1">
+                        {onViewRooms && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onViewRooms(hotel)}
+                                className="h-8 w-8 p-0"
+                                title="Просмотреть номера"
+                            >
+                                <Bed className="h-4 w-4" />
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             size="sm"
                             onClick={() => onEdit(hotel)}
                             className="h-8 w-8 p-0"
+                            title="Редактировать отель"
                         >
                             <Edit className="h-4 w-4" />
-                        </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(hotel.id, hotel.title)}
-                            disabled={isDeleting}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700"
-                        >
-                            <Trash2 className="h-4 w-4" />
                         </Button>
                     </div>
                 </div>
@@ -126,15 +132,6 @@ const MobileHotelCard: React.FC<{
                     <div className="flex items-center gap-2">
                         <Phone className="w-4 h-4 text-muted-foreground" />
                         <span className="text-sm">{hotel.phone}</span>
-                    </div>
-
-                    {/* Рейтинг и номера */}
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                            <Star className="w-4 h-4 text-muted-foreground" />
-                            {renderRating(hotel.rating)}
-                        </div>
-                        <Badge variant="outline">{hotel.rooms?.length || 0} номеров</Badge>
                     </div>
 
                     {/* Особенности */}
@@ -166,6 +163,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
     onEdit,
     isLoading = false,
     onAddHotel,
+    onViewRooms,
 }) => {
     const [globalFilter, setGlobalFilter] = useState('');
     const { isMobile } = useScreenSize();
@@ -311,10 +309,39 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 ),
             },
             {
+                id: 'eat',
+                header: 'Питание',
+                cell: ({ row }) => (
+                    <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {row.original.eat?.slice(0, 2).map((eat, index) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                                {getValueLabel(eat)}
+                            </Badge>
+                        ))}
+                        {row.original.features?.length > 2 && (
+                            <Badge variant="outline" className="text-xs">
+                                +{row.original.features.length - 2}
+                            </Badge>
+                        )}
+                    </div>
+                ),
+            },
+            {
                 id: 'actions',
                 header: () => <div className="text-right">Действия</div>,
                 cell: ({ row }) => (
                     <div className="flex justify-end gap-2">
+                        {onViewRooms && (
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => onViewRooms(row.original)}
+                                className="h-8 w-8 p-0"
+                                title="Просмотреть номера"
+                            >
+                                <Bed className="h-4 w-4" />
+                            </Button>
+                        )}
                         <Button
                             variant="outline"
                             size="sm"
@@ -328,7 +355,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 ),
             },
         ],
-        [onEdit, handleDelete, isDeleting],
+        [onEdit, onViewRooms, handleDelete, isDeleting],
     );
 
     /**
@@ -349,10 +376,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             const hotel = row.original;
             const searchValue = filterValue.toLowerCase();
             return (
-                hotel.title.toLowerCase().includes(searchValue) ||
-                hotel.city.toLowerCase().includes(searchValue) ||
-                hotel.address.toLowerCase().includes(searchValue) ||
-                hotel.type.toLowerCase().includes(searchValue)
+                hotel?.title?.toLowerCase().includes(searchValue) ||
+                hotel?.city?.toLowerCase().includes(searchValue) ||
+                hotel?.address?.toLowerCase().includes(searchValue) ||
+                hotel?.type?.toLowerCase().includes(searchValue)
             );
         },
         initialState: {
@@ -411,8 +438,18 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                         }
                         value={globalFilter ?? ''}
                         onChange={(e) => setGlobalFilter(e.target.value)}
-                        className="pl-10"
+                        className="pl-10 pr-10"
                     />
+                    {globalFilter && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setGlobalFilter('')}
+                            className="absolute right-1 top-1/2 transform -translate-y-1/2 h-6 w-6 p-0 hover:bg-gray-100"
+                        >
+                            <X className="h-3 w-3" />
+                        </Button>
+                    )}
                 </div>
             </CardHeader>
 
@@ -429,6 +466,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                                         hotel={row.original}
                                         onEdit={onEdit}
                                         onDelete={handleDelete}
+                                        onViewRooms={onViewRooms}
                                         isDeleting={isDeleting}
                                     />
                                 ))

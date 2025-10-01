@@ -18,9 +18,20 @@ export interface PageTitleProps {
         label: string;
         onClick?: () => void;
     };
+    backButtonProps?: {
+        label?: string;
+        onClick: () => void;
+    };
 }
 
-export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: PageTitleProps) => {
+export const PageTitle = ({
+    className,
+    title,
+    hotels,
+    rooms,
+    buttonProps,
+    backButtonProps,
+}: PageTitleProps) => {
     const { isMobile } = useScreenSize();
     const getTitle = (hotels?: number, rooms?: number) => {
         if (hotels && rooms) {
@@ -33,24 +44,28 @@ export const PageTitle = ({ className, title, hotels, rooms, buttonProps }: Page
     };
     return (
         <div className={cn(styles.headingContainer, 'flex items-center gap-2', className)}>
-            <div>
-                <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>
-                    {title}
-                </Text>
-                {/* <Flex gap={'middle'}>
-                    <Text size={isMobile ? 's' : 'xl'} view={'success'} className={styles.subTitle}>
-                        {getTitle(hotels, rooms)}
+            <div className="flex items-center gap-4">
+                {backButtonProps && (
+                    <TravelButton
+                        label={backButtonProps.label || 'Назад'}
+                        onClick={backButtonProps.onClick}
+                        className="shrink-0"
+                    />
+                )}
+                <div>
+                    <Text size={getTextSize(isMobile)} weight={'semibold'} view={'success'}>
+                        {title}
                     </Text>
-                </Flex> */}
+                    {/* <Flex gap={'middle'}>
+                        <Text size={isMobile ? 's' : 'xl'} view={'success'} className={styles.subTitle}>
+                            {getTitle(hotels, rooms)}
+                        </Text>
+                    </Flex> */}
+                </div>
             </div>
             {buttonProps && (
                 <div className={styles.buttonContainer}>
-                    <TravelButton
-                        label={buttonProps.label}
-                        onClick={buttonProps.onClick}
-                        size={isMobile ? 's' : 'm'}
-                        className={styles.button}
-                    />
+                    <TravelButton label={buttonProps.label} onClick={buttonProps.onClick} />
                 </div>
             )}
         </div>

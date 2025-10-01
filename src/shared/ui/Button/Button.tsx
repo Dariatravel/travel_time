@@ -1,11 +1,11 @@
-import { Button, ButtonProps } from '@/components/ui/button';
+import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import React, { CSSProperties, FC } from 'react';
 
 /**
  * Интерфейс пропсов для компонента TravelButton
  */
-export interface TravelButtonProps extends Omit<ButtonProps, 'children'> {
+export interface TravelButtonProps extends Omit<React.ComponentProps<'button'>, 'children'> {
     /** Дополнительные стили для кнопки */
     style?: CSSProperties;
     /** Текст кнопки (для совместимости с Consta UI) */

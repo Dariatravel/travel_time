@@ -1,10 +1,7 @@
-import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import { FormButtons } from '@/components/ui/form-buttons';
 import { FormTitle } from '@/components/ui/form-title';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
     Select,
     SelectContent,
@@ -27,11 +24,11 @@ import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { getDate } from '@/shared/lib/getDate';
 import { $user } from '@/shared/models/auth';
+import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
+import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import cn from 'classnames';
 import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
-import { CalendarIcon } from 'lucide-react';
 import moment from 'moment';
 import { FC, useEffect, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
@@ -91,7 +88,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         };
 
         let defaults = {
-            date: [moment().toDate(), moment().add(1, 'days').toDate()] as [Date, Date],
+            date: [moment().toDate(), moment().add(2, 'days').toDate()] as [Date, Date],
             hotel_id: hotel
                 ? adaptToOption({
                       id: hotel?.id,
@@ -238,44 +235,29 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                     <Controller
                         name="date"
                         control={control}
-                        rules={{ required: 'Период обязателен для заполнения' }}
                         render={({ field, fieldState: { error } }) => (
-                            <div className="space-y-2">
-                                <Label>
-                                    Период бронирования <span className="text-red-500">*</span>
-                                </Label>
-                                <Popover>
-                                    <PopoverTrigger asChild>
-                                        <Button
-                                            variant="outline"
-                                            className={cn(
-                                                'w-full justify-start text-left font-normal',
-                                                !field.value && 'text-muted-foreground',
-                                                cx.fields,
-                                            )}
-                                        >
-                                            <CalendarIcon className="mr-2 h-4 w-4" />
-                                            {field.value
-                                                ? field.value[0] && field.value[1]
-                                                    ? `${dayjs(field.value[0]).format('DD.MM.YYYY')} - ${dayjs(field.value[1]).format('DD.MM.YYYY')}`
-                                                    : 'Выберите даты'
-                                                : 'Выберите даты'}
-                                        </Button>
-                                    </PopoverTrigger>
-                                    <PopoverContent className="w-auto p-0" align="start">
-                                        <Calendar
-                                            mode="range"
-                                            selected={field.value}
-                                            onSelect={field.onChange}
-                                            numberOfMonths={2}
-                                            initialFocus
-                                        />
-                                    </PopoverContent>
-                                </Popover>
-                                {error?.message && (
-                                    <p className="text-sm text-red-500">{error.message}</p>
-                                )}
-                            </div>
+                            <>
+                                <Datepicker
+                                    selected={
+                                        field.value
+                                            ? {
+                                                  from: field.value[0],
+                                                  to: field.value[1],
+                                              }
+                                            : undefined
+                                    }
+                                    onSelect={(range) => {
+                                        if (range?.from) {
+                                            field.onChange([range.from, range.to || range.from]);
+                                        } else {
+                                            field.onChange(undefined);
+                                        }
+                                    }}
+                                    label="Период бронирования"
+                                    numberOfMonths={2}
+                                />
+                                <FormMessage message={error?.message} />
+                            </>
                         )}
                     />
                     <div className="grid grid-cols-2 gap-4">
@@ -481,7 +463,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                     <FormButtons
                         className={cx.buttons}
                         onDelete={onReserveDelete}
-                        deleteText={''}
+                        deleteText={'Удалить бронь'}
                         isEdit={isEdit}
                         isLoading={loading}
                         onAccept={handleSubmit(onAcceptForm, onError)}

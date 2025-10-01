@@ -32,7 +32,7 @@ export default function Home() {
     const ITEM_GAP = 32;
     const ITEM_HEIGHT = isMobile ? 375 : 350;
     const VIRTUAL_HEIGHT = ITEM_HEIGHT + ITEM_GAP;
-    const PAGE_SIZE = 3;
+    const PAGE_SIZE = 2;
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE);

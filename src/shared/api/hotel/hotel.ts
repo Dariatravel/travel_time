@@ -97,7 +97,7 @@ export async function getAllHotels(
 
         const query = supabase
             .from('hotels_with_rooms_new')
-            .select('*, rooms(*), hotel_options(*)', { count: 'exact' });
+            .select('*, rooms(*)', { count: 'exact' });
 
         if (filter?.freeHotels_id) {
             if (filter?.hotels && filter?.hotels?.length > 0) {
@@ -149,9 +149,7 @@ export async function getAllHotelsWithEmptyRooms(
         const from = page * limit;
         const to = from + limit - 1;
 
-        const query = supabase
-            .from('hotels')
-            .select('*, rooms(*), hotel_options(*)', { count: 'exact' });
+        const query = supabase.from('hotels').select('*, rooms(*)', { count: 'exact' });
 
         if (filter?.freeHotels_id) {
             query.in('id', filter?.freeHotels_id);

@@ -306,7 +306,6 @@ export const Timeline = ({
                             return (
                                 <div {...getRootProps()}>
                                     {intervals.map((interval, i) => {
-                                        console.log({ intervals, i });
                                         // Используем дату интервала для стабильного цвета
                                         const intervalDate = moment(interval.startTime.toDate());
                                         let colorIndex;

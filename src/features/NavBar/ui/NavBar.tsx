@@ -26,6 +26,7 @@ import { useParams, usePathname } from 'next/navigation';
 import * as React from 'react';
 import { useEffect, useId, useRef, useState } from 'react';
 import { getActiveStatus } from '../lib/getActiveStatus';
+import { Breadcrumbs } from './Breadcrumbs';
 
 // User Menu Component
 const UserMenu = ({
@@ -176,6 +177,10 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent align="start" className="w-64 p-1">
+                                    {/* Mobile breadcrumbs */}
+                                    <div className="px-3 py-2 border-b">
+                                        <Breadcrumbs className="text-xs" />
+                                    </div>
                                     <NavigationMenu className="max-w-none">
                                         <NavigationMenuList className="flex-col items-start gap-0">
                                             {navigationLinks.map((link, index) => {
@@ -264,6 +269,12 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                                         </TooltipProvider>
                                     </NavigationMenuList>
                                 </NavigationMenu>
+                            )}{' '}
+                            {/* Breadcrumbs */}
+                            {!isMobile && (
+                                <div className="mr-4">
+                                    <Breadcrumbs />
+                                </div>
                             )}
                         </div>
                     </div>

@@ -64,6 +64,12 @@ export async function getRoomsWithReservesByHotel(
         query.in('id', allowedRooms);
     }
 
+    // Фильтрация по особенностям номера (room_features)
+    if (filter?.roomFeatures && filter.roomFeatures.length > 0) {
+        // Используем overlaps для проверки пересечения массивов
+        query.overlaps('room_features', filter.roomFeatures);
+    }
+
     query.order('order', { ascending: true, nullsFirst: false });
     const response = await query;
 

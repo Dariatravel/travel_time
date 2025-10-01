@@ -329,6 +329,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                         <FormButtons
                             className={cx.buttons}
                             isLoading={loading}
+                            onAccept={onAcceptForm}
                             onClose={onClose}
                             isEdit={isEdit}
                             onDelete={() =>

@@ -66,7 +66,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
 
     const methods = useForm<SearchFormSchema>({
-        resolver: zodResolver(searchFormSchema),
+        resolver: zodResolver(searchFormSchema) as any,
         defaultValues: {
             hotels: [],
             category: undefined,
@@ -120,6 +120,16 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             });
         };
 
+        /**
+         * Проверяет, есть ли активные расширенные фильтры
+         * @param filters состояние расширенных фильтров
+         */
+        const hasActiveAdvancedFilters = (filters: AdvancedFiltersState) => {
+            return Object.values(filters).some((section) =>
+                section.options.some((option: FilterOption) => option.isActive),
+            );
+        };
+
         let freeRoomData: Partial<TravelFilterType> = {
             freeHotels: undefined,
             freeHotels_id: undefined,
@@ -143,9 +153,11 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             return result;
         };
 
-        if (!isAllValuesUndefined(filter)) {
+        // Проверяем, есть ли основные фильтры ИЛИ активные расширенные фильтры
+        if (!isAllValuesUndefined(filter) || hasActiveAdvancedFilters(advancedFilters)) {
             const parsedAdvancedFilter = parseFilter(advancedFilters);
 
+            console.log({ parsedAdvancedFilter, filter });
             const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
 
             const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
@@ -173,6 +185,15 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             filter.hotels = filterHotels;
         } else {
             filter.hotels = undefined;
+        }
+
+        // Добавляем roomFeatures из расширенных фильтров
+        const roomFeatures = advancedFilters.roomFeatures?.options
+            .filter((option) => option.isActive)
+            .map((option) => option.id);
+
+        if (roomFeatures && roomFeatures.length > 0) {
+            filter.roomFeatures = roomFeatures;
         }
 
         console.log({ filter });
@@ -246,17 +267,17 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                             <>
                                                 <Datepicker
                                                     selected={
-                                                        fieldFrom.value && fieldTo.value
+                                                        fieldFrom.value
                                                             ? {
                                                                   from: fieldFrom.value,
-                                                                  to: fieldTo.value,
+                                                                  to: fieldTo.value || undefined,
                                                               }
                                                             : undefined
                                                     }
                                                     onSelect={(range) => {
-                                                        if (range?.from && range?.to) {
+                                                        if (range?.from) {
                                                             fieldFrom.onChange(range.from);
-                                                            fieldTo.onChange(range.to);
+                                                            fieldTo.onChange(range.to || undefined);
                                                         } else {
                                                             fieldFrom.onChange(undefined);
                                                             fieldTo.onChange(undefined);
@@ -348,7 +369,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                         <div>
                             <Button
                                 type="button"
-                                onClick={handleSubmit(onSearch)}
+                                onClick={handleSubmit(onSearch as any)}
                                 className={cn(styles.searchButton)}
                             >
                                 <Search className="mr-2 h-4 w-4" />
