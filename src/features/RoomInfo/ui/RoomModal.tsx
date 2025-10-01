@@ -71,7 +71,7 @@ export const RoomModal: FC<RoomModalProps> = ({
                 <RoomInfo
                     onClose={onClose}
                     currentReserve={currentReserve}
-                    onAccept={isEdit ? onEdit : onCreate}
+                    onAccept={isEdit ? (args: unknown) => onEdit(args as RoomDTO) : (args: unknown) => onCreate(args as RoomDTO)}
                     onDelete={onDelete}
                     isLoading={loading}
                     isEdit={isEdit}

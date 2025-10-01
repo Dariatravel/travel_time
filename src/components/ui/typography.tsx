@@ -47,8 +47,6 @@ const typographyVariants = cva('', {
 export interface TypographyProps
     extends React.HTMLAttributes<HTMLElement>,
         VariantProps<typeof typographyVariants> {
-    /** Элемент для рендера (по умолчанию определяется по variant) */
-    as?: keyof JSX.IntrinsicElements;
     /** Размер текста (для совместимости с Consta UI) */
     size?: 'xs' | 's' | 'm' | 'l' | 'xl' | '2xl' | '3xl' | '4xl';
     /** Вид текста (для совместимости с Consta UI) */
@@ -59,11 +57,9 @@ export interface TypographyProps
  * Универсальный компонент типографики для замены Text из Consta UI
  */
 const Typography = React.forwardRef<HTMLElement, TypographyProps>(
-    ({ className, variant, align, weight, size, view, as, children, ...props }, ref) => {
+    ({ className, variant, align, weight, size, view, children, ...props }, ref) => {
         // Определяем элемент для рендера
-        const getElement = (): keyof JSX.IntrinsicElements => {
-            if (as) return as;
-
+        const getElement = () => {
             switch (variant) {
                 case 'h1':
                     return 'h1';
@@ -183,4 +179,3 @@ export const Text = React.forwardRef<HTMLElement, TextProps>(
 Text.displayName = 'Text';
 
 export { Typography, typographyVariants };
-

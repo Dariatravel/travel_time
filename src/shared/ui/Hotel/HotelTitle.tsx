@@ -12,14 +12,11 @@ export interface HotelTitleProps {
         | 's'
         | 'm'
         | 'xl'
-        | '2xs'
         | 'xs'
         | 'l'
         | '2xl'
         | '3xl'
         | '4xl'
-        | '5xl'
-        | '6xl'
         | undefined;
 }
 
@@ -31,7 +28,7 @@ export const HotelTitle = ({ className, href, children, size = 'xl' }: HotelTitl
             href={href}
             target={isLink ? '_blank' : undefined}
         >
-            <Text className={styles.title} transform={'uppercase'} weight={'semibold'} size={size}>
+            <Text className={cn(styles.title, 'uppercase')} weight={'semibold'} size={size}>
                 {children}
             </Text>
         </a>

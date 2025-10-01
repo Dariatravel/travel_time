@@ -17,7 +17,7 @@ import {
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { adaptToAntOption } from '@/shared/lib/adaptHotel';
+import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormField } from '@/shared/ui/FormField';
@@ -209,7 +209,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         }
     };
 
-    const hotelOptions = hotels?.map((hotel) => adaptToAntOption(hotel)) ?? [];
+    const hotelOptions = hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [];
 
     return (
         <FormProvider {...methods}>

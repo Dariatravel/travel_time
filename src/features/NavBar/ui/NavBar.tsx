@@ -91,7 +91,7 @@ export interface NavbarProps extends React.HTMLAttributes<HTMLElement> {
     onUserItemClick?: (item: string) => void;
     /** Текущая дата для отображения в навбаре */
     currentDate?: string;
-    user?: User;
+    user?: User | null;
 }
 
 // Default navigation links with icons

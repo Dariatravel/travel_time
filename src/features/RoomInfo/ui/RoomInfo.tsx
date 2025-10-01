@@ -218,7 +218,11 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                 <FormMultipleSelector
                                     label="Особенности номера"
                                     placeholder="Выберите особенности номера"
-                                    options={INITIAL_ROOM_FEATURES}
+                                    options={INITIAL_ROOM_FEATURES.map(feature => ({
+                                        value: feature.value,
+                                        label: feature.label,
+                                        disable: !feature.isActive
+                                    }))}
                                     value={
                                         field.value?.map((feature) => ({
                                             value: feature,

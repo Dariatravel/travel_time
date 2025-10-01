@@ -1,5 +1,5 @@
 import { TravelOption } from '@/shared/api/reserve/reserve'
-import { DefaultOptionType } from 'rc-select/es/Select'
+import { Option } from '@/components/ui/multiple-selector'
 
 export const adaptToOption = (item: {
   id: string
@@ -9,10 +9,10 @@ export const adaptToOption = (item: {
   label: item.title,
 })
 
-export const adaptToAntOption = (item: {
+export const adaptToMultipleSelectorOption = (item: {
   id: string
   title: string
-}): DefaultOptionType => ({
+}): Option => ({
   value: item.id,
   label: item.title,
 })

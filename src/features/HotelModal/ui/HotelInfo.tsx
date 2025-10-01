@@ -66,13 +66,13 @@ const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
     const hotelData = {
         ...data,
         type: data.type.label,
-        rating: +data?.rating,
+        rating: +(data?.rating || '5'),
         user_id: data?.user_id?.id,
         description: data?.description || '',
         beach: data?.beach?.id,
         beach_distance: data?.beach_distance?.id,
-        features: data?.features?.map((item) => item.id),
-        eat: data?.eat?.map((item) => item.id),
+        features: data?.features?.map((item) => item?.id).filter(Boolean),
+        eat: data?.eat?.map((item) => item?.id).filter(Boolean),
         city: data?.city?.id,
     };
 
@@ -368,9 +368,9 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                             error={error?.message}
                             value={
                                 field.value?.map((item) => ({
-                                    value: item.id,
-                                    label: item.label,
-                                })) || []
+                                    value: item?.id || '',
+                                    label: item?.label || '',
+                                })).filter(item => item.value && item.label) || []
                             }
                             onChange={(options) =>
                                 field.onChange(
@@ -399,9 +399,9 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                             error={error?.message}
                             value={
                                 field.value?.map((item) => ({
-                                    value: item.id,
-                                    label: item.label,
-                                })) || []
+                                    value: item?.id || '',
+                                    label: item?.label || '',
+                                })).filter(item => item.value && item.label) || []
                             }
                             onChange={(options) =>
                                 field.onChange(

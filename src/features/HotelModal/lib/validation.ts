@@ -26,6 +26,7 @@ export const hotelFormSchema = z.object({
         { message: 'Отельер обязателен' },
     ),
     address: z.string({ message: 'Адрес обязателен' }),
+    rating: z.string().optional(),
     city: z
         .object(
             {

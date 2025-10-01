@@ -23,7 +23,7 @@ import {
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { adaptToAntOption } from '@/shared/lib/adaptHotel';
+import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import cn from 'classnames';
@@ -158,7 +158,7 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
         }
     };
 
-    const hotelOptions = hotels?.map((hotel) => adaptToAntOption(hotel)) ?? [];
+    const hotelOptions = hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [];
 
     const { control } = useForm<SearchFormSchema>({
         defaultValues: {
@@ -217,9 +217,9 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                                     label="Выберите отель"
                                     error={undefined}
                                     value={
-                                        field.value?.map((item) => ({
-                                            value: item.id,
-                                            label: item.label,
+                                        field.value?.map((item: string) => ({
+                                            value: item,
+                                            label: item,
                                         })) || []
                                     }
                                     onChange={(options) =>

@@ -254,6 +254,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 <RoomModal
                     isOpen={isRoomOpen}
                     onClose={() => setIsRoomOpen(false)}
+                    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                    // @ts-expect-error
                     onAccept={onRoomCreate}
                     isLoading={isRoomCreating}
                     currentReserve={currentReserve}
@@ -262,6 +264,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             <ReserveModal
                 isOpen={isReserveOpen}
                 onClose={onClose}
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-expect-error
                 onAccept={onReserveAccept}
                 onDelete={onReserveDelete}
                 currentReserve={currentReserve}

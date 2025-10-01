@@ -1,12 +1,7 @@
 'use client';
 
-import MultipleSelector from '@/components/ui/multiple-selector';
+import MultipleSelector, { Option } from '@/components/ui/multiple-selector';
 import { FormField } from './FormField';
-
-interface Option {
-    value: string;
-    label: string;
-}
 
 interface FormMultipleSelectorProps {
     label: string;
