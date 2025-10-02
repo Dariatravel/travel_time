@@ -1,0 +1,12 @@
+{
+    "buildCommand": "npm run build",
+    "installCommand": "npm ci",
+    "functions": {
+        "app/**/*.{js,ts,jsx,tsx}": {
+            "runtime": "nodejs20.x"
+        }
+    },
+    "env": {
+        "LIGHTNING_CSS_ARCH": "x64"
+    }
+}
