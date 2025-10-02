@@ -1,7 +1,0 @@
-{
-    "buildCommand": "npm run build",
-    "installCommand": "npm ci",
-    "env": {
-        "LIGHTNING_CSS_ARCH": "x64"
-    }
-}
