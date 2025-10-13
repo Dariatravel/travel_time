@@ -8,6 +8,7 @@ import {
     AdvancedFiltersState,
     FilterOption,
 } from '@/features/AdvancedFilters';
+import { ExportHotelsButton } from '@/features/ExportHotels';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import { ClearableSelect } from '@/shared';
@@ -18,6 +19,7 @@ import {
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
+import { setFreeHotelsData } from '@/shared/models/freeHotels';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormField } from '@/shared/ui/FormField';
@@ -177,7 +179,13 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                 freeHotels: getHotelsMap(result),
             };
 
+            // Сохраняем данные о свободных отелях в отдельный store
+            setFreeHotelsData(result);
+
             console.log({ freeRoomData });
+        } else {
+            // Очищаем данные о свободных отелях, если фильтры пустые
+            setFreeHotelsData([]);
         }
 
         if (selectedHotels.length !== 0) {
@@ -367,6 +375,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                         {/* Расширенные фильтры */}
                         <div className="">
                             <AdvancedFilters />
+                        </div>
+                        {/* Кнопка экспорта отелей */}
+                        <div className="">
+                            <ExportHotelsButton />
                         </div>
                         <div>
                             <Button

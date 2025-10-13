@@ -72,7 +72,7 @@ export interface FreeHotelsDTO {
 }
 
 //для формы Room и Reserve
-export type HotelForRoom = Pick<HotelDTO, 'id' | 'title'>;
+export type HotelForRoom = Pick<HotelDTO, 'id' | 'title' | 'telegram_url' | 'phone' | 'address'>;
 
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
 
