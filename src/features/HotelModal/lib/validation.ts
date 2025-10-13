@@ -36,7 +36,10 @@ export const hotelFormSchema = z.object({
             { message: 'Город обязателен' },
         )
         .optional(),
-    phone: z.string().min(1, 'Номер телефона обязателен'),
+    phone: z
+        .string({ message: 'Номер телефона обязателен для заполнения' })
+        .min(1, 'Номер телефона обязателен для заполнения')
+        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
     telegram_url: z.string().optional(),
     description: z.string().optional(),
     image_id: imageSchema.nullable().optional(),
@@ -55,22 +58,22 @@ export const hotelFormSchema = z.object({
             label: z.string(),
         })
         .optional(),
-    features: z.array(
-        z
-            .object({
+    features: z
+        .array(
+            z.object({
                 id: z.string(),
                 label: z.string(),
-            })
-            .optional(),
-    ),
-    eat: z.array(
-        z
-            .object({
+            }),
+        )
+        .default([]),
+    eat: z
+        .array(
+            z.object({
                 id: z.string(),
                 label: z.string(),
-            })
-            .optional(),
-    ),
+            }),
+        )
+        .default([]),
 });
 
 export type HotelFormSchema = z.infer<typeof hotelFormSchema>;

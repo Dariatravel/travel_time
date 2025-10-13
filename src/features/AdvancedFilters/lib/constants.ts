@@ -128,9 +128,9 @@ export const VALUE_TO_LABEL_MAP = {
 
     // Пляж
     pebble: 'Галечный',
-    'pine-pebble': 'Сосновый галечный',
+    'pine-pebble': 'Сосново-галечный',
     sand: 'Песчаный',
-    'pebble-sand': 'Галечно-песочный',
+    'pebble-sand': 'Галечно-песчаный',
 
     // Расстояние до пляжа
     'coastal-zone': 'Береговая зона',

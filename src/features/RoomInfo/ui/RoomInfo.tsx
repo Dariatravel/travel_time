@@ -1,4 +1,3 @@
-import { FormButtons } from '@/components/ui/form-buttons';
 import { FormTitle } from '@/components/ui/form-title';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -12,6 +11,7 @@ import {
 import { Textarea } from '@/components/ui/textarea';
 import { INITIAL_ROOM_FEATURES } from '@/features/AdvancedFilters';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components/FormMultipleSelector';
+import { FormButtons } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO } from '@/shared/api/room/room';
@@ -210,7 +210,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     )}
                                 </div>
                             )}
-                        />{' '}
+                        />
                         <Controller
                             name="room_features"
                             control={control}
@@ -221,7 +221,6 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     options={INITIAL_ROOM_FEATURES.map((feature) => ({
                                         value: feature.value,
                                         label: feature.label,
-                                        disable: !feature.isActive,
                                     }))}
                                     value={
                                         field.value?.map((feature) => ({

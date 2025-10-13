@@ -513,10 +513,11 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
                                     : placeholder
                             }
                             className={cn(
-                                'flex-1 self-baseline bg-transparent outline-none placeholder:text-muted-foreground',
+                                'flex-1 self-baseline bg-transparent outline-none placeholder:text-muted-foreground text-base',
                                 {
                                     'w-full': hidePlaceholderWhenSelected,
                                     'ml-1': selected.length !== 0,
+                                    // 'text-base': selected.length !== 0,
                                 },
                                 inputProps?.className,
                             )}

@@ -12,27 +12,54 @@ export interface LoginProps {
     className?: string;
 }
 
-export const Login = ({ className }: LoginProps) => {
-    const { mutateAsync } = useLogin();
+// Компонент для отображения обязательного поля
+const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
+    <span>
+        {children} <span className="text-red-600">*</span>
+    </span>
+);
 
-    const {
-        control,
-        watch,
-        formState: { errors },
-    } = useForm<AuthProps>({
+// Правила валидации
+const validationRules = {
+    email: {
+        required: 'Email обязателен',
+        pattern: {
+            value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+            message: 'Введите корректный email адрес',
+        },
+    },
+    password: {
+        required: 'Пароль обязателен',
+        minLength: { value: 6, message: 'Пароль должен содержать минимум 6 символов' },
+    },
+};
+
+export const Login = () => {
+    const { mutateAsync, isPending } = useLogin();
+
+    const { control, handleSubmit } = useForm<AuthProps>({
         defaultValues: { email: undefined, password: undefined },
+        mode: 'onChange',
     });
 
-    const formData = watch();
+    const onSubmit = async (data: AuthProps) => {
+        try {
+            await mutateAsync(data);
+        } catch (error) {
+            console.error('Ошибка входа:', error);
+        }
+    };
 
     return (
-        <div className="space-y-4 ">
+        <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
             <div className="space-y-2">
-                <Label htmlFor="email">Почта</Label>
+                <Label htmlFor="email">
+                    <RequiredLabel>Email</RequiredLabel>
+                </Label>
                 <Controller
                     name="email"
                     control={control}
-                    rules={{ required: 'Email обязателен для заполнения' }}
+                    rules={validationRules.email}
                     render={({ field, fieldState: { error } }) => (
                         <div>
                             <Input
@@ -40,8 +67,9 @@ export const Login = ({ className }: LoginProps) => {
                                 id="email"
                                 type="email"
                                 autoComplete="off"
-                                placeholder="Введите почту"
+                                placeholder="example@mail.ru"
                                 className={styles.fields}
+                                aria-invalid={!!error}
                             />
                             {error && <p className="text-sm text-red-600 mt-1">{error.message}</p>}
                         </div>
@@ -50,11 +78,13 @@ export const Login = ({ className }: LoginProps) => {
             </div>
 
             <div className="space-y-2">
-                <Label htmlFor="password">Пароль</Label>
+                <Label htmlFor="password">
+                    <RequiredLabel>Пароль</RequiredLabel>
+                </Label>
                 <Controller
                     name="password"
                     control={control}
-                    rules={{ required: 'Пароль обязателен для заполнения' }}
+                    rules={validationRules.password}
                     render={({ field, fieldState: { error } }) => (
                         <div>
                             <Input
@@ -63,6 +93,7 @@ export const Login = ({ className }: LoginProps) => {
                                 type="password"
                                 placeholder="Введите пароль"
                                 className={styles.fields}
+                                aria-invalid={!!error}
                             />
                             {error && <p className="text-sm text-red-600 mt-1">{error.message}</p>}
                         </div>
@@ -70,17 +101,14 @@ export const Login = ({ className }: LoginProps) => {
                 />
             </div>
 
-            <Button
-                className="w-full"
-                onClick={async () => {
-                    await mutateAsync({
-                        email: formData.email,
-                        password: formData.password,
-                    });
-                }}
-            >
-                Войти
-            </Button>
-        </div>
+            <div className="space-y-3">
+                <p className="text-sm text-gray-600">
+                    <span className="text-red-600">*</span> — обязательные поля
+                </p>
+                <Button type="submit" className="w-full" disabled={isPending}>
+                    {isPending ? 'Вход...' : 'Войти'}
+                </Button>
+            </div>
+        </form>
     );
 };

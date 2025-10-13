@@ -103,7 +103,7 @@ export default function Home() {
     }
 
     return (
-        <div className="mt-6 space-y-6">
+        <div className="mt-1 space-y-1">
             {/* Поисковая форма */}
             <div className="mt-1">
                 <SearchForm />

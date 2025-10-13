@@ -1,4 +1,3 @@
-import { FormButtons } from '@/components/ui/form-buttons';
 import { FormTitle } from '@/components/ui/form-title';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -11,7 +10,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal';
-import { PhoneInput } from '@/shared';
+import { FormButtons, PhoneInput } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
 import {
     type CurrentReserveType,
@@ -27,11 +26,13 @@ import { $user } from '@/shared/models/auth';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
+import { zodResolver } from '@hookform/resolvers/zod';
 import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import { FC, useEffect, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
+import { z } from 'zod';
 import cx from './style.module.scss';
 
 export interface ReserveInfoProps {
@@ -42,6 +43,47 @@ export interface ReserveInfoProps {
     isEdit?: boolean;
     onDelete?: (id: string) => void;
 }
+
+// Схема валидации Zod
+const reserveFormSchema = z.object({
+    date: z.tuple([z.date(), z.date()], { message: 'Дата обязательна' }).refine(
+        (dates) => {
+            const [start, end] = dates;
+            return start && end && start <= end;
+        },
+        {
+            message: 'Дата начала должна быть меньше или равна дате окончания',
+        },
+    ),
+    hotel_id: z.string({ message: 'Отель обязателен' }).min(1, 'Отель обязателен'),
+    room_id: z.string({ message: 'Номер обязателен' }).min(1, 'Номер обязателен'),
+    price: z.coerce
+        .number({
+            required_error: 'Стоимость обязательна',
+            invalid_type_error: 'Стоимость должна быть числом',
+        })
+        .positive('Стоимость должна быть больше 0'),
+    quantity: z.coerce
+        .number({
+            required_error: 'Количество гостей обязательно',
+            invalid_type_error: 'Количество должно быть числом',
+        })
+        .positive('Должно быть больше 0')
+        .int('Количество гостей должно быть целым числом'),
+    guest: z
+        .string({ message: 'ФИО гостя обязательно' })
+        .min(2, 'ФИО гостя должно содержать минимум 2 символа'),
+    phone: z
+        .string()
+        .min(1, 'Номер телефона обязателен')
+        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
+    comment: z.string().optional(),
+    prepayment: z.coerce.number().optional(),
+    created_by: z.string().optional(),
+    edited_by: z.string().optional(),
+    created_at: z.string().optional(),
+    edited_at: z.string().optional(),
+}) satisfies z.ZodType<ReserveForm>;
 
 export const ReserveInfo: FC<ReserveInfoProps> = ({
     onAccept,
@@ -116,13 +158,13 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     };
 
     const form = useForm<ReserveForm>({
-        mode: 'onSubmit',
+        resolver: zodResolver(reserveFormSchema),
+        mode: 'onChange',
         defaultValues: currentReserve?.hotel ? getDefaultValues(currentReserve) : undefined,
     });
 
     const {
         control,
-        register,
         watch,
         setValue,
         formState: { errors },
@@ -153,6 +195,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         if (hotelsStatus === 'success' && !!formData.hotel_id) {
             fetchRoomsByHotel();
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hotelsStatus, formData.hotel_id]);
 
     useEffect(() => {
@@ -164,18 +207,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         if (room) {
             setValue('price', room?.price);
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [formData.room_id]);
 
     const loading = isLoading || isHotelsLoading;
 
-    const deserializeData = ({
-        hotel_id,
-        date,
-        price,
-        quantity,
-        prepayment = 0,
-        ...data
-    }: ReserveForm) => {
+    const deserializeData = ({ date, price, quantity, prepayment = 0, ...data }: ReserveForm) => {
         const start = moment(date[0]).hour(12).unix();
         const userName = `${user?.name} ${user?.surname}`;
         const end = moment(date[1]).hour(11).unix();
@@ -213,9 +250,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         onAccept(currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data);
     };
 
-    const onError: SubmitErrorHandler<ReserveForm> = (errors) => {
+    const onError: SubmitErrorHandler<ReserveForm> = () => {
         showToast(`Заполните все обязательные поля`, 'error');
-        return;
     };
 
     const onReserveDelete = () => {
@@ -231,7 +267,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             <div className={cx.container}>
                 <FormTitle>Бронирование</FormTitle>
 
-                <div className="space-y-4">
+                <div className="space-y-1">
                     <Controller
                         name="date"
                         control={control}
@@ -264,7 +300,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         <Controller
                             name="hotel_id"
                             control={control}
-                            rules={{ required: 'Отель обязателен для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="hotel_id">
@@ -302,7 +337,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         <Controller
                             name="room_id"
                             control={control}
-                            rules={{ required: 'Номер обязателен для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="room_id">
@@ -342,7 +376,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         <Controller
                             name="price"
                             control={control}
-                            rules={{ required: 'Стоимость обязательна для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="price">
@@ -366,7 +399,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         <Controller
                             name="quantity"
                             control={control}
-                            rules={{ required: 'Кол-во гостей обязательно для заполнения' }}
                             render={({ field, fieldState: { error } }) => (
                                 <div className="space-y-2">
                                     <Label htmlFor="quantity">
@@ -389,7 +421,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                     </div>
                     <Controller
                         name="guest"
-                        rules={{ required: 'Гость обязателен для заполнения' }}
                         control={control}
                         render={({ field, fieldState: { error } }) => (
                             <div className="space-y-2">
@@ -402,9 +433,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                     placeholder="Введите ФИО"
                                     className={cx.fields}
                                 />
-                                {error?.message && (
-                                    <p className="text-sm text-red-500">{error.message}</p>
-                                )}
+                                <FormMessage message={error?.message} />
                             </div>
                         )}
                     />

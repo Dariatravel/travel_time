@@ -27,9 +27,19 @@ export default function LoginPage() {
         <Card className={cn(style.card, 'w-full max-w-md')}>
             <CardContent className="p-4 w-full">
                 <Tabs defaultValue="login" onValueChange={handleTabChange} className="w-full">
-                    <TabsList className="grid w-full grid-cols-2">
-                        <TabsTrigger value="login">Вход</TabsTrigger>
-                        <TabsTrigger value="register">Регистрация</TabsTrigger>
+                    <TabsList className="grid w-full grid-cols-2 text-lg">
+                        <TabsTrigger
+                            value="login"
+                            className="text-base font-semibold cursor-pointer"
+                        >
+                            Вход
+                        </TabsTrigger>
+                        <TabsTrigger
+                            value="register"
+                            className="text-base font-semibold cursor-pointer"
+                        >
+                            Регистрация
+                        </TabsTrigger>
                     </TabsList>
                     <TabsContent value="login" className="mt-4 w-full">
                         <Login />

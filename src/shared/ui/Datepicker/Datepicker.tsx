@@ -73,7 +73,7 @@ export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: Da
                     <Button
                         variant="outline"
                         id="dates"
-                        className="w-full justify-between font-normal"
+                        className="w-full justify-between font-normal text-base"
                     >
                         {getDateButtonText(selected)}
                         <div className="flex items-center gap-1 justify-between">

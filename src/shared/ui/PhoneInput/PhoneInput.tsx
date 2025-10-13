@@ -156,7 +156,9 @@ export const PhoneInput = <T extends FieldValues>({
             render={({ field, fieldState: { error } }) => {
                 return (
                     <div>
-                        <FormLabel>{label}</FormLabel>
+                        <FormLabel>
+                            {label} <span className="text-red-600">*</span>
+                        </FormLabel>
                         <div>
                             <Input
                                 {...field}
@@ -183,7 +185,7 @@ export const PhoneInput = <T extends FieldValues>({
                                 />
                             )}
                         </div>
-                        <FormMessage />
+                        <FormMessage  />
                     </div>
                 );
             }}

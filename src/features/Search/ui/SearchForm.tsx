@@ -214,8 +214,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     return (
         <FormProvider {...methods}>
             <Card className={cn('w-full', styles.wrapper)}>
-                <CardHeader>
-                    <CardTitle>Поиск предложений</CardTitle>
+                <CardHeader className="p-3 pl-6">
+                    <CardTitle>
+                        <div>Поиск предложений</div>
+                    </CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className={cn('flex gap-2 items-end', styles.container)}>

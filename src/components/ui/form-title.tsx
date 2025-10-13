@@ -10,7 +10,7 @@ export const FormTitle = React.forwardRef<HTMLHeadingElement, FormTitleProps>(
         return (
             <h2
                 ref={ref}
-                className={cn('text-2xl font-semibold leading-none tracking-tight mb-6', className)}
+                className={cn('text-2xl font-semibold leading-none tracking-tight mb-2', className)}
                 {...props}
             >
                 {children}
@@ -20,5 +20,3 @@ export const FormTitle = React.forwardRef<HTMLHeadingElement, FormTitleProps>(
 );
 
 FormTitle.displayName = 'FormTitle';
-
-

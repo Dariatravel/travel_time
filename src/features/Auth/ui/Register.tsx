@@ -9,11 +9,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from '@/components/ui/select';
+import { PhoneInput } from '@/shared';
 import { RegisterProps, useRegister, UserRole } from '@/shared/api/auth/auth';
 import { translateUserRole } from '@/shared/lib/translateUser';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import React from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, FormProvider, useForm } from 'react-hook-form';
 import styles from './style.module.css';
 
 export interface LoginProps {
@@ -21,28 +22,89 @@ export interface LoginProps {
     className?: string;
 }
 
-export const Register = ({ className }: LoginProps) => {
+// Тип для формы регистрации (с объектом для роли)
+interface RegisterFormData extends Omit<RegisterProps, 'role'> {
+    role: { id: string; label: string };
+}
+
+// Компонент для отображения обязательного поля
+const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
+    <span>
+        {children} <span className="text-red-600">*</span>
+    </span>
+);
+
+// Правила валидации
+const validationRules = {
+    surname: {
+        required: 'Фамилия обязательна',
+        minLength: { value: 2, message: 'Фамилия должна содержать минимум 2 символа' },
+        pattern: {
+            value: /^[а-яА-ЯёЁa-zA-Z\s-]+$/,
+            message: 'Фамилия может содержать только буквы, пробелы и дефисы',
+        },
+    },
+    name: {
+        required: 'Имя обязательно',
+        minLength: { value: 2, message: 'Имя должно содержать минимум 2 символа' },
+    },
+    role: {
+        required: 'Роль обязательна для выбора',
+    },
+    phone: {
+        required: 'Номер телефона обязателен',
+        pattern: {
+            value: /^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/,
+            message: 'Введите корректный номер телефона',
+        },
+    },
+    email: {
+        required: 'Email обязателен',
+        pattern: {
+            value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+            message: 'Введите корректный email адрес',
+        },
+    },
+    password: {
+        required: 'Пароль обязателен',
+        minLength: { value: 6, message: 'Пароль должен содержать минимум 6 символов' },
+        pattern: {
+            value: /^(?=.*[a-zA-Z])(?=.*\d).+$/,
+            message: 'Пароль должен содержать буквы и цифры',
+        },
+    },
+};
+
+export const Register = () => {
     const { isPending, mutateAsync } = useRegister();
 
-    const {
-        control,
-        watch,
-        formState: { errors },
-    } = useForm<RegisterProps>();
+    const form = useForm<RegisterFormData>({
+        mode: 'onChange', // Валидация при изменении
+    });
 
-    const formData = watch();
+    const { control, handleSubmit } = form;
+
+    const onSubmit = async (data: RegisterFormData) => {
+        try {
+            await mutateAsync({ ...data, role: data.role.id });
+        } catch (error) {
+            console.error('Ошибка регистрации:', error);
+        }
+    };
 
     return (
-        <>
+        <FormProvider {...form}>
             {isPending && <FullWidthLoader />}
-            <div className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="surname">Фамилия</Label>
+                        <Label htmlFor="surname">
+                            <RequiredLabel>Фамилия</RequiredLabel>
+                        </Label>
                         <Controller
                             name="surname"
                             control={control}
-                            rules={{ required: 'Фамилия обязательна для заполнения' }}
+                            rules={validationRules.surname}
                             render={({ field, fieldState: { error } }) => (
                                 <div>
                                     <Input
@@ -50,6 +112,7 @@ export const Register = ({ className }: LoginProps) => {
                                         id="surname"
                                         placeholder="Введите фамилию"
                                         className={styles.fields}
+                                        aria-invalid={!!error}
                                     />
                                     {error && (
                                         <p className="text-sm text-red-600 mt-1">{error.message}</p>
@@ -60,11 +123,13 @@ export const Register = ({ className }: LoginProps) => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="name">Имя</Label>
+                        <Label htmlFor="name">
+                            <RequiredLabel>Имя</RequiredLabel>
+                        </Label>
                         <Controller
                             name="name"
                             control={control}
-                            rules={{ required: 'Имя обязательно для заполнения' }}
+                            rules={validationRules.name}
                             render={({ field, fieldState: { error } }) => (
                                 <div>
                                     <Input
@@ -72,6 +137,7 @@ export const Register = ({ className }: LoginProps) => {
                                         id="name"
                                         placeholder="Введите имя"
                                         className={styles.fields}
+                                        aria-invalid={!!error}
                                     />
                                     {error && (
                                         <p className="text-sm text-red-600 mt-1">{error.message}</p>
@@ -83,11 +149,13 @@ export const Register = ({ className }: LoginProps) => {
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="role">Тип пользователя</Label>
+                    <Label htmlFor="role">
+                        <RequiredLabel>Тип пользователя</RequiredLabel>
+                    </Label>
                     <Controller
                         name="role"
                         control={control}
-                        rules={{ required: 'Роль обязательна для выбора' }}
+                        rules={validationRules.role}
                         render={({ field, fieldState: { error } }) => (
                             <div>
                                 <Select
@@ -97,8 +165,9 @@ export const Register = ({ className }: LoginProps) => {
                                             label: translateUserRole(value as UserRole),
                                         })
                                     }
+                                    value={field.value?.id || ''}
                                 >
-                                    <SelectTrigger className={styles.fields}>
+                                    <SelectTrigger className={styles.fields} aria-invalid={!!error}>
                                         <SelectValue placeholder="Выберите роль" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -120,42 +189,33 @@ export const Register = ({ className }: LoginProps) => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="phone">Телефон</Label>
-                        <Controller
-                            name="phone"
+                        <PhoneInput
                             control={control}
-                            rules={{ required: 'Телефон обязателен для заполнения' }}
-                            render={({ field, fieldState: { error } }) => (
-                                <div>
-                                    <Input
-                                        {...field}
-                                        id="phone"
-                                        type="tel"
-                                        placeholder="Введите номер телефона"
-                                        className={styles.fields}
-                                    />
-                                    {error && (
-                                        <p className="text-sm text-red-600 mt-1">{error.message}</p>
-                                    )}
-                                </div>
-                            )}
+                            name="phone"
+                            placeholder="+7 (___) ___-__-__"
+                            required
+                            label="Номер телефона"
+                            className={styles.fields}
                         />
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="email">Почта</Label>
+                        <Label htmlFor="email">
+                            <RequiredLabel>Email</RequiredLabel>
+                        </Label>
                         <Controller
                             name="email"
                             control={control}
-                            rules={{ required: 'Email обязателен для заполнения' }}
+                            rules={validationRules.email}
                             render={({ field, fieldState: { error } }) => (
                                 <div>
                                     <Input
                                         {...field}
                                         id="email"
                                         type="email"
-                                        placeholder="Введите почту"
+                                        placeholder="example@mail.ru"
                                         className={styles.fields}
+                                        aria-invalid={!!error}
                                     />
                                     {error && (
                                         <p className="text-sm text-red-600 mt-1">{error.message}</p>
@@ -167,19 +227,22 @@ export const Register = ({ className }: LoginProps) => {
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="password">Пароль</Label>
+                    <Label htmlFor="password">
+                        <RequiredLabel>Пароль</RequiredLabel>
+                    </Label>
                     <Controller
                         name="password"
                         control={control}
-                        rules={{ required: 'Пароль обязателен для заполнения' }}
+                        rules={validationRules.password}
                         render={({ field, fieldState: { error } }) => (
                             <div>
                                 <Input
                                     {...field}
                                     id="password"
                                     type="password"
-                                    placeholder="Введите пароль"
+                                    placeholder="Минимум 6 символов (буквы и цифры)"
                                     className={styles.fields}
+                                    aria-invalid={!!error}
                                 />
                                 {error && (
                                     <p className="text-sm text-red-600 mt-1">{error.message}</p>
@@ -189,17 +252,15 @@ export const Register = ({ className }: LoginProps) => {
                     />
                 </div>
 
-                <Button
-                    className="w-full"
-                    onClick={async () => {
-                        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                        // @ts-expect-error
-                        await mutateAsync({ ...formData, role: formData?.role?.id });
-                    }}
-                >
-                    Зарегистрироваться
-                </Button>
-            </div>
-        </>
+                <div className="pt-2">
+                    <p className="text-sm text-gray-600 mb-3">
+                        <span className="text-red-600">*</span> — обязательные поля
+                    </p>
+                    <Button type="submit" className="w-full" disabled={isPending}>
+                        {isPending ? 'Регистрация...' : 'Зарегистрироваться'}
+                    </Button>
+                </div>
+            </form>
+        </FormProvider>
     );
 };

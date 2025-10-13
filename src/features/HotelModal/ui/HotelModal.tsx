@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog';
+import { FormTitle } from '@/components/ui/form-title';
 import { HotelInfo } from '@/features/HotelModal/ui/HotelInfo';
 import { useGetUsers } from '@/shared/api/auth/auth';
 import {
@@ -11,7 +12,6 @@ import {
 } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC } from 'react';
 
@@ -113,7 +113,7 @@ export const HotelModal: FC<HotelModalProps> = ({
                     Добавить отель
                 </Button>
             </DialogTrigger> */}
-            <DialogContent className="md:max-w-2xl max-h-[80vh] min-h-[80vh] overflow-y-auto">
+            <DialogContent className="md:max-w-2xl max-h-[85vh] min-h-[85vh] overflow-y-auto p-y-3 px-6">
                 <DialogHeader>
                     <FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>
                 </DialogHeader>

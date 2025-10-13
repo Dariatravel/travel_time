@@ -252,7 +252,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
     };
 
     return (
-        <div style={{ position: 'relative' }} className="p-4">
+        <div style={{ position: 'relative' }} className="p-0">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 <div className={cx.calendarContainer}>
                     <Timeline
