@@ -51,7 +51,7 @@ export const ClearableSelect: FC<ClearableSelectProps> = ({
                     variant="ghost"
                     type="button"
                     onClick={() => onValueChange('')}
-                    className="absolute right-8 top-1/2 -translate-y-1/2 h-4 w-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring p-0"
+                    className="absolute right-8 top-1/2 -translate-y-1/2 h-8 w-8 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-1 focus:ring-ring p-0"
                 >
                     <X size={16} />
                 </Button>

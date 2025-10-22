@@ -243,10 +243,7 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                     </div>
                     {/* Количество гостей */}
                     <div className="min-w-[75px] max-w-[75px]">
-                        <Label
-                            htmlFor="quantity"
-                            className="text-sm font-medium text-gray-700 mb-2 block"
-                        >
+                        <Label htmlFor="quantity" className="text-foreground!">
                             Гости
                         </Label>
                         <Input

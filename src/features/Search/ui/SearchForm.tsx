@@ -236,10 +236,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                 control={control}
                                 render={({ field, fieldState: { error } }) => (
                                     <div>
-                                        <Label
-                                            htmlFor="category"
-                                            className="text-sm font-medium text-gray-700 block"
-                                        >
+                                        <Label htmlFor="category" className="text-sm block">
                                             Категория отеля
                                         </Label>
                                         <ClearableSelect
@@ -332,7 +329,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                                 value: item.value,
                                                 label: item.label,
                                             }))}
-                                            placeholder="Выберите особенности размещения"
+                                            placeholder="Введите название отеля"
                                             htmlFor="hotels"
                                         />
                                         <FormMessage message={error?.message} />

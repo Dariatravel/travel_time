@@ -8,6 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
 import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { cn } from '@/lib/utils';
 
 /**
  * Форматирует одну дату на русском языке
@@ -66,22 +67,27 @@ export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: Da
     const hasSelectedDate = selected?.from;
 
     return (
-        <div className="w-full space-y-2">
-            <Label className="text-sm font-medium text-gray-700 mb-2 block">{label}</Label>
+        <div className="w-full">
+            <Label className="text-sm block">{label}</Label>
             <Popover>
                 <PopoverTrigger asChild>
                     <Button
                         variant="outline"
                         id="dates"
-                        className="w-full justify-between font-normal text-base"
+                        className={cn(
+                            'relative h-10 w-full justify-between font-normal text-base',
+                            {
+                                ['text-muted-foreground']: !hasSelectedDate,
+                            },
+                        )}
                     >
                         {getDateButtonText(selected)}
-                        <div className="flex items-center gap-1 justify-between">
+                        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-0">
                             {hasSelectedDate && (
                                 <Button
                                     variant="ghost"
                                     onClick={handleClear}
-                                    className="hover:bg-gray-100 rounded p-1 transition-colors"
+                                    className="hover:bg-gray-200 rounded p-0 w-6 h-6 transition-colors"
                                     aria-label="Очистить дату"
                                 >
                                     <XIcon className="h-4 w-4" />

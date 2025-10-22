@@ -119,7 +119,7 @@ export default function Home() {
                         <CardHeader className="p-0">
                             <CardTitle>
                                 <div className="p-2">
-                                    <div className="flex gap-2 items-center">
+                                    <div className="space-y-1">
                                         {hotel?.type && (
                                             <Badge
                                                 // className={cn(cx.tag, cx.hotelTag)}
@@ -132,25 +132,28 @@ export default function Home() {
                                             >
                                                 {hotel?.type}
                                             </Badge>
-                                        )}
-                                        <HotelTitle
-                                            size={isMobile ? 's' : 'xl'}
-                                            // className={cx.hotelTitle}
-                                            href={getHotelUrl(hotel)}
-                                            className="text-zinc-500"
-                                        >
-                                            {hotel?.title}
-                                        </HotelTitle>
+                                        )}{' '}
+                                        <div className="flex gap-2 items-center">
+                                            {' '}
+                                            <HotelTitle
+                                                size={isMobile ? 's' : 'xl'}
+                                                // className={cx.hotelTitle}
+                                                href={getHotelUrl(hotel)}
+                                                className="text-zinc-500"
+                                            >
+                                                {hotel?.title}
+                                            </HotelTitle>{' '}
+                                            <div>
+                                                {hotel?.telegram_url && (
+                                                    <HotelTelegram url={hotel?.telegram_url} />
+                                                )}
+                                            </div>
+                                        </div>
                                     </div>
                                     <div className="flex gap-2 items-center">
                                         {' '}
-                                        <div>
-                                            {hotel?.telegram_url && (
-                                                <HotelTelegram url={hotel?.telegram_url} />
-                                            )}
-                                        </div>
                                         <div className="text-gray-500">
-                                            адрес:{hotel?.address}
+                                            Адрес:{hotel?.address}
                                         </div>{' '}
                                     </div>
                                 </div>

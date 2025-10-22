@@ -55,8 +55,20 @@ const reserveFormSchema = z.object({
             message: 'Дата начала должна быть меньше или равна дате окончания',
         },
     ),
-    hotel_id: z.string({ message: 'Отель обязателен' }).min(1, 'Отель обязателен'),
-    room_id: z.string({ message: 'Номер обязателен' }).min(1, 'Номер обязателен'),
+    hotel_id: z.object(
+        {
+            id: z.string({ message: 'Отель обязателен' }).min(1, 'Отель обязателен'),
+            label: z.string(),
+        },
+        { message: 'Отель обязателен' },
+    ),
+    room_id: z.object(
+        {
+            id: z.string({ message: 'Номер обязателен' }).min(1, 'Номер обязателен'),
+            label: z.string(),
+        },
+        { message: 'Номер обязателен' },
+    ),
     price: z.coerce
         .number({
             required_error: 'Стоимость обязательна',
@@ -74,9 +86,9 @@ const reserveFormSchema = z.object({
         .string({ message: 'ФИО гостя обязательно' })
         .min(2, 'ФИО гостя должно содержать минимум 2 символа'),
     phone: z
-        .string()
+        .string({ message: 'Номер телефона обязателен' })
         .min(1, 'Номер телефона обязателен')
-        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
+        .regex(/^\+7 \d{3} \d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
     comment: z.string().optional(),
     prepayment: z.coerce.number().optional(),
     created_by: z.string().optional(),
@@ -125,7 +137,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                 guest,
                 phone,
                 comment,
-                quantity,
+                quantity: quantity ?? 2,
             };
         };
 
@@ -144,6 +156,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                   })
                 : undefined,
             price: room?.price,
+            quantity: 2,
             created_by: currentReserve?.reserve?.created_by,
             edited_by: currentReserve?.reserve?.edited_by,
             created_at: currentReserve?.reserve?.created_at,
@@ -151,7 +164,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         };
 
         if (!!reserve) {
-            defaults = { ...defaults, ...getReserveDefaults(reserve) };
+            const reserveDefaults = getReserveDefaults(reserve);
+            defaults = {
+                ...defaults,
+                ...reserveDefaults,
+                quantity: reserveDefaults.quantity ?? defaults.quantity,
+            };
         }
 
         return defaults;
@@ -212,7 +230,14 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
 
     const loading = isLoading || isHotelsLoading;
 
-    const deserializeData = ({ date, price, quantity, prepayment = 0, ...data }: ReserveForm) => {
+    const deserializeData = ({
+        date,
+        price,
+        quantity,
+        prepayment = 0,
+        hotel_id: _,
+        ...data
+    }: ReserveForm) => {
         const start = moment(date[0]).hour(12).unix();
         const userName = `${user?.name} ${user?.surname}`;
         const end = moment(date[1]).hour(11).unix();
@@ -267,262 +292,271 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             <div className={cx.container}>
                 <FormTitle>Бронирование</FormTitle>
 
-                <div className="space-y-1">
-                    <Controller
-                        name="date"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <>
-                                <Datepicker
-                                    selected={
-                                        field.value
-                                            ? {
-                                                  from: field.value[0],
-                                                  to: field.value[1],
-                                              }
-                                            : undefined
-                                    }
-                                    onSelect={(range) => {
-                                        if (range?.from) {
-                                            field.onChange([range.from, range.to || range.from]);
-                                        } else {
-                                            field.onChange(undefined);
+                <form onSubmit={handleSubmit(onAcceptForm, onError)}>
+                    <div className="space-y-1">
+                        <Controller
+                            name="date"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <>
+                                    <Datepicker
+                                        selected={
+                                            field.value
+                                                ? {
+                                                      from: field.value[0],
+                                                      to: field.value[1],
+                                                  }
+                                                : undefined
                                         }
-                                    }}
-                                    label="Период бронирования"
-                                    numberOfMonths={2}
-                                />
-                                <FormMessage message={error?.message} />
-                            </>
-                        )}
-                    />
-                    <div className="grid grid-cols-2 gap-4">
-                        <Controller
-                            name="hotel_id"
-                            control={control}
-                            render={({ field, fieldState: { error } }) => (
-                                <div className="space-y-2">
-                                    <Label htmlFor="hotel_id">
-                                        Название отеля <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={field.value?.id}
-                                        onValueChange={(value) => {
-                                            const selectedHotel = hotelOptions.find(
-                                                (hotel) => hotel.id === value,
-                                            );
-                                            if (selectedHotel) {
-                                                field.onChange(selectedHotel);
+                                        onSelect={(range) => {
+                                            if (range?.from) {
+                                                field.onChange([
+                                                    range.from,
+                                                    range.to || range.from,
+                                                ]);
+                                            } else {
+                                                field.onChange(undefined);
                                             }
                                         }}
-                                        disabled={loading || !!currentReserve?.hotel?.id}
-                                    >
-                                        <SelectTrigger className={cx.fields}>
-                                            <SelectValue placeholder="Выберите из списка" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {hotelOptions.map((hotel) => (
-                                                <SelectItem key={hotel.id} value={hotel.id}>
-                                                    {hotel.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {error?.message && (
-                                        <p className="text-sm text-red-500">{error.message}</p>
-                                    )}
-                                </div>
-                            )}
-                        />
-                        <Controller
-                            name="room_id"
-                            control={control}
-                            render={({ field, fieldState: { error } }) => (
-                                <div className="space-y-2">
-                                    <Label htmlFor="room_id">
-                                        Номер <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Select
-                                        value={field.value?.id}
-                                        onValueChange={(value) => {
-                                            const selectedRoom = roomOptions.find(
-                                                (room) => room.id === value,
-                                            );
-                                            if (selectedRoom) {
-                                                field.onChange(selectedRoom);
-                                            }
-                                        }}
-                                        disabled={isHotelsLoading || isRoomsLoading}
-                                    >
-                                        <SelectTrigger className={cx.fields}>
-                                            <SelectValue placeholder="Выберите из списка" />
-                                        </SelectTrigger>
-                                        <SelectContent>
-                                            {roomOptions.map((room) => (
-                                                <SelectItem key={room.id} value={room.id}>
-                                                    {room.label}
-                                                </SelectItem>
-                                            ))}
-                                        </SelectContent>
-                                    </Select>
-                                    {error?.message && (
-                                        <p className="text-sm text-red-500">{error.message}</p>
-                                    )}
-                                </div>
-                            )}
-                        />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <Controller
-                            name="price"
-                            control={control}
-                            render={({ field, fieldState: { error } }) => (
-                                <div className="space-y-2">
-                                    <Label htmlFor="price">
-                                        Стоимость номера <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        {...field}
-                                        id="price"
-                                        type="number"
-                                        placeholder="Введите стоимость"
-                                        className={cx.fields}
-                                        value={String(field.value)}
-                                        onChange={field.onChange}
+                                        label="Период бронирования"
+                                        numberOfMonths={2}
                                     />
-                                    {error?.message && (
-                                        <p className="text-sm text-red-500">{error.message}</p>
-                                    )}
-                                </div>
+                                    <FormMessage message={error?.message} />
+                                </>
                             )}
                         />
-                        <Controller
-                            name="quantity"
-                            control={control}
-                            render={({ field, fieldState: { error } }) => (
-                                <div className="space-y-2">
-                                    <Label htmlFor="quantity">
-                                        Количество человек <span className="text-red-500">*</span>
-                                    </Label>
-                                    <Input
-                                        {...field}
-                                        id="quantity"
-                                        type="number"
-                                        placeholder="Введите число"
-                                        className={cx.fields}
-                                        value={field.value?.toString() ?? ''}
-                                    />
-                                    {error?.message && (
-                                        <p className="text-sm text-red-500">{error.message}</p>
-                                    )}
-                                </div>
-                            )}
-                        />
-                    </div>
-                    <Controller
-                        name="guest"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <div className="space-y-2">
-                                <Label htmlFor="guest">
-                                    ФИО гостя <span className="text-red-500">*</span>
-                                </Label>
-                                <Input
-                                    {...field}
-                                    id="guest"
-                                    placeholder="Введите ФИО"
-                                    className={cx.fields}
-                                />
-                                <FormMessage message={error?.message} />
-                            </div>
-                        )}
-                    />
-
-                    <PhoneInput
-                        control={control}
-                        name="phone"
-                        placeholder="+7 (...)"
-                        required
-                        label="Номер гостя"
-                        className={cx.fields}
-                        error={errors.phone?.message}
-                        showWhatsapp
-                    />
-
-                    <Controller
-                        name="comment"
-                        control={control}
-                        render={({ field }) => (
-                            <div className="space-y-2">
-                                <Label htmlFor="comment">Комментарии</Label>
-                                <Textarea
-                                    {...field}
-                                    id="comment"
-                                    className={cx.fields}
-                                    placeholder="Введите комментарий"
-                                    rows={2}
-                                />
-                            </div>
-                        )}
-                    />
-
-                    <ReserveTotal
-                        date={formData?.date}
-                        price={formData.price}
-                        prepayment={formData.prepayment}
-                        className={cx.fields}
-                        Prepayment={
+                        <div className="grid grid-cols-2 gap-4">
                             <Controller
-                                name="prepayment"
+                                name="hotel_id"
                                 control={control}
-                                render={({ field }) => (
-                                    <Input
-                                        {...field}
-                                        className={cx.fields}
-                                        disabled={loading}
-                                        value={String(field?.value)}
-                                        onChange={field.onChange}
-                                        type={'number'}
-                                    />
+                                render={({ field, fieldState: { error } }) => (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="hotel_id">
+                                            Название отеля <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Select
+                                            value={field.value?.id}
+                                            onValueChange={(value) => {
+                                                const selectedHotel = hotelOptions.find(
+                                                    (hotel) => hotel.id === value,
+                                                );
+                                                if (selectedHotel) {
+                                                    field.onChange(selectedHotel);
+                                                }
+                                            }}
+                                            disabled={loading || !!currentReserve?.hotel?.id}
+                                        >
+                                            <SelectTrigger className={cx.fields}>
+                                                <SelectValue placeholder="Выберите из списка" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {hotelOptions.map((hotel) => (
+                                                    <SelectItem key={hotel.id} value={hotel.id}>
+                                                        {hotel.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {error?.message && (
+                                            <p className="text-sm text-red-500">{error.message}</p>
+                                        )}
+                                    </div>
                                 )}
                             />
-                        }
-                    />
+                            <Controller
+                                name="room_id"
+                                control={control}
+                                render={({ field, fieldState: { error } }) => (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="room_id">
+                                            Номер <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Select
+                                            value={field.value?.id}
+                                            onValueChange={(value) => {
+                                                const selectedRoom = roomOptions.find(
+                                                    (room) => room.id === value,
+                                                );
+                                                if (selectedRoom) {
+                                                    field.onChange(selectedRoom);
+                                                }
+                                            }}
+                                            disabled={isHotelsLoading || isRoomsLoading}
+                                        >
+                                            <SelectTrigger className={cx.fields}>
+                                                <SelectValue placeholder="Выберите из списка" />
+                                            </SelectTrigger>
+                                            <SelectContent>
+                                                {roomOptions.map((room) => (
+                                                    <SelectItem key={room.id} value={room.id}>
+                                                        {room.label}
+                                                    </SelectItem>
+                                                ))}
+                                            </SelectContent>
+                                        </Select>
+                                        {error?.message && (
+                                            <p className="text-sm text-red-500">{error.message}</p>
+                                        )}
+                                    </div>
+                                )}
+                            />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                            <Controller
+                                name="price"
+                                control={control}
+                                render={({ field, fieldState: { error } }) => (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="price">
+                                            Стоимость номера <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            {...field}
+                                            id="price"
+                                            type="number"
+                                            placeholder="Введите стоимость"
+                                            className={cx.fields}
+                                            value={String(field.value)}
+                                            onChange={field.onChange}
+                                        />
+                                        {error?.message && (
+                                            <p className="text-sm text-red-500">{error.message}</p>
+                                        )}
+                                    </div>
+                                )}
+                            />
+                            <Controller
+                                name="quantity"
+                                control={control}
+                                render={({ field, fieldState: { error } }) => (
+                                    <div className="space-y-2">
+                                        <Label htmlFor="quantity">
+                                            Количество человек{' '}
+                                            <span className="text-red-500">*</span>
+                                        </Label>
+                                        <Input
+                                            {...field}
+                                            id="quantity"
+                                            type="number"
+                                            placeholder="Введите число"
+                                            className={cx.fields}
+                                            value={field.value?.toString() ?? ''}
+                                        />
+                                        {error?.message && (
+                                            <p className="text-sm text-red-500">{error.message}</p>
+                                        )}
+                                    </div>
+                                )}
+                            />
+                        </div>
+                        <Controller
+                            name="guest"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="guest">
+                                        ФИО гостя <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        {...field}
+                                        id="guest"
+                                        placeholder="Введите ФИО"
+                                        className={cx.fields}
+                                    />
+                                    <FormMessage message={error?.message} />
+                                </div>
+                            )}
+                        />
 
-                    <FormButtons
-                        className={cx.buttons}
-                        onDelete={onReserveDelete}
-                        deleteText={'Удалить бронь'}
-                        isEdit={isEdit}
-                        isLoading={loading}
-                        onAccept={handleSubmit(onAcceptForm, onError)}
-                        onClose={onClose}
-                    />
+                        <div className="space-y-1">
+                            <PhoneInput
+                                control={control}
+                                name="phone"
+                                placeholder="+7 (...)"
+                                required
+                                label="Номер гостя"
+                                className={cx.fields}
+                                error={errors.phone?.message}
+                                showWhatsapp
+                            />
+                            <FormMessage message={errors.phone?.message} />
+                        </div>
 
-                    <div className={cx.info}>
-                        {formData?.created_at && !formData?.edited_at && (
-                            <div className="flex gap-2 justify-end">
-                                <p className="text-sm text-gray-600">
-                                    Создано {formData?.created_by}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    {dayjs(formData?.created_at).format('DD.MM.YYYY')}
-                                </p>
-                            </div>
-                        )}
-                        {formData?.edited_at && (
-                            <div className="flex gap-2 justify-end">
-                                <p className="text-sm text-gray-600">
-                                    Последнее изменение {formData?.edited_by}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    {dayjs(formData?.edited_at).format('DD.MM.YYYY')}
-                                </p>
-                            </div>
-                        )}
+                        <Controller
+                            name="comment"
+                            control={control}
+                            render={({ field }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="comment">Комментарии</Label>
+                                    <Textarea
+                                        {...field}
+                                        id="comment"
+                                        className={cx.fields}
+                                        placeholder="Введите комментарий"
+                                        rows={2}
+                                    />
+                                </div>
+                            )}
+                        />
+
+                        <ReserveTotal
+                            date={formData?.date}
+                            price={formData.price}
+                            prepayment={formData.prepayment}
+                            className={cx.fields}
+                            Prepayment={
+                                <Controller
+                                    name="prepayment"
+                                    control={control}
+                                    render={({ field }) => (
+                                        <Input
+                                            {...field}
+                                            className={cx.fields}
+                                            disabled={loading}
+                                            value={String(field?.value)}
+                                            onChange={field.onChange}
+                                            type={'number'}
+                                        />
+                                    )}
+                                />
+                            }
+                        />
+
+                        <FormButtons
+                            className={cx.buttons}
+                            onDelete={onReserveDelete}
+                            deleteText={'Удалить бронь'}
+                            isEdit={isEdit}
+                            isLoading={loading}
+                            onAccept={() => {}}
+                            onClose={onClose}
+                        />
+
+                        <div className={cx.info}>
+                            {formData?.created_at && !formData?.edited_at && (
+                                <div className="flex gap-2 justify-end">
+                                    <p className="text-sm text-gray-600">
+                                        Создано {formData?.created_by}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                        {dayjs(formData?.created_at).format('DD.MM.YYYY')}
+                                    </p>
+                                </div>
+                            )}
+                            {formData?.edited_at && (
+                                <div className="flex gap-2 justify-end">
+                                    <p className="text-sm text-gray-600">
+                                        Последнее изменение {formData?.edited_by}
+                                    </p>
+                                    <p className="text-sm text-gray-600">
+                                        {dayjs(formData?.edited_at).format('DD.MM.YYYY')}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
                     </div>
-                </div>
-            </div>{' '}
+                </form>
+            </div>
         </FormProvider>
     );
 };

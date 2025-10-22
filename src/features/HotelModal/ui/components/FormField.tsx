@@ -20,7 +20,7 @@ export const FormField: React.FC<FormFieldProps> = ({
 }) => {
     return (
         <div className="space-y-2">
-            <Label htmlFor={htmlFor}>
+            <Label htmlFor={htmlFor} >
                 {label} {required && <span className="text-destructive">*</span>}
             </Label>
             {children}

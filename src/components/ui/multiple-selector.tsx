@@ -6,6 +6,7 @@ import * as React from 'react';
 import { forwardRef, useEffect } from 'react';
 
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import { Command, CommandGroup, CommandItem, CommandList } from '@/components/ui/command';
 import { cn } from '@/lib/utils';
 
@@ -440,7 +441,7 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
             >
                 <div
                     className={cn(
-                        'flex items-start justify-between rounded-md border border-input px-3 py-2 text-base ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 md:text-sm',
+                        'flex h-10 items-start justify-between rounded-md border border-input px-3 py-2 text-base ring-offset-background focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 md:text-sm',
                         {
                             'cursor-text': !disabled && selected.length !== 0,
                         },
@@ -523,14 +524,14 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
                             )}
                         />
                     </div>
-                    <button
-                        type="button"
+                    <Button
+                        variant="ghost"
                         onClick={() => {
                             setSelected(selected.filter((s) => s.fixed));
                             onChange?.(selected.filter((s) => s.fixed));
                         }}
                         className={cn(
-                            'size-5',
+                            'size-6',
                             (hideClearAllButton ||
                                 disabled ||
                                 selected.length < 1 ||
@@ -539,7 +540,7 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
                         )}
                     >
                         <X />
-                    </button>
+                    </Button>
                     <ChevronDownIcon
                         className={cn(
                             'size-5 text-muted-foreground/50',

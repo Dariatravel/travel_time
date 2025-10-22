@@ -17,7 +17,6 @@ export interface FormButtonsProps {
 }
 
 export const FormButtons: FC<FormButtonsProps> = ({
-    onAccept,
     onClose,
     isLoading = false,
     isEdit = false,
@@ -64,7 +63,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 >
                     Отмена
                 </Button>
-                <Button onClick={onAccept} disabled={isLoading}>
+                <Button type="submit" disabled={isLoading}>
                     {isEdit ? 'Сохранить' : 'Добавить'}
                 </Button>
             </div>
