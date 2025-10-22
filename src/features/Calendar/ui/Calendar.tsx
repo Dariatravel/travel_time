@@ -23,7 +23,7 @@ import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { $isMobile } from '@/shared/models/mobile';
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { Loader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUnit } from 'effector-react/compat';
@@ -48,6 +48,7 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
         // isFetching: isRoomLoading,
         // isLoading: isRoomLoading,
         isPending: isRoomLoading,
+        isFetching: isRoomFetching,
         refetch,
     } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
 
@@ -216,15 +217,23 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
 
     const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
 
-    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
+    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder || isRoomFetching;
     const reserveLoading = isReserveCreating || isReserveUpdating;
 
+    console.log({ ['ROOMSLOADING']: isLoading });
     // Показываем лоадер во время загрузки, даже если данных нет
     if (isLoading) {
         return (
             <div style={{ position: 'relative' }} className="p-4">
-                <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
-                    <FullWidthLoader />
+                <div
+                    className={cn(
+                        cx.container,
+                        'flex gap-2 items-center justify-center',
+                        isMobile && 'flex-col',
+                    )}
+                >
+                    <Loader size="s" />
+                    {/* <FullWidthLoader /> */}
                 </div>
             </div>
         );

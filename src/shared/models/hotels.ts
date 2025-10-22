@@ -16,17 +16,22 @@ export type TravelFilterType = Nullable<{
 
     // расширенные фильтры
     roomFeatures?: string[];
+
+    // состояние загрузки
+    isLoading?: boolean;
 }>;
 
 const changeTravelFilter = createEvent<TravelFilterType>();
+const setLoading = createEvent<boolean>();
 
 // Создаем стор для хранения пользователей
-const $hotelsFilter = createStore<TravelFilterType>(null).on(
-    changeTravelFilter,
-    (state, newFilter) => {
+const $hotelsFilter = createStore<TravelFilterType>(null)
+    .on(changeTravelFilter, (state, newFilter) => {
         return { ...state, ...newFilter };
-    },
-);
+    })
+    .on(setLoading, (state, isLoading) => {
+        return { ...state, isLoading };
+    });
 
-// Экспортируем стор и событие
-export { $hotelsFilter, changeTravelFilter };
+// Экспортируем стор и события
+export { $hotelsFilter, changeTravelFilter, setLoading };

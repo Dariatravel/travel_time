@@ -28,12 +28,20 @@ export default function Home() {
 
     const filter = useUnit($hotelsFilter);
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
+    const isFilterLoading = filter?.isLoading ?? false;
 
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const PAGE_SIZE = 2;
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, error, refetch } =
-        useInfiniteHotelsQuery(filter, PAGE_SIZE);
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        refetch,
+        isPending: isLoadingHotels,
+    } = useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
     console.log({ data });
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
@@ -61,6 +69,7 @@ export default function Home() {
     }, [handleScroll]);
 
     useEffect(() => {
+        console.log('refetch');
         refetch();
         queryClient.invalidateQueries({
             queryKey: [...QUERY_KEYS.hotels],
@@ -70,12 +79,19 @@ export default function Home() {
                 queryKey: [...QUERY_KEYS.hotels],
             });
         };
-    }, [filter]);
+    }, [filter, refetch]);
 
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);
     };
 
+    console.log({
+        isLoadingHotels,
+        isLoading,
+        isFreeHotelsLoading,
+        isFilterLoading,
+        isFetchingNextPage,
+    });
     if (isLoading || isFreeHotelsLoading) {
         return (
             <>
@@ -165,7 +181,7 @@ export default function Home() {
                     </Card>
                 ))}
             </div>
-            {isFetchingNextPage && <FullWidthLoader />}
+            {(isFetchingNextPage || isFilterLoading || isFreeHotelsLoading) && <FullWidthLoader />}
         </div>
     );
 }

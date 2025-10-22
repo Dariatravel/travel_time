@@ -20,7 +20,7 @@ import {
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
-import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
+import { changeTravelFilter, setLoading, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormField } from '@/shared/ui/FormField';
 import { FormMessage } from '@/shared/ui/FormMessage';
@@ -157,32 +157,42 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         // Проверяем, есть ли основные фильтры ИЛИ активные расширенные фильтры
         if (!isAllValuesUndefined(filter) || hasActiveAdvancedFilters(advancedFilters)) {
-            const parsedAdvancedFilter = parseFilter(advancedFilters);
+            // Устанавливаем состояние загрузки
+            setLoading(true);
 
-            console.log({ parsedAdvancedFilter, filter });
-            const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
+            try {
+                const parsedAdvancedFilter = parseFilter(advancedFilters);
 
-            const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
-                const getUniqueRooms = (rooms: string[]) => {
-                    return Array.from(new Set(rooms));
+                console.log({ parsedAdvancedFilter, filter });
+                const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
+
+                const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
+                    const getUniqueRooms = (rooms: string[]) => {
+                        return Array.from(new Set(rooms));
+                    };
+                    return new Map(
+                        hotels.map((hotel) => [
+                            hotel.hotel_id,
+                            getUniqueRooms(hotel.rooms.map((room) => room.room_id)),
+                        ]),
+                    );
                 };
-                return new Map(
-                    hotels.map((hotel) => [
-                        hotel.hotel_id,
-                        getUniqueRooms(hotel.rooms.map((room) => room.room_id)),
-                    ]),
-                );
-            };
 
-            freeRoomData = {
-                freeHotels_id: result?.map((hotel) => hotel.hotel_id),
-                freeHotels: getHotelsMap(result),
-            };
+                freeRoomData = {
+                    freeHotels_id: result?.map((hotel) => hotel.hotel_id),
+                    freeHotels: getHotelsMap(result),
+                };
 
-            // Сохраняем данные о свободных отелях в отдельный store
-            setFreeHotelsData(result);
+                // Сохраняем данные о свободных отелях в отдельный store
+                setFreeHotelsData(result);
 
-            console.log({ freeRoomData });
+                console.log({ freeRoomData });
+            } catch (error) {
+                console.error('Ошибка при получении свободных отелей:', error);
+            } finally {
+                // Сбрасываем состояние загрузки
+                setLoading(false);
+            }
         } else {
             // Очищаем данные о свободных отелях, если фильтры пустые
             setFreeHotelsData([]);
