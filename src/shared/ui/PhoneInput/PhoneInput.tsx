@@ -3,7 +3,6 @@ import { Input } from '@/components/ui/input';
 import { Control, Controller, FieldValues, Path } from 'react-hook-form';
 import { FaTelegram } from 'react-icons/fa';
 import { IoLogoWhatsapp } from 'react-icons/io';
-import { ReactMaskOpts, useIMask } from 'react-imask';
 import { LinkIcon } from '../LinkIcon/LinkIcon';
 
 interface PhoneInputProps<T extends FieldValues> {
@@ -32,10 +31,6 @@ export const PhoneInput = <T extends FieldValues>({
     showTelegram = false,
     size = 's',
 }: PhoneInputProps<T>) => {
-    const { ref, value } = useIMask<HTMLInputElement, ReactMaskOpts>({
-        mask: '+{7}(000)000-00-00',
-    });
-
     const createWhatsappLink = (phone: string, message: string) => {
         const cleanPhone = phone.replace(/\D/g, '');
         return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
@@ -108,17 +103,17 @@ export const PhoneInput = <T extends FieldValues>({
         // Ограничиваем длину до 11 цифр (7 + 10 цифр номера)
         numbers = numbers.slice(0, 11);
 
-        // Форматируем в +7 (XXX) XXX-XX-XX
+        // Форматируем в +7(XXX)XXX-XX-XX (для соответствия валидации)
         if (numbers.length <= 1) {
             return numbers === '7' ? '+7' : '';
         } else if (numbers.length <= 4) {
-            return `+7 ${numbers.slice(1)}`;
+            return `+7(${numbers.slice(1)}`;
         } else if (numbers.length <= 7) {
-            return `+7 ${numbers.slice(1, 4)} ${numbers.slice(4)}`;
+            return `+7(${numbers.slice(1, 4)})${numbers.slice(4)}`;
         } else if (numbers.length <= 9) {
-            return `+7 ${numbers.slice(1, 4)} ${numbers.slice(4, 7)}-${numbers.slice(7)}`;
+            return `+7(${numbers.slice(1, 4)})${numbers.slice(4, 7)}-${numbers.slice(7)}`;
         } else {
-            return `+7 ${numbers.slice(1, 4)} ${numbers.slice(4, 7)}-${numbers.slice(7, 9)}-${numbers.slice(9)}`;
+            return `+7(${numbers.slice(1, 4)})${numbers.slice(4, 7)}-${numbers.slice(7, 9)}-${numbers.slice(9)}`;
         }
     };
 
@@ -152,40 +147,46 @@ export const PhoneInput = <T extends FieldValues>({
         <Controller
             control={control}
             name={name}
-            rules={{ required: 'Номер телефона обязателен для заполнения' }}
             render={({ field, fieldState: { error } }) => {
                 return (
                     <div>
                         <FormLabel>
                             {label} <span className="text-red-600">*</span>
                         </FormLabel>
-                        <div>
+                        <div className="relative">
                             <Input
                                 {...field}
+                                value={field.value || ''}
                                 placeholder={placeholder}
                                 required={required}
                                 type="tel"
                                 disabled={disabled}
                                 className={className}
                                 onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                                    handlePhoneChange(event.target.value, field.onChange)
+                                    handlePhoneChange(
+                                        event.target.value,
+                                        field.onChange,
+                                        field.value || '',
+                                    )
                                 }
                                 onClick={() => handlePhoneClick(field)}
                             />
-                            {showWhatsapp && value && (
-                                <LinkIcon
-                                    icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />}
-                                    link={createWhatsappLink(value, 'Добрый день')}
-                                />
-                            )}
-                            {showTelegram && value && (
-                                <LinkIcon
-                                    icon={<FaTelegram color="2AABEE" size={'24px'} />}
-                                    link={value}
-                                />
-                            )}
+                            <div className="absolute top-1/2 -translate-y-1/2 right-2">
+                                {showWhatsapp && field.value && (
+                                    <LinkIcon
+                                        icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />}
+                                        link={createWhatsappLink(field.value, 'Добрый день')}
+                                    />
+                                )}
+                                {showTelegram && field.value && (
+                                    <LinkIcon
+                                        icon={<FaTelegram color="2AABEE" size={'24px'} />}
+                                        link={field.value}
+                                    />
+                                )}
+                            </div>
                         </div>
-                        <FormMessage  />
+                        <FormMessage />
                     </div>
                 );
             }}

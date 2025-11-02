@@ -20,18 +20,24 @@ import {
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
-import { changeTravelFilter, setLoading, TravelFilterType } from '@/shared/models/hotels';
+import {
+    $hotelsFilter,
+    changeTravelFilter,
+    setLoading,
+    TravelFilterType,
+} from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormField } from '@/shared/ui/FormField';
 import { FormMessage } from '@/shared/ui/FormMessage';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
 import { useUnit } from 'effector-react';
+import { useUnit as useUnitCompat } from 'effector-react/compat';
 import { cloneDeep } from 'lodash';
 import { Search } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
-import { FC } from 'react';
+import { FC, useEffect } from 'react';
 import { Controller, FormProvider, useForm } from 'react-hook-form';
 import z from 'zod';
 import styles from './style.module.scss';
@@ -66,6 +72,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const router = useRouter();
     const { data: hotels } = useGetHotelsForRoom();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
+    const filter = useUnitCompat($hotelsFilter);
 
     const methods = useForm<SearchFormSchema>({
         resolver: zodResolver(searchFormSchema) as any,
@@ -78,8 +85,47 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         },
     });
 
-    const { control, watch, handleSubmit } = methods;
+    const { control, watch, handleSubmit, reset } = methods;
     const watchedValues = watch();
+
+    // Инициализируем форму из filter store только при первой загрузке
+    // Это предотвращает сброс значений, которые пользователь вводит
+    useEffect(() => {
+        if (!filter) return;
+
+        const formValues: Partial<SearchFormSchema> = {
+            category: filter.type,
+            quantity: filter.quantity,
+            hotels: filter.hotels
+                ? filter.hotels.map((hotel) => ({
+                      id: hotel.id,
+                      label: hotel.title,
+                  }))
+                : [],
+        };
+
+        // Преобразуем unix timestamp в даты
+        if (filter.start) {
+            formValues.dateFrom = moment.unix(filter.start).toDate();
+        }
+        if (filter.end) {
+            formValues.dateTo = moment.unix(filter.end).toDate();
+        }
+
+        // Используем reset только если форма пустая (первая инициализация)
+        const currentValues = watchedValues;
+        const isFormEmpty =
+            !currentValues.category &&
+            !currentValues.quantity &&
+            !currentValues.dateFrom &&
+            !currentValues.dateTo &&
+            (!currentValues.hotels || currentValues.hotels.length === 0);
+
+        if (isFormEmpty) {
+            reset(formValues);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []); // Инициализируем только один раз при монтировании
 
     // Извлекаем значения из формы для сохранения логики
     const dateFrom = watchedValues.dateFrom;
@@ -155,13 +201,17 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             return result;
         };
 
+        // Проверяем активные расширенные фильтры после применения
+        const hasActiveFilters = hasActiveAdvancedFilters(advancedFilters);
+
         // Проверяем, есть ли основные фильтры ИЛИ активные расширенные фильтры
-        if (!isAllValuesUndefined(filter) || hasActiveAdvancedFilters(advancedFilters)) {
+        if (!isAllValuesUndefined(filter) || hasActiveFilters) {
             // Устанавливаем состояние загрузки
             setLoading(true);
 
             try {
-                const parsedAdvancedFilter = parseFilter(advancedFilters);
+                // Парсим расширенные фильтры только если они активны
+                const parsedAdvancedFilter = hasActiveFilters ? parseFilter(advancedFilters) : {};
 
                 console.log({ parsedAdvancedFilter, filter });
                 const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
@@ -381,7 +431,13 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                         </div>
                         {/* Расширенные фильтры */}
                         <div className="">
-                            <AdvancedFilters />
+                            <AdvancedFilters
+                                onFiltersChange={(filters) => {
+                                    // Обновляем состояние расширенных фильтров при применении
+                                    // Это гарантирует, что при поиске используются актуальные фильтры
+                                    AdvancedFiltersModel.filtersHydrated(filters);
+                                }}
+                            />
                         </div>
                         {/* Кнопка экспорта отелей */}
                         <div className="">

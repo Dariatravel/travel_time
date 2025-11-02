@@ -1,12 +1,11 @@
 import { TABLE_NAMES } from '@/shared/api/const';
-import { ReserveDTO, TravelOption } from '@/shared/api/reserve/reserve';
-import { Room, RoomDTO } from '@/shared/api/room/room';
+import { ReserveDTO, TravelOption, getReservesByHotels } from '@/shared/api/reserve/reserve';
+import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
-import { RoomReserves } from './../room/room';
 
 // Тип Room
 export interface HotelImage {
@@ -88,10 +87,73 @@ export async function getAllHotels(
     page: number = 0,
     limit: number = 10,
 ): Promise<{
-    data: HotelRoomsDTO[];
+    data: HotelRoomsReservesDTO[];
     count: number;
 }> {
     try {
+        // Если есть фильтры (start, end, type, quantity), используем оптимизированную функцию
+        // В этом случае расширенные фильтры уже применены через getHotelsWithFreeRooms
+        // и результат сохранен в freeHotels_id
+        if (
+            filter?.freeHotels_id &&
+            (filter?.start !== undefined ||
+                filter?.end !== undefined ||
+                filter?.type !== undefined ||
+                filter?.quantity !== undefined)
+        ) {
+            // Используем стандартный запрос, но фильтруем по freeHotels_id
+            const from = page * limit;
+            const to = from + limit - 1;
+
+            let filteredHotelIds = filter.freeHotels_id;
+
+            if (filter?.hotels && filter?.hotels?.length > 0) {
+                const hotels = filter?.hotels.map((hotel) => hotel.id);
+                filteredHotelIds = filter?.freeHotels_id?.filter((id) => hotels.includes(id));
+            }
+
+            const query = supabase
+                .from('hotels_with_rooms_new')
+                .select('*, rooms(*)', { count: 'exact' })
+                .in('id', filteredHotelIds)
+                .order('title', { ascending: true })
+                .range(from, to);
+
+            const response = await query;
+
+            // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+            // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+            const data: HotelRoomsReservesDTO[] =
+                response?.data?.map((hotel: any) => {
+                    let filteredRooms = hotel.rooms || [];
+
+                    // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                    if (filter?.freeHotels && hotel.id) {
+                        const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                        if (allowedRoomIds.length > 0) {
+                            filteredRooms = filteredRooms.filter((room: any) =>
+                                allowedRoomIds.includes(room.id),
+                            );
+                        }
+                    }
+
+                    return {
+                        ...hotel,
+                        rooms:
+                            filteredRooms.map((room: any) => ({
+                                ...room,
+                                reserves: [],
+                            })) || [],
+                    };
+                }) || [];
+
+            return {
+                data,
+                count: response.count || 0,
+            };
+        }
+
+        // Для случая без фильтров используем стандартный запрос
         const from = page * limit;
         const to = from + limit - 1;
 
@@ -120,8 +182,34 @@ export async function getAllHotels(
         query.order('title', { ascending: true }).range(from, to);
         const response = await query;
 
+        // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+        // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+        const data: HotelRoomsReservesDTO[] =
+            response?.data?.map((hotel: any) => {
+                let filteredRooms = hotel.rooms || [];
+
+                // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                if (filter?.freeHotels && hotel.id) {
+                    const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                    if (allowedRoomIds.length > 0) {
+                        filteredRooms = filteredRooms.filter((room: any) =>
+                            allowedRoomIds.includes(room.id),
+                        );
+                    }
+                }
+
+                return {
+                    ...hotel,
+                    rooms:
+                        filteredRooms.map((room: any) => ({
+                            ...room,
+                            reserves: [],
+                        })) || [],
+                };
+            }) || [];
+
         return {
-            data: response?.data ?? [],
+            data,
             count: response.count || 0,
         };
     } catch (error) {
@@ -142,7 +230,7 @@ export async function getAllHotelsWithEmptyRooms(
     page: number = 0,
     limit: number = 10,
 ): Promise<{
-    data: HotelRoomsDTO[];
+    data: HotelRoomsReservesDTO[];
     count: number;
 }> {
     try {
@@ -158,8 +246,34 @@ export async function getAllHotelsWithEmptyRooms(
         query.order('title', { ascending: true }).range(from, to);
         const response = await query;
 
+        // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+        // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+        const data: HotelRoomsReservesDTO[] =
+            response?.data?.map((hotel: any) => {
+                let filteredRooms = hotel.rooms || [];
+
+                // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                if (filter?.freeHotels && hotel.id) {
+                    const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                    if (allowedRoomIds.length > 0) {
+                        filteredRooms = filteredRooms.filter((room: any) =>
+                            allowedRoomIds.includes(room.id),
+                        );
+                    }
+                }
+
+                return {
+                    ...hotel,
+                    rooms:
+                        filteredRooms.map((room: any) => ({
+                            ...room,
+                            reserves: [],
+                        })) || [],
+                };
+            }) || [];
+
         return {
-            data: response?.data ?? [],
+            data,
             count: response.count || 0,
         };
     } catch (error) {
@@ -185,13 +299,61 @@ export const useInfiniteHotelsQuery = (
             const result = withEmptyRooms
                 ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
                 : await getAllHotels(filter, pageParam as number, limit);
-            return result; // Возвращаем полный объект с data и count
+
+            // Если есть отели, загружаем брони параллельно
+            if (result.data && result.data.length > 0) {
+                // Фильтруем пустые и невалидные UUID перед запросом
+                const hotelIds = result.data
+                    .map((hotel) => hotel.id)
+                    .filter((id) => id && typeof id === 'string' && id.trim() !== '');
+
+                const reservesMap =
+                    hotelIds.length > 0
+                        ? await getReservesByHotels(hotelIds)
+                        : new Map<string, RoomReserves[]>();
+
+                // Объединяем данные отелей с бронями
+                const hotelsWithReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
+                    const roomsReserves = reservesMap.get(hotel.id) || [];
+                    // Преобразуем RoomDTO[] в RoomReserves[] если нужно
+                    const rooms = hotel.rooms.map((room) => {
+                        const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
+                        return (
+                            roomWithReserves || {
+                                ...room,
+                                reserves: [],
+                            }
+                        );
+                    });
+                    return {
+                        ...hotel,
+                        rooms: rooms,
+                    };
+                });
+
+                return {
+                    ...result,
+                    data: hotelsWithReserves,
+                };
+            }
+
+            // Если нет данных, возвращаем с пустыми бронями для соответствия типу
+            return {
+                ...result,
+                data: result.data.map((hotel) => ({
+                    ...hotel,
+                    rooms: hotel.rooms.map((room) => ({
+                        ...room,
+                        reserves: [],
+                    })),
+                })),
+            };
         },
         initialPageParam: 0,
         getNextPageParam: (
-            lastPage: { data: HotelRoomsDTO[]; count: number },
+            lastPage: { data: HotelRoomsReservesDTO[]; count: number },
             allPages: {
-                data: HotelRoomsDTO[];
+                data: HotelRoomsReservesDTO[];
                 count: number;
             }[],
         ) => {
@@ -288,7 +450,57 @@ export const useGetHotelsForRoom = () => {
     });
 };
 
-export async function getHotelsWithFreeRooms(
+/**
+ * Получение отелей с доступностью через RPC функцию get_hotels_with_availability
+ * @param filter - базовые фильтры
+ * @param parsedAdvancedFilter - расширенные фильтры
+ * @param page - номер страницы (начиная с 0)
+ * @param limit - количество элементов на странице
+ * @returns объект с массивом отелей и общим количеством
+ */
+/**
+ * Преобразует массив строковых ценовых фильтров в числовые значения min и max
+ * @param priceFilters - массив строк типа ["up-to-3000", "over-10000"]
+ * @returns объект с min_price и max_price числами или null
+ */
+function parsePriceFilters(priceFilters: string[] | null): {
+    min_price: number | null;
+    max_price: number | null;
+} {
+    if (!priceFilters || priceFilters.length === 0) {
+        return { min_price: null, max_price: null };
+    }
+
+    let minPrice: number | null = null;
+    let maxPrice: number | null = null;
+
+    priceFilters.forEach((filter) => {
+        // Обработка фильтров типа "up-to-XXXX" (максимальная цена)
+        if (filter.startsWith('up-to-')) {
+            const value = parseInt(filter.replace('up-to-', ''), 10);
+            if (!isNaN(value)) {
+                // Для max_price берём минимальное значение из всех "up-to"
+                if (maxPrice === null || value < maxPrice) {
+                    maxPrice = value;
+                }
+            }
+        }
+        // Обработка фильтров типа "over-XXXX" (минимальная цена)
+        else if (filter.startsWith('over-')) {
+            const value = parseInt(filter.replace('over-', ''), 10);
+            if (!isNaN(value)) {
+                // Для min_price берём максимальное значение из всех "over"
+                if (minPrice === null || value > minPrice) {
+                    minPrice = value;
+                }
+            }
+        }
+    });
+
+    return { min_price: minPrice, max_price: maxPrice };
+}
+
+export async function getHotelsWithAvailability(
     filter: {
         start?: number;
         end?: number;
@@ -296,8 +508,15 @@ export async function getHotelsWithFreeRooms(
         quantity?: number;
     },
     parsedAdvancedFilter?: Record<string, string[] | null>,
-): Promise<FreeHotelsDTO[]> {
+    page: number = 0,
+    limit: number = 10,
+): Promise<{
+    data: HotelRoomsDTO[];
+    count: number;
+}> {
     try {
+        const priceFilters = parsePriceFilters(parsedAdvancedFilter?.price ?? null);
+
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
@@ -309,11 +528,120 @@ export async function getHotelsWithFreeRooms(
             eat_filter: parsedAdvancedFilter?.eat ?? null,
             beach_filter: parsedAdvancedFilter?.beach ?? null,
             beach_distance_filter: parsedAdvancedFilter?.beachDistance ?? null,
-            min_price_filter: parsedAdvancedFilter?.price ?? null,
-            max_price_filter: parsedAdvancedFilter?.price ?? null,
+            min_price_filter: priceFilters.min_price,
+            max_price_filter: priceFilters.max_price,
         };
 
-        const { data, error } = await supabase.rpc('get_available_hotels', default_filter);
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+            'get_hotels_with_availability',
+            default_filter,
+        );
+
+        if (rpcError) {
+            throw rpcError;
+        }
+
+        if (!rpcData || rpcData.length === 0) {
+            return { data: [], count: 0 };
+        }
+
+        // Применяем пагинацию к результатам
+        const from = page * limit;
+        const to = from + limit;
+        const paginatedData = rpcData.slice(from, to);
+
+        // Получаем все ID отелей из результатов
+        const hotelIds = paginatedData.map((hotelData: any) => hotelData.hotel_id);
+
+        if (hotelIds.length === 0) {
+            return { data: [], count: rpcData.length };
+        }
+
+        // Получаем все отели одним запросом
+        const { data: hotelsInfo, error: hotelsError } = await supabase
+            .from('hotels')
+            .select('*')
+            .in('id', hotelIds);
+
+        if (hotelsError) {
+            throw hotelsError;
+        }
+
+        // Создаем Map для быстрого доступа к информации об отелях
+        const hotelsMap = new Map(
+            (hotelsInfo || []).map((hotel: any) => [hotel.id, hotel as HotelDTO]),
+        );
+
+        // Преобразуем результат RPC в формат HotelRoomsDTO
+        const hotelsData: HotelRoomsDTO[] = paginatedData
+            .map((hotelData: any): HotelRoomsDTO | null => {
+                const hotelInfo = hotelsMap.get(hotelData.hotel_id);
+
+                if (!hotelInfo) {
+                    return null;
+                }
+
+                // Преобразуем номера из JSON формата
+                const rooms: RoomDTO[] = Array.isArray(hotelData.rooms)
+                    ? hotelData.rooms.map((room: any) => ({
+                          id: room.room_id || room.id,
+                          hotel_id: hotelData.hotel_id,
+                          title: room.room_title || room.title || '',
+                          price: room.room_price || room.price || 0,
+                          quantity: room.room_quantity || room.quantity || 0,
+                          image_title: room.image_title || '',
+                          image_path: room.image_path || '',
+                          comment: room.comment,
+                          room_features: room.room_features || [],
+                          order: room.order || 0,
+                      }))
+                    : [];
+
+                return {
+                    ...hotelInfo,
+                    rooms,
+                };
+            })
+            .filter((hotel: HotelRoomsDTO | null): hotel is HotelRoomsDTO => hotel !== null);
+
+        return {
+            data: hotelsData,
+            count: rpcData.length,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении отелей с доступностью:', error);
+        throw error;
+    }
+}
+
+export async function getHotelsWithFreeRooms(
+    filter: {
+        start?: number;
+        end?: number;
+        type?: string;
+        quantity?: number;
+    },
+    parsedAdvancedFilter?: Record<string, string[] | null>,
+): Promise<FreeHotelsDTO[]> {
+    try {
+        const priceFilters = parsePriceFilters(parsedAdvancedFilter?.price ?? null);
+
+        const default_filter = {
+            start_time: filter?.start ?? null,
+            end_time: filter?.end ?? null,
+            hotel_type_filter: filter?.type ?? null,
+            min_quantity_filter: filter?.quantity ?? null,
+            city_filter: parsedAdvancedFilter?.city ?? null,
+            room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
+            features_filter: parsedAdvancedFilter?.features ?? null,
+            eat_filter: parsedAdvancedFilter?.eat ?? null,
+            beach_filter: parsedAdvancedFilter?.beach ?? null,
+            beach_distance_filter: parsedAdvancedFilter?.beachDistance ?? null,
+            min_price_filter: priceFilters.min_price,
+            max_price_filter: priceFilters.max_price,
+        };
+
+        const { data } = await supabase.rpc('get_available_hotels', default_filter);
 
         return data ?? ([] as FreeHotelsDTO[]);
     } catch (error) {

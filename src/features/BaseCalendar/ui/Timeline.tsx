@@ -47,6 +47,7 @@ export interface TimelineProps {
     sidebarWidth?: number;
     onReserveAdd: (groupId: Id, time: number, e: React.SyntheticEvent) => void;
     onItemClick: (reserve: ReserveDTO, hotel: HotelDTO) => void;
+    onGroupClick?: (room: any) => void;
     onCreateRoom?: () => void;
     calendarItemClassName?: string;
     timelineId: string;
@@ -61,6 +62,7 @@ export const Timeline = ({
     sidebarWidth,
     onReserveAdd,
     onItemClick,
+    onGroupClick,
     onCreateRoom,
     calendarItemClassName,
     timelineId,
@@ -118,6 +120,11 @@ export const Timeline = ({
                 id={`${timelineId}-${group.id}`}
                 title={group.title}
                 className={styles.timelineGroup}
+                onClick={() => {
+                    if (onGroupClick) {
+                        onGroupClick(group);
+                    }
+                }}
             >
                 <div className={styles.groupContent}>{group.title}</div>
             </DraggableGroup>

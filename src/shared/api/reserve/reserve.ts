@@ -1,15 +1,17 @@
 import { TABLE_NAMES } from '@/shared/api/const';
-import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
-import { RoomDTO } from '@/shared/api/room/room';
+import { HotelDTO, HotelRoomsReservesDTO, insertItem } from '@/shared/api/hotel/hotel';
+import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
+import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { useMutation } from '@tanstack/react-query';
+import { InfiniteData, useMutation, useQueryClient } from '@tanstack/react-query';
+import { updateReserveInCache } from './reserveUtils';
 
 export type ReserveDTO = {
     id: string; // Уникальный идентификатор брони
     room_id: string; // ID номера, к которому относится бронь
-    start: number; // Начало бронирования (Unix timestamp)
-    end: number; // Конец бронирования (Unix timestamp)
+    start: number | Date; // Начало бронирования (Unix timestamp)
+    end: number | Date; // Конец бронирования (Unix timestamp)
     title?: string; // Обязательное название брони
     prepayment?: number; // Предоплата (опционально, используется для внутренних расчетов)
     guest: string; // Имя гостя
@@ -33,7 +35,7 @@ export type Reserve = Omit<ReserveDTO, 'id'>;
 //для формы
 export type ReserveForm = Omit<ReserveDTO, 'id' | 'start' | 'end' | 'room_id'> & {
     date: [Date, Date];
-    hotel_id: TravelOption;
+    hotel_id?: TravelOption; // Используется только для UI (выбор отеля и загрузка номеров), не сохраняется в резерве
     room_id: TravelOption;
 };
 
@@ -80,26 +82,202 @@ export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
     }
 };
 
-export const useCreateReserve = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useCreateReserve = (
+    hotelId?: string,
+    roomId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationFn: createReserveApi,
-        onSuccess,
-        onError,
+        onMutate: async (newReserve) => {
+            if (!hotelId || !roomId) return { previousData: null };
+
+            // Отменяем текущие запросы для этого ключа, чтобы не перезаписать оптимистичное обновление
+            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
+
+            // Сохраняем предыдущее состояние на случай отката
+            const previousData = queryClient.getQueryData<
+                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
+            >(QUERY_KEYS.hotels);
+
+            // Оптимистично обновляем кэш
+            const optimisticReserve: ReserveDTO = {
+                id: `temp-${Date.now()}`, // Временный ID
+                ...newReserve,
+            };
+
+            updateReserveInCache(queryClient, optimisticReserve, hotelId, roomId, 'create');
+
+            return { previousData };
+        },
+        onSuccess: async () => {
+            // После успешного создания обновляем данные из ответа API
+            // Оптимистичное обновление уже выполнено, поэтому можем просто вызвать callback
+            // В реальности можно получить созданную бронь из ответа API и обновить её в кэше
+            onSuccess?.();
+        },
+        onError: (err, variables, context) => {
+            // Откатываем изменения в случае ошибки
+            if (context?.previousData) {
+                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
+            }
+            onError?.(err as Error);
+        },
     });
 };
 
-export const useUpdateReserve = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useUpdateReserve = (
+    hotelId?: string,
+    roomId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationFn: updateReserveApi,
-        onSuccess,
-        onError,
+        onMutate: async (updatedReserve) => {
+            if (!hotelId || !roomId || !updatedReserve.id) return { previousData: null };
+
+            // Отменяем текущие запросы
+            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
+
+            // Сохраняем предыдущее состояние
+            const previousData = queryClient.getQueryData<
+                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
+            >(QUERY_KEYS.hotels);
+
+            // Оптимистично обновляем кэш
+            updateReserveInCache(queryClient, updatedReserve, hotelId, roomId, 'update');
+
+            return { previousData };
+        },
+        onSuccess: async () => {
+            // После успешного обновления данные уже обновлены оптимистично
+            onSuccess?.();
+        },
+        onError: (err, variables, context) => {
+            // Откатываем изменения в случае ошибки
+            if (context?.previousData) {
+                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
+            }
+            onError?.(err as Error);
+        },
     });
 };
 
-export const useDeleteReserve = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useDeleteReserve = (
+    hotelId?: string,
+    roomId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
+
     return useMutation({
         mutationFn: deleteReserveApi,
-        onSuccess,
-        onError,
+        onMutate: async (reserveId) => {
+            if (!hotelId || !roomId || !reserveId) return { previousData: null };
+
+            // Отменяем текущие запросы
+            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
+
+            // Сохраняем предыдущее состояние
+            const previousData = queryClient.getQueryData<
+                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
+            >(QUERY_KEYS.hotels);
+
+            // Оптимистично обновляем кэш - удаляем бронь
+            const deletedReserve: ReserveDTO = {
+                id: reserveId,
+            } as ReserveDTO;
+
+            updateReserveInCache(queryClient, deletedReserve, hotelId, roomId, 'delete');
+
+            return { previousData };
+        },
+        onSuccess: async () => {
+            // После успешного удаления данные уже обновлены оптимистично
+            onSuccess?.();
+        },
+        onError: (err, variables, context) => {
+            // Откатываем изменения в случае ошибки
+            if (context?.previousData) {
+                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
+            }
+            onError?.(err as Error);
+        },
     });
 };
+
+/**
+ * Получение всех броней для списка отелей одним запросом
+ * @param hotelIds - массив ID отелей
+ * @returns Map с ключом hotel_id и значением массив RoomReserves
+ */
+export async function getReservesByHotels(
+    hotelIds: string[],
+): Promise<Map<string, RoomReserves[]>> {
+    try {
+        // Фильтруем пустые и невалидные UUID
+        const validHotelIds = hotelIds?.filter(
+            (id) => id && typeof id === 'string' && id.trim() !== '',
+        );
+
+        if (!validHotelIds || validHotelIds.length === 0) {
+            return new Map();
+        }
+
+        // Получаем все номера для списка отелей с бронями
+        const { data: roomsData, error } = await supabase
+            .from('rooms')
+            .select(
+                `
+                *,
+                reserves(*)
+            `,
+            )
+            .in('hotel_id', validHotelIds)
+            .order('order', { ascending: true, nullsFirst: false });
+
+        if (error) {
+            throw error;
+        }
+
+        // Группируем по hotel_id
+        const reservesMap = new Map<string, RoomReserves[]>();
+
+        if (roomsData) {
+            roomsData.forEach((room: any) => {
+                const hotelId = room.hotel_id;
+                if (!reservesMap.has(hotelId)) {
+                    reservesMap.set(hotelId, []);
+                }
+
+                const roomReserves: RoomReserves = {
+                    id: room.id,
+                    hotel_id: room.hotel_id,
+                    title: room.title,
+                    price: room.price,
+                    quantity: room.quantity,
+                    image_title: room.image_title || '',
+                    image_path: room.image_path || '',
+                    comment: room.comment,
+                    room_features: room.room_features || [],
+                    order: room.order || 0,
+                    reserves: (room.reserves || []) as ReserveDTO[],
+                };
+
+                reservesMap.get(hotelId)!.push(roomReserves);
+            });
+        }
+
+        return reservesMap;
+    } catch (error) {
+        console.error('Ошибка при получении броней для отелей:', error);
+        throw error;
+    }
+}

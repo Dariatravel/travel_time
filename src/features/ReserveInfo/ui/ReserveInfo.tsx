@@ -30,7 +30,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
-import { FC, useEffect, useMemo } from 'react';
+import { FC, useCallback, useEffect, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.scss';
@@ -42,6 +42,7 @@ export interface ReserveInfoProps {
     isLoading: boolean;
     isEdit?: boolean;
     onDelete?: (id: string) => void;
+    isOpen?: boolean; // Для контроля выполнения запросов только при открытой форме
 }
 
 // Схема валидации Zod
@@ -55,13 +56,12 @@ const reserveFormSchema = z.object({
             message: 'Дата начала должна быть меньше или равна дате окончания',
         },
     ),
-    hotel_id: z.object(
-        {
-            id: z.string({ message: 'Отель обязателен' }).min(1, 'Отель обязателен'),
+    hotel_id: z
+        .object({
+            id: z.string().min(1),
             label: z.string(),
-        },
-        { message: 'Отель обязателен' },
-    ),
+        })
+        .optional(), // hotel_id используется только для UI, не валидируется как обязательное
     room_id: z.object(
         {
             id: z.string({ message: 'Номер обязателен' }).min(1, 'Номер обязателен'),
@@ -88,7 +88,7 @@ const reserveFormSchema = z.object({
     phone: z
         .string({ message: 'Номер телефона обязателен' })
         .min(1, 'Номер телефона обязателен')
-        .regex(/^\+7 \d{3} \d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
+        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
     comment: z.string().optional(),
     prepayment: z.coerce.number().optional(),
     created_by: z.string().optional(),
@@ -104,7 +104,9 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     currentReserve,
     isLoading,
     isEdit,
+    isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
+    // Выполняем запросы только когда форма открыта
     const {
         data: hotels,
         isLoading: isHotelsLoading,
@@ -112,73 +114,85 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     } = useGetHotelsForRoom();
 
     const user = useUnit($user);
-
-    const getDefaultValues = ({
-        reserve,
-        room,
-        hotel,
-    }: CurrentReserveType): Partial<ReserveForm> => {
-        const getReserveDefaults = ({
-            start,
-            end,
+    const getReserveDefaults = ({
+        price,
+        prepayment,
+        guest,
+        phone,
+        comment,
+        quantity,
+    }: Partial<ReserveDTO>) => {
+        return {
             price,
-            prepayment,
+            prepayment: prepayment ?? 0,
             guest,
             phone,
-            comment,
-            quantity,
-        }: Partial<ReserveDTO>) => {
-            const currentDate: [Date, Date] =
-                start && end ? [new Date(start), new Date(end)] : [new Date(), new Date()];
-            return {
-                date: currentDate,
-                price,
-                prepayment: prepayment ? String(prepayment) : String(0),
-                guest,
-                phone,
-                comment,
-                quantity: quantity ?? 2,
-            };
+            comment: comment ?? '', // Если нет комментария, пустая строка
+            quantity: quantity ?? 2,
         };
-
-        let defaults = {
-            date: [moment().toDate(), moment().add(2, 'days').toDate()] as [Date, Date],
-            hotel_id: hotel
-                ? adaptToOption({
-                      id: hotel?.id,
-                      title: hotel?.title,
-                  })
-                : undefined,
-            room_id: room
-                ? adaptToOption({
-                      id: room?.id,
-                      title: room?.title,
-                  })
-                : undefined,
-            price: room?.price,
-            quantity: 2,
-            created_by: currentReserve?.reserve?.created_by,
-            edited_by: currentReserve?.reserve?.edited_by,
-            created_at: currentReserve?.reserve?.created_at,
-            edited_at: currentReserve?.reserve?.edited_at,
-        };
-
-        if (!!reserve) {
-            const reserveDefaults = getReserveDefaults(reserve);
-            defaults = {
-                ...defaults,
-                ...reserveDefaults,
-                quantity: reserveDefaults.quantity ?? defaults.quantity,
-            };
-        }
-
-        return defaults;
     };
+    // Мемоизируем getDefaultValues, чтобы не пересчитывать при каждом рендере
+    const getDefaultValues = useCallback(
+        (currentReserve?: Nullable<CurrentReserveType>): Partial<ReserveForm> => {
+            const { reserve, room, hotel } = currentReserve ?? {};
+
+            // По умолчанию: с сегодня до завтра (1 сутка)
+            const today = moment().startOf('day').toDate();
+            const tomorrow = moment().add(1, 'day').startOf('day').toDate();
+
+            const startDate = reserve?.start ? moment(reserve?.start).toDate() : today;
+            const endDate = reserve?.end ? moment(reserve?.end).startOf('day').toDate() : tomorrow;
+
+            let defaults: Partial<ReserveForm> = {
+                date: [startDate, endDate],
+                // hotel_id используется только для выбора отеля и загрузки номеров, не сохраняется в резерве
+                hotel_id: hotel
+                    ? adaptToOption({
+                          id: hotel?.id,
+                          title: hotel?.title,
+                      })
+                    : undefined,
+                room_id: room
+                    ? adaptToOption({
+                          id: room?.id,
+                          title: room?.title,
+                      })
+                    : undefined,
+                price: room?.price ?? 0,
+                quantity: room?.quantity ?? 2,
+                comment: '', // По умолчанию пустая строка
+                created_by: currentReserve?.reserve?.created_by,
+                edited_by: currentReserve?.reserve?.edited_by,
+                created_at: currentReserve?.reserve?.created_at,
+                edited_at: currentReserve?.reserve?.edited_at,
+            };
+
+            if (!!reserve) {
+                const reserveDefaults = getReserveDefaults(reserve);
+                defaults = {
+                    ...defaults,
+                    ...reserveDefaults,
+                    // Даты уже установлены выше из reserve.start и reserve.end, не перезаписываем их
+                    date: [startDate, endDate],
+                    quantity: reserveDefaults.quantity ?? defaults.quantity,
+                    comment: reserveDefaults.comment ?? defaults.comment ?? '', // Гарантируем строку
+                };
+            }
+
+            return defaults;
+        },
+        [currentReserve],
+    );
+
+    // Мемоизируем defaultValues, чтобы не пересчитывать при каждом рендере
+    const defaultValues = useMemo(() => {
+        return getDefaultValues(currentReserve);
+    }, [currentReserve, getDefaultValues]);
 
     const form = useForm<ReserveForm>({
         resolver: zodResolver(reserveFormSchema),
         mode: 'onChange',
-        defaultValues: currentReserve?.hotel ? getDefaultValues(currentReserve) : undefined,
+        defaultValues,
     });
 
     const {
@@ -189,13 +203,38 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         handleSubmit,
     } = form;
 
-    const formData = watch();
+    // Оптимизация: отслеживаем только нужные поля вместо всех
+    const hotelId = watch('hotel_id');
+    const roomId = watch('room_id');
+    const date = watch('date');
+    const price = watch('price');
+    const prepayment = watch('prepayment');
+    const created_at = watch('created_at');
+    const edited_at = watch('edited_at');
+    const created_by = watch('created_by');
+    const edited_by = watch('edited_by');
+
+    // Создаем объект formData только для компонентов, которым нужны все данные
+    // hotel_id не включаем, так как он не используется в резерве
+    const formData = useMemo(
+        () => ({
+            room_id: roomId,
+            date,
+            price,
+            prepayment,
+            created_at,
+            edited_at,
+            created_by,
+            edited_by,
+        }),
+        [roomId, date, price, prepayment, created_at, edited_at, created_by, edited_by],
+    );
 
     const {
         data: rooms,
         isLoading: isRoomsLoading,
         refetch: fetchRoomsByHotel,
-    } = useGetRoomsByHotel(formData?.hotel_id?.id, false);
+    } = useGetRoomsByHotel(hotelId?.id, false);
 
     const hotelOptions = useMemo(() => {
         const hotelsTmp = hotels?.map(adaptToOption);
@@ -210,89 +249,98 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     }, [rooms]);
 
     useEffect(() => {
-        if (hotelsStatus === 'success' && !!formData.hotel_id) {
+        // Не выполняем запросы, если форма закрыта
+        if (!isOpen) return;
+
+        if (hotelsStatus === 'success' && hotelId?.id) {
             fetchRoomsByHotel();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hotelsStatus, formData.hotel_id]);
+    }, [hotelsStatus, hotelId?.id, isOpen]);
 
     useEffect(() => {
         // если комнат нет - выходим
         if (rooms?.length === 0 || !!currentReserve?.reserve?.price) return;
 
-        const room = rooms?.find((room) => room.id === formData?.room_id?.id);
+        const room = rooms?.find((r) => r.id === roomId?.id);
 
         if (room) {
-            setValue('price', room?.price);
+            setValue('price', room.price);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [formData.room_id]);
+    }, [roomId?.id]);
 
     const loading = isLoading || isHotelsLoading;
 
-    const deserializeData = ({
-        date,
-        price,
-        quantity,
-        prepayment = 0,
-        hotel_id: _,
-        ...data
-    }: ReserveForm) => {
-        const start = moment(date[0]).hour(12).unix();
-        const userName = `${user?.name} ${user?.surname}`;
-        const end = moment(date[1]).hour(11).unix();
-        const room_id = data.room_id?.id;
-        const priceNumber = +price;
-        const quantityNumber = +quantity;
-        const prepaymentNumber = +prepayment;
-        const created_by = data?.created_by ?? userName;
-        const edited_by = userName;
-        const created_at = data?.created_at ?? getDate();
-        const edited_at = data?.edited_at ?? getDate();
+    // Мемоизируем функцию deserializeData, чтобы не создавать её при каждом рендере
+    const deserializeData = useCallback(
+        ({ date, price, quantity, prepayment = 0, comment, hotel_id: _, ...data }: ReserveForm) => {
+            const start = moment(date[0]).hour(12).unix();
+            const userName = `${user?.name} ${user?.surname}`;
+            const end = moment(date[1]).hour(11).unix();
+            const room_id = data.room_id?.id;
+            const priceNumber = +price;
+            const quantityNumber = +quantity;
+            const prepaymentNumber = +prepayment;
+            const created_by = data?.created_by ?? userName;
+            const edited_by = userName;
+            const created_at = data?.created_at ?? getDate();
+            const edited_at = data?.edited_at ?? getDate();
 
-        return {
-            ...data,
-            room_id,
-            start,
-            end,
-            price: priceNumber,
-            quantity: quantityNumber,
-            prepayment: prepaymentNumber,
-            created_by,
-            edited_by,
-            created_at,
-            edited_at,
-        };
-    };
+            // Обрабатываем comment: если значение не задано, отправляем пустую строку ""
+            const commentValue = comment != null && comment.trim() !== '' ? comment.trim() : '';
 
-    const onAcceptForm = (formData: ReserveForm) => {
-        if (!formData?.date?.[0] || !formData?.date?.[1]) {
-            showToast('Ошибка при создании брони, проверьте даты', 'error');
-            return;
-        }
+            // Исключаем hotel_id из результата, так как он не сохраняется в резерве
+            return {
+                ...data,
+                room_id,
+                start,
+                end,
+                price: priceNumber,
+                quantity: quantityNumber,
+                prepayment: prepaymentNumber,
+                comment: commentValue,
+                created_by,
+                edited_by,
+                created_at,
+                edited_at,
+            };
+        },
+        [user],
+    );
 
-        const data = deserializeData(formData);
-        onAccept(currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data);
-    };
+    // Мемоизируем обработчики событий
+    const onAcceptForm = useCallback(
+        (formData: ReserveForm) => {
+            if (!formData?.date?.[0] || !formData?.date?.[1]) {
+                showToast('Ошибка при создании брони, проверьте даты', 'error');
+                return;
+            }
 
-    const onError: SubmitErrorHandler<ReserveForm> = () => {
+            const data = deserializeData(formData);
+            onAccept(currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data);
+        },
+        [currentReserve, deserializeData, onAccept],
+    );
+
+    const onError: SubmitErrorHandler<ReserveForm> = useCallback(() => {
         showToast(`Заполните все обязательные поля`, 'error');
-    };
+    }, []);
 
-    const onReserveDelete = () => {
+    const onReserveDelete = useCallback(() => {
         if (!currentReserve?.reserve?.id || !onDelete) {
             showToast('Ошибка во время удаления брони, отсутсвует id', 'error');
             return;
         }
 
-        onDelete(currentReserve?.reserve?.id);
-    };
+        onDelete(currentReserve.reserve.id);
+    }, [currentReserve, onDelete]);
     return (
         <FormProvider {...form}>
             <div className={cx.container}>
                 <FormTitle>Бронирование</FormTitle>
 
-                <form onSubmit={handleSubmit(onAcceptForm, onError)}>
+                <form>
                     <div className="space-y-1">
                         <Controller
                             name="date"
@@ -500,9 +548,9 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         />
 
                         <ReserveTotal
-                            date={formData?.date}
-                            price={formData.price}
-                            prepayment={formData.prepayment}
+                            date={date}
+                            price={price}
+                            prepayment={prepayment}
                             className={cx.fields}
                             Prepayment={
                                 <Controller
@@ -513,7 +561,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                             {...field}
                                             className={cx.fields}
                                             disabled={loading}
-                                            value={String(field?.value)}
+                                            value={String(field?.value || 0)}
                                             onChange={field.onChange}
                                             type={'number'}
                                         />
@@ -528,8 +576,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                             deleteText={'Удалить бронь'}
                             isEdit={isEdit}
                             isLoading={loading}
-                            onAccept={() => {}}
                             onClose={onClose}
+                            onAccept={handleSubmit(onAcceptForm, onError)}
                         />
 
                         <div className={cx.info}>

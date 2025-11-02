@@ -33,12 +33,37 @@ export interface HotelInfoProps {
 
 const DEFAULT_VALUE = { rating: '5', telegram_url: 'https://t.me/' };
 
+// Функция для нормализации формата телефона из БД в формат +7(XXX)XXX-XX-XX
+const normalizePhone = (phone?: string): string => {
+    if (!phone) return '';
+    // Если уже в правильном формате, возвращаем как есть
+    if (/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/.test(phone)) {
+        return phone;
+    }
+    // Убираем все нецифровые символы
+    const numbers = phone.replace(/\D/g, '');
+    // Если начинается с 8, заменяем на 7
+    const normalizedNumbers = numbers.startsWith('8') ? '7' + numbers.slice(1) : numbers;
+    // Если не начинается с 7, добавляем 7
+    const finalNumbers = normalizedNumbers.startsWith('7')
+        ? normalizedNumbers
+        : '7' + normalizedNumbers;
+    // Ограничиваем длину до 11 цифр
+    const limitedNumbers = finalNumbers.slice(0, 11);
+    // Форматируем в +7(XXX)XXX-XX-XX
+    if (limitedNumbers.length === 11) {
+        return `+7(${limitedNumbers.slice(1, 4)})${limitedNumbers.slice(4, 7)}-${limitedNumbers.slice(7, 9)}-${limitedNumbers.slice(9)}`;
+    }
+    return phone; // Если не удалось отформатировать, возвращаем исходное значение
+};
+
 const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> => {
     const rating = String(hotel?.rating) ?? DEFAULT_VALUE.rating;
     return {
         ...DEFAULT_VALUE,
         ...hotel,
         rating,
+        phone: normalizePhone(hotel?.phone),
         user_id: hotel?.user_id
             ? adaptToOption({ title: hotel?.user_id, id: hotel?.user_id })
             : undefined,
@@ -133,320 +158,324 @@ export const HotelInfo: FC<HotelInfoProps> = ({
 
     return (
         <FormProvider {...form}>
-            <div className="flex flex-col gap-1">
-                <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-1">
-                    <Controller
-                        name="title"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormInput
-                                label="Название отеля"
-                                required
-                                error={error?.message}
-                                value={field.value}
-                                onChange={field.onChange}
-                                placeholder="Введите название"
-                                disabled={isLoading}
-                                className={cx.fields}
-                                htmlFor="title"
-                            />
-                        )}
-                    />
-
-                    <Controller
-                        name="type"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormSelect
-                                label="Тип"
-                                required
-                                error={error?.message}
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedType = HOTEL_TYPES.find(
-                                        (type) => type.value === value,
-                                    );
-                                    if (selectedType) {
-                                        field.onChange({
-                                            id: selectedType.value,
-                                            label: selectedType.label,
-                                        });
-                                    }
-                                }}
-                                options={HOTEL_TYPES}
-                                placeholder="Выберите из списка"
-                                disabled={isLoading}
-                                className={cx.fields}
-                                htmlFor="type"
-                            />
-                        )}
-                    />
-                </div>
-                <Controller
-                    control={control}
-                    name="city"
-                    render={({ field, fieldState: { error } }) => (
-                        <FormSelect
-                            label="Город"
-                            error={error?.message}
-                            value={field.value?.id}
-                            onValueChange={(value) => {
-                                const selectedCity = TRAVEL_TIME_DEFAULTS.city.find(
-                                    (city) => city.value === value,
-                                );
-                                if (selectedCity) {
-                                    field.onChange({
-                                        id: selectedCity.value,
-                                        label: selectedCity.label,
-                                    });
-                                }
-                            }}
-                            options={TRAVEL_TIME_DEFAULTS.city}
-                            placeholder="Выберите город"
-                            disabled={isLoading}
-                            className={cx.fields}
-                            htmlFor="city"
+            <form>
+                <div className="flex flex-col gap-1">
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-1">
+                        <Controller
+                            name="title"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormInput
+                                    label="Название отеля"
+                                    required
+                                    error={error?.message}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Введите название"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="title"
+                                />
+                            )}
                         />
-                    )}
-                />
-                <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
-                    <Controller
-                        name="address"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormInput
-                                label="Местоположение"
-                                required
-                                error={error?.message}
-                                value={field.value}
-                                onChange={field.onChange}
-                                placeholder="Введите адрес"
-                                disabled={isLoading}
-                                className={cx.fields}
-                                htmlFor="address"
-                            />
-                        )}
-                    />
 
-                    <Controller
-                        name="telegram_url"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <div className="relative space-y-2">
-                                <div className="relative">
-                                    <FormInput
-                                        label="Ссылка на отель в Telegram"
-                                        error={error?.message}
-                                        value={field.value}
-                                        onChange={field.onChange}
-                                        placeholder="Вставьте ссылку"
-                                        disabled={isLoading}
-                                        className={cx.fields}
-                                        htmlFor="telegram_url"
-                                    />
-                                    {telegramUrl && (
-                                        <div className="absolute right-3 top-1/2">
-                                            <LinkIcon
-                                                icon={<FaTelegram color="2AABEE" size={'24px'} />}
-                                                link={telegramUrl}
-                                            />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    />
-                </div>
-                <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
-                    <PhoneInput
-                        // @ts-expect-error - Control type mismatch between form and component
-                        control={control}
-                        name="phone"
-                        placeholder="+7 (...)"
-                        required
-                        label="Номер телефона"
-                        disabled={isLoading}
-                        className={`$cx.fields}`}
-                    />
-                    <Controller
-                        name="user_id"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormSelect
-                                label="Отельер"
-                                required
-                                error={error?.message}
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedUser = userOptions?.find(
-                                        (user) => user.id === value,
-                                    );
-                                    field.onChange(selectedUser);
-                                }}
-                                options={
-                                    userOptions?.map((user) => ({
-                                        value: user.id,
-                                        label: user.label,
-                                    })) || []
-                                }
-                                placeholder="Выберите отельера"
-                                disabled={isLoading}
-                                className={cx.fields}
-                                htmlFor="user_id"
-                            />
-                        )}
-                    />
-                </div>
-                <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
-                    <Controller
-                        name="beach"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormSelect
-                                label="Пляж"
-                                error={error?.message}
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedBeach = TRAVEL_TIME_DEFAULTS.beach.find(
-                                        (beach) => beach.value === value,
-                                    );
-                                    if (selectedBeach) {
-                                        field.onChange({
-                                            id: selectedBeach.value,
-                                            label: selectedBeach.label,
-                                        });
-                                    }
-                                }}
-                                options={TRAVEL_TIME_DEFAULTS.beach}
-                                placeholder="Выберите пляж"
-                                disabled={isLoading}
-                                className={cx.fields}
-                                htmlFor="beach"
-                            />
-                        )}
-                    />
-                    <Controller
-                        name="beach_distance"
-                        control={control}
-                        render={({ field, fieldState: { error } }) => (
-                            <FormSelect
-                                label="Расстояние до пляжа"
-                                error={error?.message}
-                                value={field.value?.id}
-                                onValueChange={(value) => {
-                                    const selectedDistance =
-                                        TRAVEL_TIME_DEFAULTS.beach_distance.find(
-                                            (distance) => distance.value === value,
+                        <Controller
+                            name="type"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormSelect
+                                    label="Тип"
+                                    required
+                                    error={error?.message}
+                                    value={field.value?.id}
+                                    onValueChange={(value) => {
+                                        const selectedType = HOTEL_TYPES.find(
+                                            (type) => type.value === value,
                                         );
-                                    if (selectedDistance) {
+                                        if (selectedType) {
+                                            field.onChange({
+                                                id: selectedType.value,
+                                                label: selectedType.label,
+                                            });
+                                        }
+                                    }}
+                                    options={HOTEL_TYPES}
+                                    placeholder="Выберите из списка"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="type"
+                                />
+                            )}
+                        />
+                    </div>
+                    <Controller
+                        control={control}
+                        name="city"
+                        render={({ field, fieldState: { error } }) => (
+                            <FormSelect
+                                label="Город"
+                                error={error?.message}
+                                value={field.value?.id}
+                                onValueChange={(value) => {
+                                    const selectedCity = TRAVEL_TIME_DEFAULTS.city.find(
+                                        (city) => city.value === value,
+                                    );
+                                    if (selectedCity) {
                                         field.onChange({
-                                            id: selectedDistance.value,
-                                            label: selectedDistance.label,
+                                            id: selectedCity.value,
+                                            label: selectedCity.label,
                                         });
                                     }
                                 }}
-                                options={TRAVEL_TIME_DEFAULTS.beach_distance}
-                                placeholder="Выберите расстояние до пляжа"
+                                options={TRAVEL_TIME_DEFAULTS.city}
+                                placeholder="Выберите город"
                                 disabled={isLoading}
                                 className={cx.fields}
-                                htmlFor="beach_distance"
+                                htmlFor="city"
                             />
                         )}
                     />
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                        <Controller
+                            name="address"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormInput
+                                    label="Местоположение"
+                                    required
+                                    error={error?.message}
+                                    value={field.value}
+                                    onChange={field.onChange}
+                                    placeholder="Введите адрес"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="address"
+                                />
+                            )}
+                        />
+
+                        <Controller
+                            name="telegram_url"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <div className="relative space-y-2">
+                                    <div className="relative">
+                                        <FormInput
+                                            label="Ссылка на отель в Telegram"
+                                            error={error?.message}
+                                            value={field.value}
+                                            onChange={field.onChange}
+                                            placeholder="Вставьте ссылку"
+                                            disabled={isLoading}
+                                            className={cx.fields}
+                                            htmlFor="telegram_url"
+                                        />
+                                        {telegramUrl && (
+                                            <div className="absolute right-3 top-1/2">
+                                                <LinkIcon
+                                                    icon={
+                                                        <FaTelegram color="2AABEE" size={'24px'} />
+                                                    }
+                                                    link={telegramUrl}
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        />
+                    </div>
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                        <PhoneInput
+                            // @ts-expect-error - Control type mismatch between form and component
+                            control={control}
+                            name="phone"
+                            placeholder="+7 (...)"
+                            required
+                            label="Номер телефона"
+                            disabled={isLoading}
+                            className={`$cx.fields}`}
+                        />
+                        <Controller
+                            name="user_id"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormSelect
+                                    label="Отельер"
+                                    required
+                                    error={error?.message}
+                                    value={field.value?.id}
+                                    onValueChange={(value) => {
+                                        const selectedUser = userOptions?.find(
+                                            (user) => user.id === value,
+                                        );
+                                        field.onChange(selectedUser);
+                                    }}
+                                    options={
+                                        userOptions?.map((user) => ({
+                                            value: user.id,
+                                            label: user.label,
+                                        })) || []
+                                    }
+                                    placeholder="Выберите отельера"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="user_id"
+                                />
+                            )}
+                        />
+                    </div>
+                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-2">
+                        <Controller
+                            name="beach"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormSelect
+                                    label="Пляж"
+                                    error={error?.message}
+                                    value={field.value?.id}
+                                    onValueChange={(value) => {
+                                        const selectedBeach = TRAVEL_TIME_DEFAULTS.beach.find(
+                                            (beach) => beach.value === value,
+                                        );
+                                        if (selectedBeach) {
+                                            field.onChange({
+                                                id: selectedBeach.value,
+                                                label: selectedBeach.label,
+                                            });
+                                        }
+                                    }}
+                                    options={TRAVEL_TIME_DEFAULTS.beach}
+                                    placeholder="Выберите пляж"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="beach"
+                                />
+                            )}
+                        />
+                        <Controller
+                            name="beach_distance"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormSelect
+                                    label="Расстояние до пляжа"
+                                    error={error?.message}
+                                    value={field.value?.id}
+                                    onValueChange={(value) => {
+                                        const selectedDistance =
+                                            TRAVEL_TIME_DEFAULTS.beach_distance.find(
+                                                (distance) => distance.value === value,
+                                            );
+                                        if (selectedDistance) {
+                                            field.onChange({
+                                                id: selectedDistance.value,
+                                                label: selectedDistance.label,
+                                            });
+                                        }
+                                    }}
+                                    options={TRAVEL_TIME_DEFAULTS.beach_distance}
+                                    placeholder="Выберите расстояние до пляжа"
+                                    disabled={isLoading}
+                                    className={cx.fields}
+                                    htmlFor="beach_distance"
+                                />
+                            )}
+                        />
+                    </div>
+                    <Controller
+                        name="features"
+                        control={control}
+                        render={({ field, fieldState: { error } }) => (
+                            <FormMultipleSelector
+                                label="Особенности"
+                                error={error?.message}
+                                value={
+                                    field.value
+                                        ?.map((item) => ({
+                                            value: item?.id || '',
+                                            label: item?.label || '',
+                                        }))
+                                        .filter((item) => item.value && item.label) || []
+                                }
+                                onChange={(options) =>
+                                    field.onChange(
+                                        options.map((option) => ({
+                                            id: option.value,
+                                            label: option.label,
+                                        })),
+                                    )
+                                }
+                                options={TRAVEL_TIME_DEFAULTS.features.map((item) => ({
+                                    value: item.value,
+                                    label: item.label,
+                                }))}
+                                placeholder="Выберите особенности размещения"
+                                disabled={isLoading}
+                                htmlFor="features"
+                            />
+                        )}
+                    />
+                    <Controller
+                        name="eat"
+                        control={control}
+                        render={({ field, fieldState: { error } }) => (
+                            <FormMultipleSelector
+                                label="Питание"
+                                error={error?.message}
+                                value={
+                                    field.value
+                                        ?.map((item) => ({
+                                            value: item?.id || '',
+                                            label: item?.label || '',
+                                        }))
+                                        .filter((item) => item.value && item.label) || []
+                                }
+                                onChange={(options) =>
+                                    field.onChange(
+                                        options.map((option) => ({
+                                            id: option.value,
+                                            label: option.label,
+                                        })),
+                                    )
+                                }
+                                options={TRAVEL_TIME_DEFAULTS.eat.map((item) => ({
+                                    value: item.value,
+                                    label: item.label,
+                                }))}
+                                placeholder="Выберите варианты питания"
+                                disabled={isLoading}
+                                htmlFor="eat"
+                            />
+                        )}
+                    />
+                    <Controller
+                        name="description"
+                        control={control}
+                        render={({ field, fieldState: { error } }) => (
+                            <FormTextarea
+                                label="Комментарии"
+                                error={error?.message}
+                                value={field.value}
+                                onChange={field.onChange}
+                                placeholder="Введите комментарий"
+                                disabled={isLoading}
+                                className={cn(cx.fields, cx.description)}
+                                htmlFor="description"
+                                rows={3}
+                            />
+                        )}
+                    />
+                    <FormButtons
+                        onDelete={() => currentReserve?.hotel && onDelete(currentReserve?.hotel.id)}
+                        deleteText={'Удалить отель'}
+                        isEdit={isEdit}
+                        isLoading={isLoading}
+                        onClose={onClose}
+                        // @ts-expect-error - SubmitHandler type mismatch between form and component
+                        onAccept={handleSubmit(onAcceptForm, onError)}
+                    />
                 </div>
-                <Controller
-                    name="features"
-                    control={control}
-                    render={({ field, fieldState: { error } }) => (
-                        <FormMultipleSelector
-                            label="Особенности"
-                            error={error?.message}
-                            value={
-                                field.value
-                                    ?.map((item) => ({
-                                        value: item?.id || '',
-                                        label: item?.label || '',
-                                    }))
-                                    .filter((item) => item.value && item.label) || []
-                            }
-                            onChange={(options) =>
-                                field.onChange(
-                                    options.map((option) => ({
-                                        id: option.value,
-                                        label: option.label,
-                                    })),
-                                )
-                            }
-                            options={TRAVEL_TIME_DEFAULTS.features.map((item) => ({
-                                value: item.value,
-                                label: item.label,
-                            }))}
-                            placeholder="Выберите особенности размещения"
-                            disabled={isLoading}
-                            htmlFor="features"
-                        />
-                    )}
-                />
-                <Controller
-                    name="eat"
-                    control={control}
-                    render={({ field, fieldState: { error } }) => (
-                        <FormMultipleSelector
-                            label="Питание"
-                            error={error?.message}
-                            value={
-                                field.value
-                                    ?.map((item) => ({
-                                        value: item?.id || '',
-                                        label: item?.label || '',
-                                    }))
-                                    .filter((item) => item.value && item.label) || []
-                            }
-                            onChange={(options) =>
-                                field.onChange(
-                                    options.map((option) => ({
-                                        id: option.value,
-                                        label: option.label,
-                                    })),
-                                )
-                            }
-                            options={TRAVEL_TIME_DEFAULTS.eat.map((item) => ({
-                                value: item.value,
-                                label: item.label,
-                            }))}
-                            placeholder="Выберите варианты питания"
-                            disabled={isLoading}
-                            htmlFor="eat"
-                        />
-                    )}
-                />
-                <Controller
-                    name="description"
-                    control={control}
-                    render={({ field, fieldState: { error } }) => (
-                        <FormTextarea
-                            label="Комментарии"
-                            error={error?.message}
-                            value={field.value}
-                            onChange={field.onChange}
-                            placeholder="Введите комментарий"
-                            disabled={isLoading}
-                            className={cn(cx.fields, cx.description)}
-                            htmlFor="description"
-                            rows={3}
-                        />
-                    )}
-                />
-                <FormButtons
-                    onDelete={() => currentReserve?.hotel && onDelete(currentReserve?.hotel.id)}
-                    deleteText={'Удалить отель'}
-                    isEdit={isEdit}
-                    isLoading={isLoading}
-                    // @ts-expect-error - handleSubmit type inference issue
-                    onAccept={handleSubmit(onAcceptForm, onError)}
-                    onClose={onClose}
-                />
-            </div>
+            </form>
         </FormProvider>
     );
 };

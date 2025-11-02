@@ -11,9 +11,16 @@ export interface DraggableGroupProps {
     children: React.ReactNode;
     title: string;
     className?: string;
+    onClick?: () => void;
 }
 
-export const DraggableGroup = ({ id, children, title, className }: DraggableGroupProps) => {
+export const DraggableGroup = ({
+    id,
+    children,
+    title,
+    className,
+    onClick,
+}: DraggableGroupProps) => {
     const insertPosition = useUnit($insertPosition);
     const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
         id,
@@ -39,7 +46,13 @@ export const DraggableGroup = ({ id, children, title, className }: DraggableGrou
                         <MenuIcon />
                     </span>
                 </div>
-                <div className={styles.groupTitle}>{title}</div>
+                <div
+                    className={styles.groupTitle}
+                    onClick={onClick}
+                    style={{ cursor: onClick ? 'pointer' : 'default' }}
+                >
+                    {title}
+                </div>
             </div>
 
             <div className={styles.groupContent}>{children}</div>

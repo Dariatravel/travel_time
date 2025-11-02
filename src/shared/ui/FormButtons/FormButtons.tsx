@@ -8,7 +8,7 @@ import styles from './style.module.scss';
 
 export interface FormButtonsProps {
     onClose: () => void;
-    onAccept: () => void;
+    onAccept?: () => void; // Опциональный, для случаев когда форма сама обрабатывает submit
     isLoading?: boolean;
     isEdit?: boolean;
     deleteText?: string;
@@ -22,6 +22,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
     isEdit = false,
     deleteText,
     onDelete,
+    onAccept,
     className,
 }: FormButtonsProps) => {
     return (
@@ -58,12 +59,16 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 <Button
                     variant="outline"
                     className=" text-red-500"
-                    onClick={onClose}
+                    onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        onClose();
+                    }}
                     disabled={isLoading}
                 >
                     Отмена
                 </Button>
-                <Button type="submit" disabled={isLoading}>
+                <Button onClick={onAccept} disabled={isLoading}>
                     {isEdit ? 'Сохранить' : 'Добавить'}
                 </Button>
             </div>

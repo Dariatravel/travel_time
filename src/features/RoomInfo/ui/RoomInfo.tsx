@@ -86,9 +86,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     });
 
     const { control, handleSubmit, formState } = form;
-    const { errors, isValid, isDirty } = formState;
 
-    console.log('Состояние формы:', { errors, isValid, isDirty });
     const hotelOptions = useMemo(() => {
         const hotelsTmp = hotels?.map(adaptToOption);
         return hotelsTmp ?? [];
@@ -151,7 +149,13 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         <div className={cx.container}>
             <FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>
             <Form {...form}>
-                <form onSubmit={handleSubmit(onAcceptForm, onError)}>
+                <form
+                // onSubmit={(e) => {
+                //     e.preventDefault();
+                //     e.stopPropagation();
+                //     handleSubmit(onAcceptForm, onError)(e);
+                // }}
+                >
                     <div className="space-y-4">
                         <Controller
                             name="hotel_id"

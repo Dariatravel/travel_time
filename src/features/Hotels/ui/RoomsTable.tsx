@@ -13,6 +13,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
 import { RoomDTO, useDeleteRoom } from '@/shared/api/room/room';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
@@ -140,7 +141,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
             if (window.confirm(`Вы уверены, что хотите удалить номер "${title}"?`)) {
                 try {
                     await deleteRoom(id);
-                } catch (error) {
+                } catch {
                     showToast('Ошибка при удалении номера', 'error');
                 }
             }
@@ -148,12 +149,18 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
         [deleteRoom],
     );
 
+    const getFeatureLabel = (feature: string) => {
+        return VALUE_TO_LABEL_MAP[feature as keyof typeof VALUE_TO_LABEL_MAP];
+    };
     // Определение колонок таблицы
     const columns = useMemo<ColumnDef<RoomDTO>[]>(
         () => [
             {
                 accessorKey: 'title',
                 header: 'Название',
+                size: 200,
+                minSize: 180,
+                maxSize: 220,
                 cell: ({ row }) => {
                     const room = row.original;
                     return (
@@ -175,6 +182,9 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                         </Badge>
                     );
                 },
+                size: 70,
+                minSize: 70,
+                maxSize: 80,
             },
             {
                 accessorKey: 'price',
@@ -183,6 +193,9 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                     const price = row.getValue('price') as number;
                     return <span className="font-medium text-green-600">{price} ₽/сутки</span>;
                 },
+                size: 70,
+                minSize: 70,
+                maxSize: 85,
             },
             {
                 accessorKey: 'comment',
@@ -208,6 +221,9 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
             {
                 accessorKey: 'room_features',
                 header: 'Особенности',
+                size: 400,
+                minSize: 350,
+                maxSize: 500,
                 cell: ({ row }) => {
                     const features = row.getValue('room_features') as string[];
                     if (!features || features.length === 0) {
@@ -216,12 +232,12 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
 
                     return (
                         <div className="flex flex-wrap gap-1">
-                            {features.slice(0, 2).map((feature) => (
+                            {features.map((feature) => (
                                 <Badge key={feature} variant="outline" className="text-xs">
-                                    {feature}
+                                    {getFeatureLabel(feature)}
                                 </Badge>
                             ))}
-                            {features.length > 2 && (
+                            {/* {features.length > 2 && (
                                 <TooltipProvider>
                                     <Tooltip>
                                         <TooltipTrigger asChild>
@@ -238,7 +254,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                                         </TooltipContent>
                                     </Tooltip>
                                 </TooltipProvider>
-                            )}
+                            )} */}
                         </div>
                     );
                 },
@@ -263,7 +279,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                 },
             },
         ],
-        [onEdit, isDeleting, handleDelete],
+        [onEdit],
     );
 
     // Настройка таблицы
@@ -390,7 +406,18 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                                 {table.getHeaderGroups().map((headerGroup) => (
                                     <TableRow key={headerGroup.id}>
                                         {headerGroup.headers.map((header) => (
-                                            <TableHead key={header.id}>
+                                            <TableHead
+                                                key={header.id}
+                                                style={{
+                                                    width: header.column.getSize(),
+                                                    minWidth:
+                                                        header.column.columnDef.minSize ??
+                                                        undefined,
+                                                    maxWidth:
+                                                        header.column.columnDef.maxSize ??
+                                                        undefined,
+                                                }}
+                                            >
                                                 {header.isPlaceholder
                                                     ? null
                                                     : flexRender(
@@ -410,7 +437,18 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                                             data-state={row.getIsSelected() && 'selected'}
                                         >
                                             {row.getVisibleCells().map((cell) => (
-                                                <TableCell key={cell.id}>
+                                                <TableCell
+                                                    key={cell.id}
+                                                    style={{
+                                                        width: cell.column.getSize(),
+                                                        minWidth:
+                                                            cell.column.columnDef.minSize ??
+                                                            undefined,
+                                                        maxWidth:
+                                                            cell.column.columnDef.maxSize ??
+                                                            undefined,
+                                                    }}
+                                                >
                                                     {flexRender(
                                                         cell.column.columnDef.cell,
                                                         cell.getContext(),

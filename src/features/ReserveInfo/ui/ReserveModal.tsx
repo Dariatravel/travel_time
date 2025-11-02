@@ -30,6 +30,7 @@ export const ReserveModal: FC<ReserveModalProps> = ({
                     onAccept={onAccept}
                     onDelete={onDelete}
                     isLoading={isLoading}
+                    isOpen={isOpen}
                 />
             </DialogContent>
         </Dialog>
