@@ -198,10 +198,17 @@ export async function getAllHotels(
                     }
                 }
 
+                // Сортируем номера по полю order перед маппингом
+                const sortedRooms = [...filteredRooms].sort((a: any, b: any) => {
+                    const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
+                });
+
                 return {
                     ...hotel,
                     rooms:
-                        filteredRooms.map((room: any) => ({
+                        sortedRooms.map((room: any) => ({
                             ...room,
                             reserves: [],
                         })) || [],
@@ -262,10 +269,17 @@ export async function getAllHotelsWithEmptyRooms(
                     }
                 }
 
+                // Сортируем номера по полю order перед маппингом
+                const sortedRooms = [...filteredRooms].sort((a: any, b: any) => {
+                    const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
+                });
+
                 return {
                     ...hotel,
                     rooms:
-                        filteredRooms.map((room: any) => ({
+                        sortedRooms.map((room: any) => ({
                             ...room,
                             reserves: [],
                         })) || [],
@@ -325,9 +339,15 @@ export const useInfiniteHotelsQuery = (
                             }
                         );
                     });
+                    // Сортируем номера по полю order
+                    const sortedRooms = [...rooms].sort((a, b) => {
+                        const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+                        const orderB = b.order ?? 999;
+                        return orderA - orderB;
+                    });
                     return {
                         ...hotel,
-                        rooms: rooms,
+                        rooms: sortedRooms,
                     };
                 });
 

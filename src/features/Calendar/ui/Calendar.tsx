@@ -40,7 +40,15 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
 
     // Используем данные из пропсов вместо отдельного запроса
     // Мемоизируем для оптимизации производительности
-    const data = useMemo(() => hotel.rooms || [], [hotel.rooms]);
+    // Сортируем номера по полю order
+    const data = useMemo(() => {
+        const rooms = hotel.rooms || [];
+        return [...rooms].sort((a, b) => {
+            const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+            const orderB = b.order ?? 999;
+            return orderA - orderB;
+        });
+    }, [hotel.rooms]);
 
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);

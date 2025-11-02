@@ -140,6 +140,10 @@ export const useUpdateRoomOrder = (onSuccess?: () => void, onError?: (error: str
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsByHotel, variables.hotelId],
             });
+            // Инвалидируем кеш отелей для обновления порядка номеров на странице бронирования
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotels],
+            });
 
             onSuccess?.();
         },
