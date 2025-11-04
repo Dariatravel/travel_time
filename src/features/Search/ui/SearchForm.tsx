@@ -145,6 +145,9 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     }
 
     const onSearch = async (data: SearchFormSchema) => {
+        // Обновление URL происходит через FiltersSync для расширенных фильтров
+        // Параметры формы можно обновлять отдельно, если нужно
+
         const filter: Partial<TravelFilterType> = {
             type: category ?? undefined,
             start: start_time,

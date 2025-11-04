@@ -4,18 +4,30 @@ import { filtersHydrated } from './events';
 import { $filters } from './stores';
 
 /**
- * Маппинг ключей query string → идентификаторы секций в состоянии
- * Ключи, отсутствующие в схеме, игнорируются
+ * Маппинг ключей URL query string → ключи состояния AdvancedFiltersState
  */
-export const FILTER_MAP: Record<QueryStringFilterEnum, QueryStringFilterEnum> = {
-    [QueryStringFilterEnum.CITY]: QueryStringFilterEnum.CITY,
-    [QueryStringFilterEnum.BEACH_TYPE]: QueryStringFilterEnum.BEACH_TYPE,
-    [QueryStringFilterEnum.BEACH_DISTANCE]: QueryStringFilterEnum.BEACH_DISTANCE,
-    [QueryStringFilterEnum.EAT]: QueryStringFilterEnum.EAT,
-    [QueryStringFilterEnum.PRICE]: QueryStringFilterEnum.PRICE,
-    [QueryStringFilterEnum.FEATURES]: QueryStringFilterEnum.FEATURES,
-    [QueryStringFilterEnum.ROOM_FEATURES]: QueryStringFilterEnum.ROOM_FEATURES,
-    [QueryStringFilterEnum.ROOM_TYPE]: QueryStringFilterEnum.ROOM_TYPE,
+const URL_TO_STATE_MAP: Record<string, keyof AdvancedFiltersState> = {
+    [QueryStringFilterEnum.CITY]: 'city',
+    [QueryStringFilterEnum.BEACH_TYPE]: 'beach',
+    [QueryStringFilterEnum.BEACH_DISTANCE]: 'beachDistance',
+    [QueryStringFilterEnum.EAT]: 'eat',
+    [QueryStringFilterEnum.PRICE]: 'price',
+    [QueryStringFilterEnum.FEATURES]: 'features',
+    [QueryStringFilterEnum.ROOM_FEATURES]: 'roomFeatures',
+    [QueryStringFilterEnum.ROOM_TYPE]: 'roomFeatures', // roomType тоже относится к roomFeatures
+};
+
+/**
+ * Маппинг ключей состояния AdvancedFiltersState → ключи URL query string
+ */
+const STATE_TO_URL_MAP: Record<keyof AdvancedFiltersState, string> = {
+    city: QueryStringFilterEnum.CITY,
+    beach: QueryStringFilterEnum.BEACH_TYPE,
+    beachDistance: QueryStringFilterEnum.BEACH_DISTANCE,
+    eat: QueryStringFilterEnum.EAT,
+    price: QueryStringFilterEnum.PRICE,
+    features: QueryStringFilterEnum.FEATURES,
+    roomFeatures: QueryStringFilterEnum.ROOM_FEATURES,
 };
 
 /**
@@ -34,15 +46,15 @@ export const parseFiltersFromSearchParams = (
     );
 
     for (const [rawKey, rawValue] of searchParams.entries()) {
-        const sectionId = FILTER_MAP[rawKey as QueryStringFilterEnum];
-        if (!sectionId) continue;
+        const stateKey = URL_TO_STATE_MAP[rawKey];
+        if (!stateKey) continue;
         if (!rawValue) continue;
         const values = rawValue
             .split(',')
             .map((v) => v.trim())
             .filter(Boolean);
 
-        const section = next[sectionId as keyof AdvancedFiltersState] as FilterSection | undefined;
+        const section = next[stateKey] as FilterSection | undefined;
         if (!section) continue;
 
         section.options.forEach((opt) => {
@@ -60,20 +72,25 @@ export const parseFiltersFromSearchParams = (
 export const serializeFiltersToQuery = (state: AdvancedFiltersState): Record<string, string> => {
     const result: Record<string, string> = {};
 
-    const pushSection = (queryKey: string, section?: FilterSection) => {
-        if (!section) return;
-        const active = section.options.filter((o) => o.isActive).map((o) => o.value);
-        if (active.length === 0) return;
-        result[queryKey] = active.join(',');
-    };
+    (Object.entries(state) as Array<[keyof AdvancedFiltersState, FilterSection]>).forEach(
+        ([stateKey, section]) => {
+            const queryKey = STATE_TO_URL_MAP[stateKey];
+            if (!queryKey) {
+                console.warn(`serializeFiltersToQuery: no mapping for stateKey: ${stateKey}`);
+                return;
+            }
 
-    (Object.entries(FILTER_MAP) as Array<[keyof AdvancedFiltersState, string]>).forEach(
-        ([sectionId, queryKey]) => {
-            const section = state[sectionId];
-            pushSection(queryKey, section);
+            const active = section.options.filter((o) => o.isActive).map((o) => o.value);
+
+            console.log(`serializeFiltersToQuery: ${stateKey} -> ${queryKey}, active:`, active);
+
+            if (active.length === 0) return;
+
+            result[queryKey] = active.join(',');
         },
     );
 
+    console.log('serializeFiltersToQuery: final result:', result);
     return result;
 };
 

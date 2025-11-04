@@ -6,7 +6,6 @@ export {
     filtersSetBulk,
 } from './events';
 export {
-    FILTER_MAP,
     initFiltersFromQuery,
     parseFiltersFromSearchParams,
     serializeFiltersToQuery,

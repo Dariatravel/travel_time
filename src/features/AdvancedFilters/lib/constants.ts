@@ -162,7 +162,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
         id: 'city',
         title: 'Город',
         options: [
-            { id: 'sukhumi', label: 'Сухум', value: 'sukhumi', isActive: true },
+            { id: 'sukhumi', label: 'Сухум', value: 'sukhumi', isActive: false },
             { id: 'gagra', label: 'Гагра', value: 'gagra', isActive: false },
             { id: 'gali', label: 'Гали', value: 'gali', isActive: false },
             { id: 'pitsunda', label: 'Пицунда', value: 'pitsunda', isActive: false },

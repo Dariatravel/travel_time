@@ -12,8 +12,7 @@ import {
 import cx from 'classnames';
 import { useUnit } from 'effector-react';
 import { Filter } from 'lucide-react';
-import React, { useCallback, useState } from 'react';
-import { INITIAL_FILTERS } from '../lib/constants';
+import React, { useCallback, useRef, useState } from 'react';
 import { AdvancedFiltersState } from '../lib/types';
 import * as AdvancedFiltersModel from '../model';
 import { FilterSection } from './FilterSection';
@@ -42,6 +41,7 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
 }) => {
     const filters = useUnit(AdvancedFiltersModel.$filters);
     const [isOpen, setIsOpen] = useState(false);
+    const isApplyingRef = useRef(false);
 
     const handleOptionToggle = useCallback(
         (sectionId: string, optionId: string) => {
@@ -53,25 +53,38 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
     );
 
     const handleApplyFilters = useCallback(() => {
+        if (isApplyingRef.current) return; // Предотвращаем повторный вызов
+        isApplyingRef.current = true;
+
         // Вызываем onFiltersChange перед закрытием модального окна
         // чтобы гарантировать применение актуальных фильтров
         const currentFilters = filters as AdvancedFiltersState;
         onFiltersChange?.(currentFilters);
         // Закрываем модальное окно после применения фильтров
         setIsOpen(false);
+
+        // Сбрасываем флаг через небольшую задержку
+        setTimeout(() => {
+            isApplyingRef.current = false;
+        }, 300);
     }, [filters, onFiltersChange]);
 
     const handleResetFilters = useCallback(() => {
         // Сброс к исходным значениям (дефолты из INITIAL)
         // Сначала очищаем фильтры, затем гидратируем начальное состояние
         AdvancedFiltersModel.filtersCleared();
-        AdvancedFiltersModel.filtersHydrated(INITIAL_FILTERS);
+        // Не вызываем filtersHydrated сразу, чтобы избежать конфликтов с FiltersSync
+        // FiltersSync автоматически обновит URL при изменении фильтров
     }, []);
 
     const handleOpenChange = useCallback((open: boolean) => {
+        // Предотвращаем открытие, если идёт применение фильтров
+        if (isApplyingRef.current && open) return;
+
         setIsOpen(open);
         // Не сбрасываем фильтры при закрытии, чтобы сохранить примененные фильтры
         // Фильтры сбрасываются только явно через кнопку "Сбросить фильтры"
+        // Если закрываем модальное окно, не вызываем никаких дополнительных действий
     }, []);
 
     const getActiveFiltersCount = useCallback(() => {
