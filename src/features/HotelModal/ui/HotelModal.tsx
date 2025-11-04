@@ -113,7 +113,7 @@ export const HotelModal: FC<HotelModalProps> = ({
                     Добавить отель
                 </Button>
             </DialogTrigger> */}
-            <DialogContent className="md:max-w-2xl max-h-[85vh] min-h-[85vh] overflow-y-auto p-y-3 px-6">
+            <DialogContent className="md:max-w-2xl max-h-[88vh] min-h-[88vh] overflow-y-auto p-y-3 px-6">
                 <DialogHeader>
                     <FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>
                 </DialogHeader>

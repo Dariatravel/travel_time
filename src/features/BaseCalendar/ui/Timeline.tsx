@@ -72,7 +72,7 @@ export const Timeline = ({
     const timelineRef = useRef<TimelineComponent>(null);
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
 
-    const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 100 : 230);
+    const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 100 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({

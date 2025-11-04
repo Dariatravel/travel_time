@@ -84,7 +84,7 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col">
+            <DialogContent className="sm:min-w-2xl sm:max-w-2xl max-w-4xl min-w-4xl  max-h-[80vh]  flex flex-col">
                 <DialogHeader>
                     <DialogTitle>Экспорт списка отелей</DialogTitle>
                     <DialogDescription>

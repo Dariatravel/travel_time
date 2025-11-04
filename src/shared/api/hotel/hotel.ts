@@ -297,6 +297,39 @@ export async function getAllHotelsWithEmptyRooms(
 }
 
 /**
+ * Получение всех отелей для экспорта (загружает все страницы)
+ * @param filter - фильтр для поиска
+ * @returns массив всех отелей
+ */
+export async function getAllHotelsForExport(
+    filter?: TravelFilterType,
+): Promise<HotelRoomsReservesDTO[]> {
+    const LIMIT = 100; // Размер страницы для загрузки
+    const allHotels: HotelRoomsReservesDTO[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+        const result = await getAllHotels(filter, page, LIMIT);
+
+        if (result.data && result.data.length > 0) {
+            allHotels.push(...result.data);
+
+            // Проверяем, есть ли ещё страницы
+            if (result.data.length < LIMIT || allHotels.length >= (result.count || 0)) {
+                hasMore = false;
+            } else {
+                page++;
+            }
+        } else {
+            hasMore = false;
+        }
+    }
+
+    return allHotels;
+}
+
+/**
  * Хук для бесконечной подгрузки отелей с поддержкой фильтрации
  * @param filter - фильтр для поиска
  * @param limit - количество элементов на странице (по умолчанию 5)

@@ -28,23 +28,10 @@ export const formatHotelsWithAvailability = (
             const title = hotel.title || 'Без названия';
             const telegramLink = hotel.telegram_url || 'Нет ссылки';
 
-            // Получаем информацию о свободных номерах
-            const freeHotelInfo = freeHotelsMap.get(hotel.id);
-
             let hotelText = `${number} ${title}\n   Telegram: ${telegramLink}`;
 
-            if (freeHotelInfo) {
-                const freeRoomCount = freeHotelInfo.free_room_count;
-                hotelText += `\n   ✅ Свободных номеров: ${freeRoomCount}`;
-
-                // Добавляем информацию о номерах
-                if (freeHotelInfo.rooms && freeHotelInfo.rooms.length > 0) {
-                    const roomsInfo = freeHotelInfo.rooms
-                        .map((room) => `${room.room_title} (${room.room_price} руб.)`)
-                        .join(', ');
-                    hotelText += `\n   📍 Номера: ${roomsInfo}`;
-                }
-            }
+            console.log('freeHotelInfo', hotel);
+            hotelText += `\n   ✅ Свободных номеров: ${hotel?.rooms_count}`;
 
             return hotelText;
         })

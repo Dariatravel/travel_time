@@ -242,7 +242,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                         hotelRooms={hotelRooms}
                         hotelReserves={hotelReserves}
                         timelineClassName="hotelTimeline"
-                        sidebarWidth={isMobile ? 100 : 230}
+                        sidebarWidth={isMobile ? 100 : 225}
                         onReserveAdd={onReserveAdd}
                         onItemClick={onItemClick}
                         onCreateRoom={onCreateRoomClick}
