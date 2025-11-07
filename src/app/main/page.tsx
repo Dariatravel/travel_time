@@ -32,8 +32,10 @@ export default function Main() {
     }, [sessionData]);
 
     const { isPending: isReserveLoading, mutate: createReserve } = useCreateReserve(
+        undefined, // hotelId
+        undefined, // roomId
         () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+            queryClient.invalidateQueries({ queryKey: ['hotels', 'list'] });
             setIsReserveOpen(false);
             showToast('Бронь успешно добавлена');
         },

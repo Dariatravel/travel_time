@@ -57,6 +57,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         mutateAsync: createReserve,
         error: reserveError,
     } = useCreateReserve(
+        hotel.id, // hotelId
+        undefined, // roomId
         () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
@@ -70,6 +72,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     );
 
     const { isPending: isReserveUpdating, mutate: updateReserve } = useUpdateReserve(
+        hotel.id, // hotelId
+        undefined, // roomId
         () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
@@ -82,19 +86,24 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         },
     );
 
-    const { isPending: isReserveDeleting, mutateAsync: deleteReserve } = useDeleteReserve(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-        });
-        setCurrentReserve(null);
-        setIsReserveOpen(false);
-    });
+    const { isPending: isReserveDeleting, mutateAsync: deleteReserve } = useDeleteReserve(
+        hotel.id, // hotelId
+        undefined, // roomId
+        () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+            });
+            setCurrentReserve(null);
+            setIsReserveOpen(false);
+        },
+    );
 
     const {
         isPending: isRoomCreating,
         mutate: createRoom,
         error: roomError,
     } = useCreateRoom(
+        hotel.id, // hotelId
         () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
@@ -166,8 +175,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             ...reserve,
             id: reserve.id,
             group: room_id,
-            end: getDateFromUnix(end),
-            start: getDateFromUnix(start),
+            end: getDateFromUnix(typeof end === 'number' ? end : Math.floor(end.getTime() / 1000)),
+            start: getDateFromUnix(typeof start === 'number' ? start : Math.floor(start.getTime() / 1000)),
         }));
 
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment

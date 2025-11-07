@@ -16,7 +16,6 @@ import {
     useUpdateHotel,
 } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC } from 'react';
 
@@ -35,13 +34,8 @@ export const HotelModal: FC<HotelModalProps> = ({
     isLoading = false,
 }: HotelModalProps) => {
     const { isPending: isHotelLoading, mutateAsync: createHotel } = useCreateHotel(
-        async () => {
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
+        () => {
             onClose();
-
             showToast('Отель добавлен');
         },
         (e) => {
@@ -49,23 +43,21 @@ export const HotelModal: FC<HotelModalProps> = ({
         },
     );
     // загрузка изображения отеля отключена в этой модалке
-    const { isPending: isHotelUpdating, mutateAsync: updateHotel } = useUpdateHotel(async () => {
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
-        onClose();
-        showToast('Информация в отеле обновлена');
-    });
+    const { isPending: isHotelUpdating, mutateAsync: updateHotel } = useUpdateHotel(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Информация в отеле обновлена');
+        },
+    );
 
-    const { isPending: isHotelDeleting, mutateAsync: deleteHotel } = useDeleteHotel(async () => {
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
-        onClose();
-        showToast('Отель удалён');
-    });
+    const { isPending: isHotelDeleting, mutateAsync: deleteHotel } = useDeleteHotel(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Отель удалён');
+        },
+    );
 
     const onCreate = async (hotel: Hotel) => {
         await createHotel(hotel);

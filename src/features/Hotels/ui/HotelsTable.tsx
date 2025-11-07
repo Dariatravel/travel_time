@@ -208,12 +208,15 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
     const { isMobile } = useScreenSize();
 
     // Хук для удаления отеля
-    const { isPending: isDeleting, mutateAsync: deleteHotel } = useDeleteHotel(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.hotels],
-        });
-        showToast('Отель успешно удален', 'success');
-    });
+    const { isPending: isDeleting, mutateAsync: deleteHotel } = useDeleteHotel(
+        undefined, // hotelId
+        () => {
+            queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
+            showToast('Отель успешно удален', 'success');
+        },
+    );
 
     /**
      * Обработчик удаления отеля

@@ -2,7 +2,6 @@ import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { RoomInfo } from '@/features/RoomInfo/ui/RoomInfo';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, useCreateRoom, useDeleteRoom, useUpdateRoom } from '@/shared/api/room/room';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { devLog } from '@/shared/lib/logger';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC, useCallback } from 'react';
@@ -21,13 +20,8 @@ export const RoomModal: FC<RoomModalProps> = ({
     isLoading = false,
 }: RoomModalProps) => {
     const { isPending: isRoomCreating, mutate: createRoom } = useCreateRoom(
+        currentReserve?.hotel?.id,
         () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel],
-            });
             onClose();
             showToast('Номер успешно добавлен');
         },
@@ -36,23 +30,21 @@ export const RoomModal: FC<RoomModalProps> = ({
         },
     );
 
-    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(async () => {
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
-        onClose();
-        showToast('Информация в отеле обновлена');
-    });
+    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Информация в отеле обновлена');
+        },
+    );
 
-    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(async () => {
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
-        onClose();
-        showToast('Отель удалён');
-    });
+    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Отель удалён');
+        },
+    );
     const onCreate = useCallback(
         async (room: Room) => {
             await createRoom(room);

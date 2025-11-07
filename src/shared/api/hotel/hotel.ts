@@ -5,7 +5,13 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
+import {
+    keepPreviousData,
+    useInfiniteQuery,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
 
 // Тип Room
 export interface HotelImage {
@@ -71,7 +77,9 @@ export interface FreeHotelsDTO {
 }
 
 //для формы Room и Reserve
-export type HotelForRoom = Pick<HotelDTO, 'id' | 'title' | 'telegram_url' | 'phone' | 'address'>;
+export type HotelForRoom = Pick<HotelDTO, 'id' | 'title' | 'telegram_url' | 'phone' | 'address'> & {
+    rooms_count?: number;
+};
 
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
 
@@ -341,7 +349,7 @@ export const useInfiniteHotelsQuery = (
     withEmptyRooms?: boolean,
 ) => {
     return useInfiniteQuery({
-        queryKey: [...QUERY_KEYS.hotels],
+        queryKey: QUERY_KEYS.hotels(filter),
         queryFn: async ({ pageParam = 0 }) => {
             const result = withEmptyRooms
                 ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
@@ -467,6 +475,74 @@ export const getHotelById = async (id: string) => {
     }
 };
 
+/**
+ * Получение детальных данных конкретного отеля со всеми номерами и бронями
+ * Используется для отображения календаря конкретного отеля
+ * @param hotelId - ID отеля
+ * @returns Отель с полными данными о номерах и бронях
+ */
+export const getHotelDetail = async (hotelId: string): Promise<HotelRoomsReservesDTO> => {
+    try {
+        // Загружаем базовую информацию об отеле и его номерах
+        const { data: hotelData, error: hotelError } = await supabase
+            .from('hotels_with_rooms_new')
+            .select('*, rooms(*)')
+            .eq('id', hotelId)
+            .single();
+
+        if (hotelError) throw hotelError;
+        if (!hotelData) throw new Error(`Hotel with id ${hotelId} not found`);
+
+        // Загружаем брони для номеров этого отеля
+        const reservesMap = await getReservesByHotels([hotelId]);
+        const roomsReserves = reservesMap.get(hotelId) || [];
+
+        // Объединяем данные номеров с бронями
+        const rooms: RoomReserves[] = (hotelData.rooms || []).map((room: any) => {
+            const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
+            return (
+                roomWithReserves || {
+                    ...room,
+                    reserves: [],
+                }
+            );
+        });
+
+        // Сортируем номера по полю order
+        const sortedRooms = [...rooms].sort((a, b) => {
+            const orderA = a.order ?? 999;
+            const orderB = b.order ?? 999;
+            return orderA - orderB;
+        });
+
+        return {
+            ...hotelData,
+            rooms: sortedRooms,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении детальных данных отеля:', error);
+        throw error;
+    }
+};
+
+/**
+ * Хук для получения детальных данных конкретного отеля
+ * Автоматически обновляется при изменении броней/номеров этого отеля
+ * @param hotelId - ID отеля
+ * @param enabled - включен ли запрос (по умолчанию true если есть hotelId)
+ */
+export const useHotelDetailQuery = (hotelId?: string, enabled: boolean = true) => {
+    return useQuery({
+        queryKey: hotelId ? QUERY_KEYS.hotelDetail(hotelId) : ['hotels', 'detail', 'null'],
+        queryFn: () => {
+            if (!hotelId) throw new Error('Hotel ID is required');
+            return getHotelDetail(hotelId);
+        },
+        enabled: enabled && !!hotelId,
+        placeholderData: keepPreviousData, // Сохраняем предыдущие данные во время загрузки
+    });
+};
+
 export const useHotelById = (id: string) => {
     return useQuery({
         queryKey: QUERY_KEYS.hotelById,
@@ -480,7 +556,7 @@ export const useGetAllHotels = (
     select?: (hotels: HotelRoomsDTO[]) => HotelRoomsDTO[],
 ) => {
     return useQuery({
-        queryKey: [...QUERY_KEYS.hotels],
+        queryKey: QUERY_KEYS.hotels(filter),
         queryFn: async () => {
             const result = await getAllHotels(filter);
             return result.data;
@@ -719,10 +795,17 @@ export const createHotelApi = async (hotel: Hotel) => {
 
 export const updateHotelApi = async ({ id, ...hotel }: HotelDTO) => {
     try {
-        await supabase.from('hotels').update(hotel).eq('id', id);
+        const { data, error } = await supabase.from('hotels').update(hotel).eq('id', id);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return data;
     } catch (error) {
         console.error(error);
-        showToast(`Ошибка при обновлении брони ${error}`, 'error');
+        showToast(`Ошибка при обновлении отеля ${error}`, 'error');
+        throw error;
     }
 };
 
@@ -736,34 +819,72 @@ export const deleteHotelApi = async (id: string) => {
 };
 
 export const useCreateHotel = (onSuccess: () => void, onError?: (e: Error) => void) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: (hotel: Hotel) => {
             return createHotelApi(hotel);
         },
-        onSuccess,
+        onSuccess: async () => {
+            // При создании отеля инвалидируем список отелей (нужно обновить список)
+            await queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
+            onSuccess();
+        },
         onError,
     });
 };
 
-export const useUpdateHotel = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useUpdateHotel = (
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: updateHotelApi,
-        onSuccess,
+        onSuccess: async (_data, variables) => {
+            // Точечная инвалидация: обновляем только конкретный отель
+            const id = hotelId || variables.id;
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+            }
+            onSuccess?.();
+        },
         onError,
     });
 };
 
-export const useDeleteHotel = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useDeleteHotel = (
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: deleteHotelApi,
-        onSuccess,
+        onSuccess: async () => {
+            // При удалении инвалидируем список отелей
+            await queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
+            // И удаляем детальные данные отеля из кэша
+            if (hotelId) {
+                queryClient.removeQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+            }
+            onSuccess?.();
+        },
         onError,
     });
 };
 
 export const createImageApi = async (fileName: string, file: File) => {
     try {
-        const { data, error } = await supabase.storage
+        await supabase.storage
             .from('images') // Замените на имя вашего bucket
             .upload(fileName, file);
     } catch (err) {

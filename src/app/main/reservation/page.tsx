@@ -10,170 +10,154 @@ import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/rese
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { SearchForm } from '@/features/Search';
 import { FullWidthLoader, Loader } from '@/shared';
-import { HotelRoomsReservesDTO, useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
+import {
+    HotelRoomsReservesDTO,
+    useHotelDetailQuery,
+    useInfiniteHotelsQuery,
+} from '@/shared/api/hotel/hotel';
 import { RoomDTO } from '@/shared/api/room/room';
 import { routes } from '@/shared/config/routes';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
-import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
 import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useUnit } from 'effector-react/compat';
 import { MapPin } from 'lucide-react';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import './calendar.scss';
 import cx from './page.module.css';
 
 // Мемоизированный компонент карточки отеля для оптимизации виртуализации
-const HotelCard = memo(
-    ({
-        virtualItem,
-        hotel,
-        isMobile,
-        onHotelClick,
-        onHotelInfoClick,
-        onRoomClick,
-        measureElement,
-    }: {
-        virtualItem: { index: number; start: number; size: number };
-        hotel: HotelRoomsReservesDTO;
-        isMobile: boolean;
-        onHotelClick?: (hotel_id: string) => void;
-        onHotelInfoClick?: (hotel: HotelRoomsReservesDTO) => void;
-        onRoomClick?: (room: RoomDTO, hotel: HotelRoomsReservesDTO) => void;
-        measureElement: (element: Element | null) => void;
-    }) => {
-        const elementRef = useRef<HTMLDivElement>(null);
+const HotelCard = ({
+    virtualItem,
+    hotel,
+    isMobile,
+    onHotelClick,
+    onHotelInfoClick,
+    onRoomClick,
+    measureElement,
+}: {
+    virtualItem: { index: number; start: number; size: number };
+    hotel: HotelRoomsReservesDTO;
+    isMobile: boolean;
+    onHotelClick?: (hotel_id: string) => void;
+    onHotelInfoClick?: (hotel: HotelRoomsReservesDTO) => void;
+    onRoomClick?: (room: RoomDTO, hotel: HotelRoomsReservesDTO) => void;
+    measureElement: (element: Element | null) => void;
+}) => {
+    const elementRef = useRef<HTMLDivElement>(null);
 
-        // Измеряем реальную высоту элемента после рендера и при изменении данных
-        useEffect(() => {
-            if (elementRef.current) {
-                // Используем небольшой таймаут для того, чтобы календарь успел отрендериться
-                const timeoutId = setTimeout(() => {
-                    if (elementRef.current) {
-                        measureElement(elementRef.current);
-                    }
-                }, 0);
+    // Загружаем детальные данные конкретного отеля (с автообновлением при изменениях)
+    const { data: hotelDetail } = useHotelDetailQuery(hotel.id);
 
-                return () => clearTimeout(timeoutId);
-            }
-            // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [hotel.rooms?.length]); // Измеряем при изменении количества номеров
+    // Используем детальные данные если они загружены, иначе базовые из списка
+    const hotelData = hotelDetail || hotel;
 
-        const getHotelCity = (city: string) => {
-            return VALUE_TO_LABEL_MAP[city as keyof typeof VALUE_TO_LABEL_MAP];
-        };
-        return (
-            <div
-                ref={elementRef}
-                data-index={virtualItem.index}
-                style={{
-                    position: 'absolute',
-                    top: 0,
-                    left: 0,
-                    width: '100%',
-                    transform: `translateY(${virtualItem.start}px)`,
-                    willChange: 'transform', // Оптимизация для GPU
-                }}
-                className="px-1 pb-3 sm:px-2"
-            >
-                <Card className="h-full border border-border/60 shadow-sm">
-                    <CardHeader className="p-0">
-                        <CardTitle>
-                            <div className="space-y-2 p-3 sm:p-4">
-                                <div className="space-y-1">
-                                    {hotel?.type && (
-                                        <Badge
-                                            variant="secondary"
-                                            onClick={() =>
-                                                onHotelClick ? onHotelClick(hotel?.id) : undefined
-                                            }
-                                            className="cursor-pointer"
-                                        >
-                                            {hotel?.type}
-                                        </Badge>
-                                    )}{' '}
+    // Измеряем реальную высоту элемента после рендера и при изменении данных
+    useEffect(() => {
+        if (elementRef.current) {
+            // Используем небольшой таймаут для того, чтобы календарь успел отрендериться
+            const timeoutId = setTimeout(() => {
+                if (elementRef.current) {
+                    measureElement(elementRef.current);
+                }
+            }, 0);
+
+            return () => clearTimeout(timeoutId);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [hotelData.rooms?.length]); // Измеряем при изменении количества номеров
+
+    const getHotelCity = (city: string) => {
+        return VALUE_TO_LABEL_MAP[city as keyof typeof VALUE_TO_LABEL_MAP];
+    };
+    return (
+        <div
+            ref={elementRef}
+            data-index={virtualItem.index}
+            style={{
+                position: 'absolute',
+                top: 0,
+                left: 0,
+                width: '100%',
+                transform: `translateY(${virtualItem.start}px)`,
+                willChange: 'transform', // Оптимизация для GPU
+            }}
+            className="px-1 pb-3 sm:px-2"
+        >
+            <Card className="h-full border border-border/60 shadow-sm">
+                <CardHeader className="p-0">
+                    <CardTitle>
+                        <div className="space-y-2 p-3 sm:p-4">
+                            <div className="space-y-1">
+                                {hotelData?.type && (
+                                    <Badge
+                                        variant="secondary"
+                                        onClick={() =>
+                                            onHotelClick ? onHotelClick(hotelData?.id) : undefined
+                                        }
+                                        className="cursor-pointer"
+                                    >
+                                        {hotelData?.type}
+                                    </Badge>
+                                )}{' '}
+                                <div className="flex items-center gap-2">
+                                    <HotelTitle
+                                        size={isMobile ? 's' : 'xl'}
+                                        href={getHotelUrl(hotelData)}
+                                        className="text-sm font-semibold text-zinc-600 sm:text-xl"
+                                    >
+                                        {hotelData?.title}
+                                    </HotelTitle>
                                     <div className="flex items-center gap-2">
-                                        <HotelTitle
-                                            size={isMobile ? 's' : 'xl'}
-                                            href={getHotelUrl(hotel)}
-                                            className="text-sm font-semibold text-zinc-600 sm:text-xl"
+                                        {hotelData?.telegram_url && (
+                                            <HotelTelegram url={hotelData?.telegram_url} />
+                                        )}
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-7 px-3 text-xs"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                onHotelInfoClick?.(hotelData);
+                                            }}
                                         >
-                                            {hotel?.title}
-                                        </HotelTitle>
-                                        <div className="flex items-center gap-2">
-                                            {hotel?.telegram_url && (
-                                                <HotelTelegram url={hotel?.telegram_url} />
-                                            )}
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-7 px-3 text-xs"
-                                                onClick={(e) => {
-                                                    e.stopPropagation();
-                                                    onHotelInfoClick?.(hotel);
-                                                }}
-                                            >
-                                                Об отеле
-                                            </Button>
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-start gap-3 text-sm text-muted-foreground">
-                                    <div className="flex shrink-0 items-center gap-2">
-                                        <MapPin className="h-4 w-4" />
-                                        <span className="font-medium text-foreground">Город:</span>
-                                        {getHotelCity(hotel?.city)}
-                                    </div>
-                                    <div className="min-w-0 flex-1 break-words text-foreground/80">
-                                        Адрес: {hotel?.address}
+                                            Об отеле
+                                        </Button>
                                     </div>
                                 </div>
                             </div>
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <Calendar
-                            hotel={hotel}
-                            onHotelClick={onHotelClick}
-                            onRoomClick={(room) => {
-                                // Вызываем обработчик из родительского компонента
-                                onRoomClick?.(room, hotel);
-                            }}
-                        />
-                    </CardContent>
-                </Card>
-            </div>
-        );
-    },
-    (prevProps, nextProps) => {
-        // Мемоизация: обновляем только если изменились критичные свойства
-        // Сравниваем hotel.id, позицию и данные отеля для обновления при изменении броней
-        const prevRoomIds = prevProps.hotel.rooms.map((r) => r.id).join(',');
-        const nextRoomIds = nextProps.hotel.rooms.map((r) => r.id).join(',');
-        const prevReservesCount = prevProps.hotel.rooms
-            .map((r) => r.reserves?.length || 0)
-            .join(',');
-        const nextReservesCount = nextProps.hotel.rooms
-            .map((r) => r.reserves?.length || 0)
-            .join(',');
-
-        const isSame =
-            prevProps.hotel.id === nextProps.hotel.id &&
-            prevProps.virtualItem.start === nextProps.virtualItem.start &&
-            prevProps.isMobile === nextProps.isMobile &&
-            prevRoomIds === nextRoomIds &&
-            prevReservesCount === nextReservesCount;
-
-        return isSame;
-    },
-);
-
-HotelCard.displayName = 'HotelCard';
+                            <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                                <div className="flex shrink-0 items-center gap-2">
+                                    <MapPin className="h-4 w-4" />
+                                    <span className="font-medium text-foreground">Город:</span>
+                                    {getHotelCity(hotelData?.city)}
+                                </div>
+                                <div className="min-w-0 flex-1 break-words text-foreground/80">
+                                    Адрес: {hotelData?.address}
+                                </div>
+                            </div>
+                        </div>
+                    </CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                    <Calendar
+                        hotel={hotelData}
+                        onHotelClick={onHotelClick}
+                        onRoomClick={(room) => {
+                            // Вызываем обработчик из родительского компонента
+                            onRoomClick?.(room, hotelData);
+                        }}
+                    />
+                </CardContent>
+            </Card>
+        </div>
+    );
+};
 
 export default function Home() {
     const router = useRouter();
@@ -354,7 +338,7 @@ export default function Home() {
     if (hotelsWithRooms.length === 0) {
         return renderLayout(
             <div className="flex flex-1 flex-col items-center justify-center gap-4">
-                <PageTitle title={'Все отели'} hotels={0} />
+                {/* <PageTitle title={'Все отели'} hotels={0} /> */}
                 <NoDataAvailable
                     title="Не найдено ни одной брони"
                     description="Попробуйте изменить условия поиска"

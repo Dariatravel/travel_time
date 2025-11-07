@@ -71,13 +71,17 @@ export const deleteReserveApi = async (id: string) => {
 
 export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
     try {
-        await supabase.from('reserves').update(reserve).eq('id', id);
+        const { data, error } = await supabase.from('reserves').update(reserve).eq('id', id);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return data;
     } catch (error) {
         console.error(error);
         showToast('Ошибка при обновлении брони', 'error');
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        throw new Error(error?.message); // Передаем ошибку дальше для обработки в React Query
+        throw error; // Передаем ошибку дальше для обработки в React Query
     }
 };
 
@@ -92,8 +96,12 @@ export const useCreateReserve = (
     return useMutation({
         mutationFn: createReserveApi,
         onSuccess: async () => {
-            // Инвалидируем запросы для получения актуальных данных с сервера
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+            // Точечная инвалидация: обновляем только конкретный отель
+            if (hotelId) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+            }
             onSuccess?.();
         },
         onError: (err) => {
@@ -113,8 +121,12 @@ export const useUpdateReserve = (
     return useMutation({
         mutationFn: updateReserveApi,
         onSuccess: async () => {
-            // Инвалидируем запросы для получения актуальных данных с сервера
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+            // Точечная инвалидация: обновляем только конкретный отель
+            if (hotelId) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+            }
             onSuccess?.();
         },
         onError: (err) => {
@@ -134,8 +146,12 @@ export const useDeleteReserve = (
     return useMutation({
         mutationFn: deleteReserveApi,
         onSuccess: async () => {
-            // Инвалидируем запросы для получения актуальных данных с сервера
-            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+            // Точечная инвалидация: обновляем только конкретный отель
+            if (hotelId) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+            }
             onSuccess?.();
         },
         onError: (err) => {

@@ -24,7 +24,7 @@ import { Id } from 'my-react-calendar-timeline';
 
 import { cn } from '@/lib/utils';
 import moment from 'moment';
-import { memo, useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
 import cx from './style.module.scss';
 
@@ -34,7 +34,7 @@ export interface CalendarProps {
     onRoomClick?: (room: RoomDTO) => void;
 }
 
-const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) => {
+export const Calendar = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) => {
     const [isMobile] = useUnit([$isMobile]);
     const queryClient = useQueryClient();
 
@@ -105,6 +105,7 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
         mutate: createRoom,
         error: roomError,
     } = useCreateRoom(
+        hotel.id, // hotelId
         () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
@@ -180,8 +181,12 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
                 ...reserve,
                 id: reserve.id,
                 group: room_id,
-                end: getDateFromUnix(end),
-                start: getDateFromUnix(start),
+                end: getDateFromUnix(
+                    typeof end === 'number' ? end : Math.floor(end.getTime() / 1000),
+                ),
+                start: getDateFromUnix(
+                    typeof start === 'number' ? start : Math.floor(start.getTime() / 1000),
+                ),
             }));
 
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -247,7 +252,7 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
             .filter((room) => room !== null) as RoomDTO[];
         updateRoomOrder({ hotelId: hotel.id, rooms: roomsWithNewOrder });
         // После обновления порядка групп обновляем списки
-        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: ['hotels', 'list'] });
         await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
         await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
     };
@@ -257,7 +262,11 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 <div className={cn(cx.calendarContainer, 'relative')}>
                     {(reserveLoading || isLoading) && <FullWidthLoader />}
-                    <div className={cn((reserveLoading || isLoading) && 'opacity-50 pointer-events-none')}>
+                    <div
+                        className={cn(
+                            (reserveLoading || isLoading) && 'opacity-50 pointer-events-none',
+                        )}
+                    >
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}
@@ -293,25 +302,3 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
         </div>
     );
 };
-
-// Мемоизируем Calendar компонент для оптимизации производительности
-export const Calendar = memo(CalendarComponent, (prevProps, nextProps) => {
-    // Обновляем если изменились критичные данные
-    // Сравниваем ID отеля, количество номеров и ID номеров
-    const prevRoomIds = prevProps.hotel.rooms.map((r) => r.id).join(',');
-    const nextRoomIds = nextProps.hotel.rooms.map((r) => r.id).join(',');
-
-    // Также сравниваем количество резервов для каждого номера
-    // Это важно для обновления календаря при изменении броней
-    const prevReservesCount = prevProps.hotel.rooms.map((r) => r.reserves?.length || 0).join(',');
-    const nextReservesCount = nextProps.hotel.rooms.map((r) => r.reserves?.length || 0).join(',');
-
-    const isSame =
-        prevProps.hotel.id === nextProps.hotel.id &&
-        prevProps.hotel.rooms.length === nextProps.hotel.rooms.length &&
-        prevRoomIds === nextRoomIds &&
-        prevReservesCount === nextReservesCount &&
-        prevProps.onHotelClick === nextProps.onHotelClick;
-
-    return isSame;
-});

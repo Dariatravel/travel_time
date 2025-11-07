@@ -60,13 +60,12 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         // чтобы гарантировать применение актуальных фильтров
         const currentFilters = filters as AdvancedFiltersState;
         onFiltersChange?.(currentFilters);
+
         // Закрываем модальное окно после применения фильтров
         setIsOpen(false);
 
-        // Сбрасываем флаг через небольшую задержку
-        setTimeout(() => {
-            isApplyingRef.current = false;
-        }, 300);
+        // Сбрасываем флаг сразу после закрытия
+        isApplyingRef.current = false;
     }, [filters, onFiltersChange]);
 
     const handleResetFilters = useCallback(() => {

@@ -127,14 +127,17 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
     const { isMobile } = useScreenSize();
 
     // Хук для удаления номера
-    const { isPending: isDeleting, mutateAsync: deleteRoom } = useDeleteRoom(() => {
-        if (hotelId) {
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsByHotel, hotelId],
-            });
-        }
-        showToast('Номер успешно удален', 'success');
-    });
+    const { isPending: isDeleting, mutateAsync: deleteRoom } = useDeleteRoom(
+        hotelId, // hotelId
+        () => {
+            if (hotelId) {
+                queryClient.invalidateQueries({
+                    queryKey: [...QUERY_KEYS.roomsByHotel, hotelId],
+                });
+            }
+            showToast('Номер успешно удален', 'success');
+        },
+    );
 
     const handleDelete = useCallback(
         async (id: string, title: string) => {

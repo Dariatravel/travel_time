@@ -77,6 +77,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const filter = useUnitCompat($hotelsFilter);
     const { isMobile } = useScreenSize();
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    const [isInitialized, setIsInitialized] = useState(false);
 
     const methods = useForm<SearchFormSchema>({
         resolver: zodResolver(searchFormSchema) as Resolver<SearchFormSchema>,
@@ -92,44 +93,88 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const { control, watch, handleSubmit, reset } = methods;
     const watchedValues = watch();
 
-    // Инициализируем форму из filter store только при первой загрузке
-    // Это предотвращает сброс значений, которые пользователь вводит
+    // Инициализируем форму из URL параметров или filter store при первой загрузке
     useEffect(() => {
-        if (!filter) return;
+        // Инициализация происходит только один раз
+        if (isInitialized || !hotels) return;
 
-        const formValues: Partial<SearchFormSchema> = {
-            category: filter.type,
-            quantity: filter.quantity,
-            hotels: filter.hotels
-                ? filter.hotels.map((hotel) => ({
-                      id: hotel.id,
-                      label: hotel.title,
-                  }))
-                : [],
-        };
+        // Читаем параметры из URL
+        const searchParams = new URLSearchParams(window.location.search);
+        const urlCategory = searchParams.get('category');
+        const urlDateFrom = searchParams.get('dateFrom');
+        const urlDateTo = searchParams.get('dateTo');
+        const urlQuantity = searchParams.get('quantity');
+        const urlHotels = searchParams.get('hotels');
 
-        // Преобразуем unix timestamp в даты
-        if (filter.start) {
+        const formValues: Partial<SearchFormSchema> = {};
+        const filterValues: Partial<TravelFilterType> = {};
+
+        // Приоритет: URL параметры > filter store
+        if (urlCategory) {
+            formValues.category = urlCategory;
+            filterValues.type = urlCategory;
+        } else if (filter?.type) {
+            formValues.category = filter.type;
+            filterValues.type = filter.type;
+        }
+
+        if (urlQuantity) {
+            const quantity = parseInt(urlQuantity, 10);
+            formValues.quantity = quantity;
+            filterValues.quantity = quantity;
+        } else if (filter?.quantity) {
+            formValues.quantity = filter.quantity;
+            filterValues.quantity = filter.quantity;
+        }
+
+        if (urlDateFrom) {
+            const start = parseInt(urlDateFrom, 10);
+            formValues.dateFrom = moment.unix(start).toDate();
+            filterValues.start = start;
+        } else if (filter?.start) {
             formValues.dateFrom = moment.unix(filter.start).toDate();
+            filterValues.start = filter.start;
         }
-        if (filter.end) {
+
+        if (urlDateTo) {
+            const end = parseInt(urlDateTo, 10);
+            formValues.dateTo = moment.unix(end).toDate();
+            filterValues.end = end;
+        } else if (filter?.end) {
             formValues.dateTo = moment.unix(filter.end).toDate();
+            filterValues.end = filter.end;
         }
 
-        // Используем reset только если форма пустая (первая инициализация)
-        const currentValues = watchedValues;
-        const isFormEmpty =
-            !currentValues.category &&
-            !currentValues.quantity &&
-            !currentValues.dateFrom &&
-            !currentValues.dateTo &&
-            (!currentValues.hotels || currentValues.hotels.length === 0);
+        // Обработка отелей из URL
+        if (urlHotels && hotels) {
+            const hotelIds = urlHotels.split(',');
+            const selectedHotelsData = hotels.filter((h) => hotelIds.includes(h.id));
+            const selectedHotels = selectedHotelsData.map((h) => ({ id: h.id, label: h.title }));
+            if (selectedHotels.length > 0) {
+                formValues.hotels = selectedHotels;
+                filterValues.hotels = selectedHotelsData;
+            }
+        } else if (filter?.hotels) {
+            formValues.hotels = filter.hotels.map((hotel) => ({
+                id: hotel.id,
+                label: hotel.title,
+            }));
+            filterValues.hotels = filter.hotels;
+        }
 
-        if (isFormEmpty) {
+        // Обновляем форму
+        if (Object.keys(formValues).length > 0) {
             reset(formValues);
         }
+
+        // Обновляем filter store
+        if (Object.keys(filterValues).length > 0) {
+            changeTravelFilter(filterValues);
+        }
+
+        setIsInitialized(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []); // Инициализируем только один раз при монтировании
+    }, [hotels, isInitialized]); // Зависимость от hotels и isInitialized
 
     useEffect(() => {
         if (isMobile) {
@@ -156,7 +201,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         end_time = moment(dateTo).hour(11).unix();
     }
 
-    const onSearch: SubmitHandler<SearchFormSchema> = async (data) => {
+    const onSearch: SubmitHandler<SearchFormSchema> = async () => {
         // Обновление URL происходит через FiltersSync для расширенных фильтров
         // Параметры формы можно обновлять отдельно, если нужно
 
@@ -219,6 +264,17 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Проверяем активные расширенные фильтры после применения
         const hasActiveFilters = hasActiveAdvancedFilters(advancedFilters);
 
+        // Логирование для отладки
+        console.log('SearchForm.onSearch - filter before getHotelsWithFreeRooms:', {
+            start: filter.start,
+            end: filter.end,
+            start_time,
+            end_time,
+            type: filter.type,
+            quantity: filter.quantity,
+            hasActiveFilters,
+        });
+
         // Проверяем, есть ли основные фильтры ИЛИ активные расширенные фильтры
         if (!isAllValuesUndefined(filter) || hasActiveFilters) {
             // Устанавливаем состояние загрузки
@@ -227,6 +283,12 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             try {
                 // Парсим расширенные фильтры только если они активны
                 const parsedAdvancedFilter = hasActiveFilters ? parseFilter(advancedFilters) : {};
+
+                console.log('SearchForm.onSearch - calling getHotelsWithFreeRooms with:', {
+                    filter,
+                    parsedAdvancedFilter,
+                });
+
                 const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
 
                 const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
@@ -277,8 +339,89 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         changeTravelFilter({ ...filter, ...freeRoomData });
 
+        // Проверяем, все ли фильтры пустые
+        const allFiltersEmpty =
+            !category &&
+            !start_time &&
+            !end_time &&
+            !quantity &&
+            selectedHotels.length === 0 &&
+            !hasActiveFilters;
+
+        // Если все фильтры пустые, сбрасываем все query параметры
+        if (allFiltersEmpty) {
+            console.log('SearchForm.onSearch - all filters empty, clearing URL and filters');
+
+            // Сбрасываем расширенные фильтры
+            AdvancedFiltersModel.filtersCleared();
+
+            // Очищаем filter store
+            changeTravelFilter({
+                start: undefined,
+                end: undefined,
+                type: undefined,
+                quantity: undefined,
+                hotels: undefined,
+                freeHotels: undefined,
+                freeHotels_id: undefined,
+                roomFeatures: undefined,
+            });
+
+            // Переходим на чистый URL
+            const cleanUrl = routes[PagesEnum.RESERVATION];
+            if (window.location.pathname !== routes[PagesEnum.RESERVATION]) {
+                router.push(cleanUrl);
+            } else {
+                router.replace(cleanUrl);
+            }
+
+            if (onSearchCb) {
+                onSearchCb();
+            }
+            return;
+        }
+
+        // Обновляем URL с базовыми фильтрами
+        const searchParams = new URLSearchParams(window.location.search);
+
+        // Добавляем/обновляем базовые фильтры
+        if (category) {
+            searchParams.set('category', category);
+        } else {
+            searchParams.delete('category');
+        }
+
+        if (start_time) {
+            searchParams.set('dateFrom', start_time.toString());
+        } else {
+            searchParams.delete('dateFrom');
+        }
+
+        if (end_time) {
+            searchParams.set('dateTo', end_time.toString());
+        } else {
+            searchParams.delete('dateTo');
+        }
+
+        if (quantity !== undefined && quantity > 0) {
+            searchParams.set('quantity', quantity.toString());
+        } else {
+            searchParams.delete('quantity');
+        }
+
+        const selectedHotelsFromForm = watchedValues.hotels || [];
+        if (selectedHotelsFromForm && selectedHotelsFromForm.length > 0) {
+            searchParams.set('hotels', selectedHotelsFromForm.map((h) => h.id).join(','));
+        } else {
+            searchParams.delete('hotels');
+        }
+
+        const newUrl = `${routes[PagesEnum.RESERVATION]}${searchParams.toString() ? `?${searchParams.toString()}` : ''}`;
+
         if (window.location.pathname !== routes[PagesEnum.RESERVATION]) {
-            router.push(routes[PagesEnum.RESERVATION]);
+            router.push(newUrl);
+        } else {
+            router.replace(newUrl);
         }
 
         if (onSearchCb) {
@@ -327,23 +470,21 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                     )}
                                 />
                             </div>
-                            {isMobile && (
-                                <Button
-                                    type="button"
-                                    variant="secondary"
-                                    size="icon"
-                                    className="h-10 w-10 shrink-0 rounded-full sm:hidden"
-                                    onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
-                                    aria-label="Показать дополнительные фильтры"
-                                >
-                                    <ChevronDown
-                                        className={cn(
-                                            'h-4 w-4 transition-transform duration-200',
-                                            isMobileFiltersOpen && 'rotate-180',
-                                        )}
-                                    />
-                                </Button>
-                            )}
+                            <Button
+                                type="button"
+                                variant="secondary"
+                                size="icon"
+                                className="h-10 w-10 shrink-0 rounded-full sm:hidden "
+                                onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+                                aria-label="Показать дополнительные фильтры"
+                            >
+                                <ChevronDown
+                                    className={cn(
+                                        'h-4 w-4 transition-transform duration-200',
+                                        isMobileFiltersOpen && 'rotate-180',
+                                    )}
+                                />
+                            </Button>
                         </div>
 
                         <div
