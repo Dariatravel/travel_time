@@ -5,8 +5,12 @@ import {
     DragOverEvent,
     DragOverlay,
     DragStartEvent,
+    MouseSensor,
     Over,
+    TouchSensor,
     useDroppable,
+    useSensor,
+    useSensors,
 } from '@dnd-kit/core';
 import { restrictToVerticalAxis, restrictToWindowEdges } from '@dnd-kit/modifiers';
 import { rectSortingStrategy, SortableContext } from '@dnd-kit/sortable';
@@ -44,6 +48,11 @@ export const DndTimelineWrapper = ({
 }: DndTimelineWrapperProps) => {
     const activeId = useUnit($activeId);
     const insertPosition = useUnit($insertPosition);
+
+    const sensors = useSensors(
+        useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
+        useSensor(TouchSensor, { activationConstraint: { delay: 0, tolerance: 5 } }),
+    );
 
     const getIsBefore = (over: Over, active: Active): boolean => {
         const overRect = over.rect;
@@ -99,6 +108,7 @@ export const DndTimelineWrapper = ({
     return (
         <DndContext
             // collisionDetection={closestCenter}
+            sensors={sensors}
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             onDragCancel={() => dragCancelled()}

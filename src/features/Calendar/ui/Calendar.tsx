@@ -222,7 +222,7 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
         setIsRoomOpen(true);
     };
 
-    const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
+    const sidebarWidth = useMemo(() => (isMobile ? 72 : 190), [isMobile]);
 
     const isLoading = isRoomCreating || isUpdatingOrder;
     const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
@@ -236,7 +236,7 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
     // Уникальный ID для этого Timeline
     const timelineId = `calendar-${hotel.id}`;
 
-    const handleGroupsReorder = (newOrder: string[]) => {
+    const handleGroupsReorder = async (newOrder: string[]) => {
         devLog('Новый порядок групп:', newOrder);
         // Формируем новый массив RoomDTO с актуальным порядком
         const roomsWithNewOrder = newOrder
@@ -246,14 +246,18 @@ const CalendarComponent = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) 
             })
             .filter((room) => room !== null) as RoomDTO[];
         updateRoomOrder({ hotelId: hotel.id, rooms: roomsWithNewOrder });
+        // После обновления порядка групп обновляем списки
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
     };
 
     return (
         <div style={{ position: 'relative' }} className="p-0">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 <div className={cn(cx.calendarContainer, 'relative')}>
-                    {reserveLoading && <FullWidthLoader />}
-                    <div className={cn(reserveLoading && 'opacity-50 pointer-events-none')}>
+                    {(reserveLoading || isLoading) && <FullWidthLoader />}
+                    <div className={cn((reserveLoading || isLoading) && 'opacity-50 pointer-events-none')}>
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}

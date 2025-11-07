@@ -19,12 +19,12 @@ import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
 import { getHotelUrl } from '@/utils/getHotelUrl';
-import { useVirtualizer } from '@tanstack/react-virtual';
+import { useWindowVirtualizer } from '@tanstack/react-virtual';
 import { useUnit } from 'effector-react/compat';
 import { MapPin } from 'lucide-react';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { memo, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import './calendar.scss';
 import cx from './page.module.css';
 
@@ -79,12 +79,12 @@ const HotelCard = memo(
                     transform: `translateY(${virtualItem.start}px)`,
                     willChange: 'transform', // Оптимизация для GPU
                 }}
-                className="mb-2"
+                className="px-1 pb-3 sm:px-2"
             >
-                <Card>
+                <Card className="h-full border border-border/60 shadow-sm">
                     <CardHeader className="p-0">
                         <CardTitle>
-                            <div className="p-2">
+                            <div className="space-y-2 p-3 sm:p-4">
                                 <div className="space-y-1">
                                     {hotel?.type && (
                                         <Badge
@@ -92,26 +92,27 @@ const HotelCard = memo(
                                             onClick={() =>
                                                 onHotelClick ? onHotelClick(hotel?.id) : undefined
                                             }
+                                            className="cursor-pointer"
                                         >
                                             {hotel?.type}
                                         </Badge>
                                     )}{' '}
-                                    <div className="flex gap-2 items-center">
+                                    <div className="flex items-center gap-2">
                                         <HotelTitle
                                             size={isMobile ? 's' : 'xl'}
                                             href={getHotelUrl(hotel)}
-                                            className="text-zinc-500"
+                                            className="text-sm font-semibold text-zinc-600 sm:text-xl"
                                         >
                                             {hotel?.title}
-                                        </HotelTitle>{' '}
-                                        <div className="flex gap-1 items-center">
+                                        </HotelTitle>
+                                        <div className="flex items-center gap-2">
                                             {hotel?.telegram_url && (
                                                 <HotelTelegram url={hotel?.telegram_url} />
                                             )}
                                             <Button
-                                                variant="ghost"
+                                                variant="outline"
                                                 size="sm"
-                                                className="h-6 px-2 text-xs"
+                                                className="h-7 px-3 text-xs"
                                                 onClick={(e) => {
                                                     e.stopPropagation();
                                                     onHotelInfoClick?.(hotel);
@@ -122,12 +123,15 @@ const HotelCard = memo(
                                         </div>
                                     </div>
                                 </div>
-                                <div className="flex gap-2 items-center">
-                                    <div className="flex gap-2 items-center">
-                                        <MapPin className="w-4 h-4" />
-                                        Город: {getHotelCity(hotel?.city)}
+                                <div className="flex items-start gap-3 text-sm text-muted-foreground">
+                                    <div className="flex shrink-0 items-center gap-2">
+                                        <MapPin className="h-4 w-4" />
+                                        <span className="font-medium text-foreground">Город:</span>
+                                        {getHotelCity(hotel?.city)}
                                     </div>
-                                    <div className="text-gray-500">Адрес:{hotel?.address}</div>
+                                    <div className="min-w-0 flex-1 break-words text-foreground/80">
+                                        Адрес: {hotel?.address}
+                                    </div>
                                 </div>
                             </div>
                         </CardTitle>
@@ -184,13 +188,12 @@ export default function Home() {
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
     const isFilterLoading = filter?.isLoading ?? false;
 
-    const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null); // оставляем для совместимости измерений, но не используем как скролл-элемент
     const PAGE_SIZE = 2;
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
-    console.log({ data });
     const hotels = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
     const hotelsWithRooms = useMemo(
         () => hotels.filter((hotel) => hotel?.rooms?.length > 0),
@@ -198,9 +201,8 @@ export default function Home() {
     );
 
     // Виртуализатор для списка календарей с динамической высотой
-    const virtualizer = useVirtualizer({
+    const virtualizer = useWindowVirtualizer({
         count: hotelsWithRooms.length,
-        getScrollElement: () => scrollContainerRef.current,
         estimateSize: (index) => {
             // Вычисляем примерную высоту на основе количества номеров в отеле
             const hotel = hotelsWithRooms[index];
@@ -209,6 +211,7 @@ export default function Home() {
             // Базовая высота: заголовок карточки (~80px) + padding/margin (~20px)
             const headerHeight = 80;
             const paddingMargin = 20;
+            const gap = 12; // небольшой отступ между карточками
 
             // Высота календаря зависит от количества номеров
             // Каждая группа (номер) занимает примерно 40-50px
@@ -217,18 +220,14 @@ export default function Home() {
             const roomHeight = 45; // Примерная высота одной строки номера
             const calendarHeight = Math.min(250, Math.max(150, roomsCount * roomHeight + 60)); // min 150px, max 250px
 
-            return headerHeight + paddingMargin + calendarHeight;
+            return headerHeight + paddingMargin + calendarHeight + gap;
         },
-        overscan: 1, // Уменьшаем overscan для производительности
-        enabled: hotelsWithRooms.length > 0,
-        // Используем горизонтальный виртуализатор только для вертикального скролла
-        horizontal: false,
+        overscan: 1,
     });
 
     // Обработчик скролла для подгрузки новых данных - используем IntersectionObserver для производительности
     useEffect(() => {
-        const scrollElement = scrollContainerRef.current;
-        if (!scrollElement || hotelsWithRooms.length === 0) return;
+        if (hotelsWithRooms.length === 0) return;
 
         let lastCheckTime = 0;
         const THROTTLE_MS = 200; // Throttle для проверки конца списка
@@ -263,9 +262,9 @@ export default function Home() {
             }
         };
 
-        scrollElement.addEventListener('scroll', handleScroll, { passive: true });
+        window.addEventListener('scroll', handleScroll, { passive: true });
         return () => {
-            scrollElement.removeEventListener('scroll', handleScroll);
+            window.removeEventListener('scroll', handleScroll);
             if (rafId !== null) {
                 window.cancelAnimationFrame(rafId);
             }
@@ -274,7 +273,6 @@ export default function Home() {
     }, [hotelsWithRooms.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     useEffect(() => {
-        console.log('refetch');
         refetch();
     }, [filter, refetch]);
 
@@ -296,74 +294,17 @@ export default function Home() {
     // Объединяем состояния загрузки для избежания скачков UI
     const isInitialLoading = isLoading || isFreeHotelsLoading || isFilterLoading;
 
-    if (isInitialLoading && !data) {
-        return (
-            <>
-                <PageTitle title={'Все отели'} hotels={0} />
-                <div className={cx.loaderContainer}>
-                    <Loader />
-                </div>
-            </>
-        );
-    }
+    const pagePadding = 'px-0 pb-6 pt-3 sm:px-0 sm:pb-8';
+    const searchWrapper = (
+        <div className="sticky top-0 z-30 bg-background/100">
+            <SearchForm />
+        </div>
+    );
 
-    if (hotelsWithRooms.length === 0) {
-        return (
-            <>
-                <div className="mt-3">
-                    <SearchForm />
-                </div>
-                <PageTitle title={'Все отели'} hotels={0} />
-                <NoDataAvailable
-                    title="Не найдено ни одной брони"
-                    description="Попробуйте изменить условия поиска"
-                />
-            </>
-        );
-    }
-
-    return (
-        <div className="mt-1 space-y-1">
-            {/* Поисковая форма */}
-            <div className="mt-1">
-                <SearchForm />
-            </div>
-
-            {/* <PageTitle title={'Все отели'} hotels={hotelsWithRooms.length} /> */}
-            <div
-                ref={scrollContainerRef}
-                className="overflow-y-auto space-y-2 p-0 max-h-[75vh] mb-4 relative"
-                style={{
-                    height: '75vh',
-                }}
-            >
-                <div
-                    style={{
-                        height: `${virtualizer.getTotalSize()}px`,
-                        width: '100%',
-                        position: 'relative',
-                    }}
-                >
-                    {virtualizer.getVirtualItems().map((virtualItem) => {
-                        const hotel = hotelsWithRooms[virtualItem.index];
-                        if (!hotel) return null;
-                        return (
-                            <HotelCard
-                                key={hotel.id}
-                                virtualItem={virtualItem}
-                                hotel={hotel}
-                                isMobile={isMobile}
-                                onHotelClick={onHotelClick}
-                                measureElement={virtualizer.measureElement}
-                                onHotelInfoClick={onHotelInfoClick}
-                                onRoomClick={onRoomClick}
-                            />
-                        );
-                    })}
-                </div>
-            </div>
-            {(isFetchingNextPage || isFilterLoading || isFreeHotelsLoading) && <FullWidthLoader />}
-
+    const renderLayout = (content: ReactNode) => (
+        <div className={`flex min-h-screen flex-col gap-4 ${pagePadding}`}>
+            {searchWrapper}
+            {content}
             <HotelModal
                 isOpen={isHotelModalOpen}
                 onClose={() => {
@@ -398,5 +339,60 @@ export default function Home() {
                 }
             />
         </div>
+    );
+
+    if (isInitialLoading && !data) {
+        return renderLayout(
+            <div className="flex flex-1 items-center justify-center">
+                <div className={cx.loaderContainer}>
+                    <Loader />
+                </div>
+            </div>,
+        );
+    }
+
+    if (hotelsWithRooms.length === 0) {
+        return renderLayout(
+            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+                <PageTitle title={'Все отели'} hotels={0} />
+                <NoDataAvailable
+                    title="Не найдено ни одной брони"
+                    description="Попробуйте изменить условия поиска"
+                />
+            </div>,
+        );
+    }
+
+    return renderLayout(
+        <div className="flex flex-1 flex-col gap-3">
+            <div className="relative">
+                <div
+                    ref={scrollContainerRef}
+                    style={{
+                        height: `${virtualizer.getTotalSize()}px`,
+                        width: '100%',
+                        position: 'relative',
+                    }}
+                >
+                    {virtualizer.getVirtualItems().map((virtualItem) => {
+                        const hotel = hotelsWithRooms[virtualItem.index];
+                        if (!hotel) return null;
+                        return (
+                            <HotelCard
+                                key={hotel.id}
+                                virtualItem={virtualItem}
+                                hotel={hotel}
+                                isMobile={isMobile}
+                                onHotelClick={onHotelClick}
+                                measureElement={virtualizer.measureElement}
+                                onHotelInfoClick={onHotelInfoClick}
+                                onRoomClick={onRoomClick}
+                            />
+                        );
+                    })}
+                </div>
+            </div>
+            {(isFetchingNextPage || isFilterLoading || isFreeHotelsLoading) && <FullWidthLoader />}
+        </div>,
     );
 }

@@ -1,4 +1,10 @@
-import { Dialog, DialogContent, DialogDescription, DialogHeader } from '@/components/ui/dialog';
+import {
+    Dialog,
+    DialogContent,
+    DialogDescription,
+    DialogHeader,
+    DialogTitle,
+} from '@/components/ui/dialog';
 import { FormTitle } from '@/components/ui/form-title';
 import { HotelInfo } from '@/features/HotelModal/ui/HotelInfo';
 import { useGetUsers } from '@/shared/api/auth/auth';
@@ -6,7 +12,6 @@ import {
     Hotel,
     HotelDTO,
     useCreateHotel,
-    useCreateImage,
     useDeleteHotel,
     useUpdateHotel,
 } from '@/shared/api/hotel/hotel';
@@ -25,19 +30,16 @@ export interface HotelModalProps {
 
 export const HotelModal: FC<HotelModalProps> = ({
     isOpen = false,
-    onAccept,
     onClose,
     currentReserve = null,
     isLoading = false,
 }: HotelModalProps) => {
-    const {
-        isError: isHotelError,
-        isPending: isHotelLoading,
-        mutateAsync: createHotel,
-    } = useCreateHotel(
-        () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
+    const { isPending: isHotelLoading, mutateAsync: createHotel } = useCreateHotel(
+        async () => {
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
             onClose();
 
             showToast('Отель добавлен');
@@ -46,65 +48,36 @@ export const HotelModal: FC<HotelModalProps> = ({
             showToast(`Ошибка при добавлении номера ${e}`, 'error');
         },
     );
-    const {
-        isError: isHotelImageError,
-        isPending: isHotelImageCreating,
-        mutateAsync: createImage,
-    } = useCreateImage(
-        () => {
-            showToast('Отель добавлен');
-        },
-        (e) => {
-            showToast(`Ошибка при добавлении номера ${e}`, 'error');
-        },
-    );
-    const { isPending: isHotelUpdating, mutateAsync: updateHotel } = useUpdateHotel(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.hotels],
-        });
+    // загрузка изображения отеля отключена в этой модалке
+    const { isPending: isHotelUpdating, mutateAsync: updateHotel } = useUpdateHotel(async () => {
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
         onClose();
-        showToast('Информация в отели обновлена');
+        showToast('Информация в отеле обновлена');
     });
 
-    const { isPending: isHotelDeleting, mutateAsync: deleteHotel } = useDeleteHotel(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.hotels],
-        });
+    const { isPending: isHotelDeleting, mutateAsync: deleteHotel } = useDeleteHotel(async () => {
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelsForRoom });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
         onClose();
         showToast('Отель удалён');
     });
 
     const onCreate = async (hotel: Hotel) => {
-        if (hotel?.image_id) {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error
-            const { id, file } = hotel?.image_id;
-            await createImage(id, file);
-        }
-
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const hotelTmp = { ...hotel, image_id: hotel?.image_id?.id };
-        await createHotel(hotelTmp);
+        await createHotel(hotel);
     };
     const onEdit = async (hotel: HotelDTO) => {
-        if (hotel?.image_id) {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error
-            const { id, file } = hotel?.image_id;
-            await createImage(id, file);
-        }
-
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const hotelTmp = { ...hotel, image_id: hotel?.image_id?.id };
         await updateHotel(hotel);
     };
     const onDelete = async (id: string) => await deleteHotel(id);
 
     const isEdit = !!currentReserve?.hotel?.id;
 
-    const { data: users, isFetching: isUsersLoading } = useGetUsers();
+    const { data: users } = useGetUsers();
     const loading = isLoading || isHotelLoading || isHotelUpdating || isHotelDeleting;
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -113,10 +86,15 @@ export const HotelModal: FC<HotelModalProps> = ({
                     Добавить отель
                 </Button>
             </DialogTrigger> */}
-            <DialogContent className="md:max-w-2xl max-h-[88vh] min-h-[88vh] overflow-y-auto p-y-3 px-6">
+            <DialogContent className="max-h-[90vh] overflow-y-auto rounded-xl px-3 py-4 sm:w-auto sm:max-w-2xl sm:px-6 sm:py-5">
                 <DialogHeader>
-                    <FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>
+                    <DialogTitle>
+                        <FormTitle>
+                            {isEdit ? 'Редактирование отеля' : 'Добавление отеля'}
+                        </FormTitle>
+                    </DialogTitle>
                 </DialogHeader>
+
                 <DialogDescription>
                     <HotelInfo
                         users={users ?? []}

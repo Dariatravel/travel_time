@@ -36,18 +36,20 @@ export const RoomModal: FC<RoomModalProps> = ({
         },
     );
 
-    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(() => {
-        queryClient.invalidateQueries({
-            queryKey: QUERY_KEYS.hotelById,
-        });
+    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(async () => {
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
         onClose();
-        showToast('Информация в отели обновлена');
+        showToast('Информация в отеле обновлена');
     });
 
-    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(() => {
-        queryClient.invalidateQueries({
-            queryKey: QUERY_KEYS.hotelById,
-        });
+    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(async () => {
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
         onClose();
         showToast('Отель удалён');
     });
@@ -67,7 +69,7 @@ export const RoomModal: FC<RoomModalProps> = ({
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogContent className="w-[calc(100vw-2rem)] max-h-[90vh] overflow-y-auto rounded-2xl px-4 py-4 sm:w-auto sm:max-w-4xl sm:px-6 sm:py-5">
                 <RoomInfo
                     onClose={onClose}
                     currentReserve={currentReserve}

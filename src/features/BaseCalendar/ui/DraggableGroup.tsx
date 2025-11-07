@@ -22,7 +22,7 @@ export const DraggableGroup = ({
     onClick,
 }: DraggableGroupProps) => {
     const insertPosition = useUnit($insertPosition);
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    const { attributes, listeners, setNodeRef, transition, isDragging } = useSortable({
         id,
     });
 
@@ -41,7 +41,12 @@ export const DraggableGroup = ({
         >
             {insertPosition.beforeId === id && <InsertionIndicator type="before" />}
             <div className={styles.groupHeader}>
-                <div className={styles.dragHandle} {...attributes} {...listeners}>
+                <div
+                    className={styles.dragHandle}
+                    style={{ touchAction: 'none' }}
+                    {...attributes}
+                    {...listeners}
+                >
                     <span className={styles.dragIcon}>
                         <MenuIcon />
                     </span>

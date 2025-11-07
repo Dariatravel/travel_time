@@ -122,12 +122,12 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                     </Button>
                 </DialogTrigger>
 
-                <DialogContent className="max-w-6xl overflow-y-auto sm:max-w-4xl">
-                    <DialogHeader className="flex flex-row items-center justify-between">
-                        <DialogTitle className="text-xl font-semibold">{title}</DialogTitle>
+                <DialogContent className="flex w-[calc(100vw-2rem)] max-h-[88vh] flex-col overflow-hidden rounded-2xl p-4 shadow-lg sm:w-auto sm:max-w-4xl sm:p-6">
+                    <DialogHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                        <DialogTitle className="text-lg font-semibold sm:text-xl">{title}</DialogTitle>
                     </DialogHeader>
-                    <DialogDescription className="max-h-[70vh] overflow-y-auto">
-                        <div className="grid grid-cols-2 gap-2">
+                    <DialogDescription className="flex-1 overflow-y-auto pr-1 sm:pr-2">
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <FilterSection
                                 section={filters.city}
                                 onOptionToggle={handleOptionToggle}
@@ -161,20 +161,26 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                     </DialogDescription>
 
                     {/* Кнопки действий */}
-                    <DialogFooter>
+                    <DialogFooter className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">
                         <Button
                             variant="outline"
                             onClick={handleResetFilters}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="w-full text-muted-foreground hover:text-foreground sm:w-auto"
                         >
                             Сбросить фильтры
                         </Button>
 
-                        <div className="flex gap-3">
-                            <Button variant="outline" onClick={() => setIsOpen(false)}>
+                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                            <Button
+                                variant="outline"
+                                onClick={() => setIsOpen(false)}
+                                className="w-full sm:w-auto"
+                            >
                                 Отмена
                             </Button>
-                            <Button onClick={handleApplyFilters}>Применить фильтры</Button>
+                            <Button onClick={handleApplyFilters} className="w-full sm:w-auto">
+                                Применить фильтры
+                            </Button>
                         </div>
                     </DialogFooter>
                 </DialogContent>

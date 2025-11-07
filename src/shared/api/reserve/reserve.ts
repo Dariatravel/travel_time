@@ -1,11 +1,10 @@
 import { TABLE_NAMES } from '@/shared/api/const';
-import { HotelDTO, HotelRoomsReservesDTO, insertItem } from '@/shared/api/hotel/hotel';
+import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
 import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { InfiniteData, useMutation, useQueryClient } from '@tanstack/react-query';
-import { updateReserveInCache } from './reserveUtils';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 
 export type ReserveDTO = {
     id: string; // Уникальный идентификатор брони
@@ -92,38 +91,12 @@ export const useCreateReserve = (
 
     return useMutation({
         mutationFn: createReserveApi,
-        onMutate: async (newReserve) => {
-            if (!hotelId || !roomId) return { previousData: null };
-
-            // Отменяем текущие запросы для этого ключа, чтобы не перезаписать оптимистичное обновление
-            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
-
-            // Сохраняем предыдущее состояние на случай отката
-            const previousData = queryClient.getQueryData<
-                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
-            >(QUERY_KEYS.hotels);
-
-            // Оптимистично обновляем кэш
-            const optimisticReserve: ReserveDTO = {
-                id: `temp-${Date.now()}`, // Временный ID
-                ...newReserve,
-            };
-
-            updateReserveInCache(queryClient, optimisticReserve, hotelId, roomId, 'create');
-
-            return { previousData };
-        },
         onSuccess: async () => {
-            // После успешного создания обновляем данные из ответа API
-            // Оптимистичное обновление уже выполнено, поэтому можем просто вызвать callback
-            // В реальности можно получить созданную бронь из ответа API и обновить её в кэше
+            // Инвалидируем запросы для получения актуальных данных с сервера
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
             onSuccess?.();
         },
-        onError: (err, variables, context) => {
-            // Откатываем изменения в случае ошибки
-            if (context?.previousData) {
-                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
-            }
+        onError: (err) => {
             onError?.(err as Error);
         },
     });
@@ -139,31 +112,12 @@ export const useUpdateReserve = (
 
     return useMutation({
         mutationFn: updateReserveApi,
-        onMutate: async (updatedReserve) => {
-            if (!hotelId || !roomId || !updatedReserve.id) return { previousData: null };
-
-            // Отменяем текущие запросы
-            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
-
-            // Сохраняем предыдущее состояние
-            const previousData = queryClient.getQueryData<
-                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
-            >(QUERY_KEYS.hotels);
-
-            // Оптимистично обновляем кэш
-            updateReserveInCache(queryClient, updatedReserve, hotelId, roomId, 'update');
-
-            return { previousData };
-        },
         onSuccess: async () => {
-            // После успешного обновления данные уже обновлены оптимистично
+            // Инвалидируем запросы для получения актуальных данных с сервера
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
             onSuccess?.();
         },
-        onError: (err, variables, context) => {
-            // Откатываем изменения в случае ошибки
-            if (context?.previousData) {
-                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
-            }
+        onError: (err) => {
             onError?.(err as Error);
         },
     });
@@ -179,35 +133,12 @@ export const useDeleteReserve = (
 
     return useMutation({
         mutationFn: deleteReserveApi,
-        onMutate: async (reserveId) => {
-            if (!hotelId || !roomId || !reserveId) return { previousData: null };
-
-            // Отменяем текущие запросы
-            await queryClient.cancelQueries({ queryKey: QUERY_KEYS.hotels });
-
-            // Сохраняем предыдущее состояние
-            const previousData = queryClient.getQueryData<
-                InfiniteData<{ data: HotelRoomsReservesDTO[]; count: number }>
-            >(QUERY_KEYS.hotels);
-
-            // Оптимистично обновляем кэш - удаляем бронь
-            const deletedReserve: ReserveDTO = {
-                id: reserveId,
-            } as ReserveDTO;
-
-            updateReserveInCache(queryClient, deletedReserve, hotelId, roomId, 'delete');
-
-            return { previousData };
-        },
         onSuccess: async () => {
-            // После успешного удаления данные уже обновлены оптимистично
+            // Инвалидируем запросы для получения актуальных данных с сервера
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
             onSuccess?.();
         },
-        onError: (err, variables, context) => {
-            // Откатываем изменения в случае ошибки
-            if (context?.previousData) {
-                queryClient.setQueryData(QUERY_KEYS.hotels, context.previousData);
-            }
+        onError: (err) => {
             onError?.(err as Error);
         },
     });
@@ -251,8 +182,8 @@ export async function getReservesByHotels(
         const reservesMap = new Map<string, RoomReserves[]>();
 
         if (roomsData) {
-            roomsData.forEach((room: any) => {
-                const hotelId = room.hotel_id;
+            roomsData.forEach((room) => {
+                const hotelId = room.hotel_id as string;
                 if (!reservesMap.has(hotelId)) {
                     reservesMap.set(hotelId, []);
                 }
