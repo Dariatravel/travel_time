@@ -64,8 +64,10 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
         // Закрываем модальное окно после применения фильтров
         setIsOpen(false);
 
-        // Сбрасываем флаг сразу после закрытия
-        isApplyingRef.current = false;
+        // Сбрасываем флаг с небольшой задержкой, чтобы предотвратить повторное открытие
+        setTimeout(() => {
+            isApplyingRef.current = false;
+        }, 300);
     }, [filters, onFiltersChange]);
 
     const handleResetFilters = useCallback(() => {

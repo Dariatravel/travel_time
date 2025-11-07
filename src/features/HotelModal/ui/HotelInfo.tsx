@@ -1,4 +1,6 @@
 'use client';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormButtons, PhoneInput } from '@/shared';
@@ -11,6 +13,7 @@ import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
+import { Info } from 'lucide-react';
 import { FC, useCallback, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { FaTelegram } from 'react-icons/fa';
@@ -134,11 +137,17 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     const userOptions = useMemo(() => {
         return users?.map((user) =>
             adaptToOption({
-                title: `${translateUserRole(user?.role).toLowerCase()} ${user?.name} ${user?.surname}, ${user?.email}  `,
+                title: `${user?.surname} ${user?.name} `,
                 id: user?.sub,
             }),
         );
     }, [users]);
+
+    // Находим выбранного пользователя для отображения информации
+    const selectedUserId = watch('user_id')?.id;
+    const selectedUser = useMemo(() => {
+        return users?.find((user) => user.sub === selectedUserId);
+    }, [users, selectedUserId]);
 
     const telegramUrl = watch('telegram_url');
 
@@ -300,28 +309,92 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                             name="user_id"
                             control={control}
                             render={({ field, fieldState: { error } }) => (
-                                <FormSelect
-                                    label="Отельер"
-                                    required
-                                    error={error?.message}
-                                    value={field.value?.id}
-                                    onValueChange={(value) => {
-                                        const selectedUser = userOptions?.find(
-                                            (user) => user.id === value,
-                                        );
-                                        field.onChange(selectedUser);
-                                    }}
-                                    options={
-                                        userOptions?.map((user) => ({
-                                            value: user.id,
-                                            label: user.label,
-                                        })) || []
-                                    }
-                                    placeholder="Выберите отельера"
-                                    disabled={isLoading}
-                                    className={cx.fields}
-                                    htmlFor="user_id"
-                                />
+                                <div className="space-y-2 w-full">
+                                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                                        Отельер <span className="text-red-600">*</span>
+                                    </label>
+                                    <div className="flex items-start gap-2 w-full">
+                                        <div className="flex-1 min-w-0">
+                                            <FormSelect
+                                                label=""
+                                                required={false}
+                                                error={error?.message}
+                                                value={field.value?.id}
+                                                onValueChange={(value) => {
+                                                    const selectedUser = userOptions?.find(
+                                                        (user) => user.id === value,
+                                                    );
+                                                    field.onChange(selectedUser);
+                                                }}
+                                                options={
+                                                    userOptions?.map((user) => ({
+                                                        value: user.id,
+                                                        label: user.label,
+                                                    })) || []
+                                                }
+                                                placeholder="Выберите отельера"
+                                                disabled={isLoading}
+                                                className={cn(cx.fields, 'w-full')}
+                                                htmlFor="user_id"
+                                            />
+                                        </div>
+                                        {selectedUser && (
+                                            <Popover>
+                                                <PopoverTrigger asChild>
+                                                    <Button
+                                                        type="button"
+                                                        variant="ghost"
+                                                        size="icon"
+                                                        className="h-10 w-10 shrink-0"
+                                                    >
+                                                        <Info className="h-4 w-4" />
+                                                    </Button>
+                                                </PopoverTrigger>
+                                                <PopoverContent className="w-80">
+                                                    <div className="space-y-2">
+                                                        <h4 className="font-medium leading-none">
+                                                            Информация о пользователе
+                                                        </h4>
+                                                        <div className="text-sm space-y-1">
+                                                            <p>
+                                                                <span className="font-medium">
+                                                                    Имя:
+                                                                </span>{' '}
+                                                                {selectedUser.name}{' '}
+                                                                {selectedUser.surname}
+                                                            </p>
+                                                            <p>
+                                                                <span className="font-medium">
+                                                                    Email:
+                                                                </span>{' '}
+                                                                {selectedUser.email}
+                                                            </p>
+                                                            <p>
+                                                                <span className="font-medium">
+                                                                    Роль:
+                                                                </span>{' '}
+                                                                {translateUserRole(
+                                                                    selectedUser.role,
+                                                                )}
+                                                            </p>
+                                                            {selectedUser.phone && (
+                                                                <p>
+                                                                    <span className="font-medium">
+                                                                        Телефон:
+                                                                    </span>{' '}
+                                                                    {selectedUser.phone}
+                                                                </p>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                </PopoverContent>
+                                            </Popover>
+                                        )}
+                                    </div>
+                                    {error && (
+                                        <p className="text-sm text-red-600">{error.message}</p>
+                                    )}
+                                </div>
                             )}
                         />
                     </div>

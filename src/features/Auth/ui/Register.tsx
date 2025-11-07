@@ -11,8 +11,10 @@ import {
 } from '@/components/ui/select';
 import { PhoneInput } from '@/shared';
 import { RegisterProps, useRegister, UserRole } from '@/shared/api/auth/auth';
+import { routes, PagesEnum } from '@/shared/config/routes';
 import { translateUserRole } from '@/shared/lib/translateUser';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { useRouter } from 'next/navigation';
 import React from 'react';
 import { Controller, FormProvider, useForm } from 'react-hook-form';
 import styles from './style.module.css';
@@ -76,6 +78,7 @@ const validationRules = {
 };
 
 export const Register = () => {
+    const router = useRouter();
     const { isPending, mutateAsync } = useRegister();
 
     const form = useForm<RegisterFormData>({
@@ -87,6 +90,8 @@ export const Register = () => {
     const onSubmit = async (data: RegisterFormData) => {
         try {
             await mutateAsync({ ...data, role: data.role.id });
+            // После успешной регистрации перенаправляем на главную страницу
+            router.push(routes[PagesEnum.MAIN]);
         } catch (error) {
             console.error('Ошибка регистрации:', error);
         }

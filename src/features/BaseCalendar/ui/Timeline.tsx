@@ -72,7 +72,7 @@ export const Timeline = ({
     const timelineRef = useRef<TimelineComponent>(null);
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
 
-    const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 100 : 225);
+    const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 40 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({
@@ -235,32 +235,38 @@ export const Timeline = ({
                 <TimelineHeaders className={styles.calendarHeader}>
                     <SidebarHeader>
                         {({ getRootProps }) => {
+                            const IconSize = isMobile ? 8 : 24;
                             return (
                                 <div
                                     {...getRootProps()}
                                     className={cn(
                                         styles.calendarTitle,
-                                        'flex gap-2 flex-col items-start bg-transparent!',
+                                        'pl-2 flex gap-1 flex-col items-start bg-transparent!',
                                     )}
                                 >
-                                    <div className="flex gap-2 items-center">
+                                    <div className="flex gap-1 items-center">
                                         {onCreateRoom && (
-                                            <Button variant="link" onClick={onCreateRoom}>
-                                                <Plus size={24} />
+                                            <Button
+                                                className={'!p-1'}
+                                                variant="link"
+                                                onClick={onCreateRoom}
+                                            >
+                                                <Plus size={IconSize} />
                                             </Button>
                                         )}
                                         <Button
-                                            size="icon"
+                                            className={'!p-1'}
                                             variant="link"
                                             onClick={() => onZoomIn(currentUnit)}
                                         >
-                                            <ZoomIn size={48} />
+                                            <ZoomIn size={IconSize} />
                                         </Button>
                                         <Button
+                                            className={'!p-1'}
                                             variant="link"
                                             onClick={() => onZoomOut(currentUnit)}
                                         >
-                                            <ZoomOut size={24} />
+                                            <ZoomOut size={IconSize} />
                                         </Button>
                                     </div>
                                 </div>

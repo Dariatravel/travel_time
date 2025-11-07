@@ -167,6 +167,7 @@ export const useDeleteReserve = (
  */
 export async function getReservesByHotels(
     hotelIds: string[],
+    allowedRoomsByHotel?: Map<string, string[]>, // Карта hotel_id -> array of allowed room_ids
 ): Promise<Map<string, RoomReserves[]>> {
     try {
         // Фильтруем пустые и невалидные UUID
@@ -178,8 +179,19 @@ export async function getReservesByHotels(
             return new Map();
         }
 
-        // Получаем все номера для списка отелей с бронями
-        const { data: roomsData, error } = await supabase
+        console.log('getReservesByHotels', { allowedRoomsByHotel });
+        // Если есть фильтр по номерам, собираем все разрешённые room_ids
+        let allowedRoomIds: string[] | undefined;
+        if (allowedRoomsByHotel && allowedRoomsByHotel.size > 0) {
+            allowedRoomIds = [];
+            validHotelIds.forEach((hotelId) => {
+                const hotelRooms = allowedRoomsByHotel.get(hotelId) || [];
+                allowedRoomIds!.push(...hotelRooms);
+            });
+        }
+
+        // Получаем номера для списка отелей с бронями
+        const query = supabase
             .from('rooms')
             .select(
                 `
@@ -187,8 +199,16 @@ export async function getReservesByHotels(
                 reserves(*)
             `,
             )
-            .in('hotel_id', validHotelIds)
-            .order('order', { ascending: true, nullsFirst: false });
+            .in('hotel_id', validHotelIds);
+
+        // Если есть фильтр по конкретным номерам, применяем его
+        if (allowedRoomIds && allowedRoomIds.length > 0) {
+            query.in('id', allowedRoomIds);
+        }
+
+        query.order('order', { ascending: true, nullsFirst: false });
+
+        const { data: roomsData, error } = await query;
 
         if (error) {
             throw error;

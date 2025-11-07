@@ -13,7 +13,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
-import { VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
+import { getFeatureLabel, VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
 import { RoomDTO, useDeleteRoom } from '@/shared/api/room/room';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
@@ -29,7 +29,7 @@ import {
     useReactTable,
 } from '@tanstack/react-table';
 import cx from 'classnames';
-import { Bed, Edit, Search, Trash2, X } from 'lucide-react';
+import { Bed, Edit, Search, X } from 'lucide-react';
 import React, { useCallback, useMemo, useState } from 'react';
 
 /**
@@ -81,15 +81,6 @@ const MobileRoomCard: React.FC<{
                         >
                             <Edit className="h-4 w-4" />
                         </Button>
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => onDelete(room.id, room.title)}
-                            disabled={isDeleting}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        >
-                            <Trash2 className="h-4 w-4" />
-                        </Button>
                     </div>
                 </div>
             </CardHeader>
@@ -102,7 +93,7 @@ const MobileRoomCard: React.FC<{
                         <div className="flex flex-wrap gap-1">
                             {room.room_features.map((feature) => (
                                 <Badge key={feature} variant="outline" className="text-xs">
-                                    {feature}
+                                    {getFeatureLabel(feature)}
                                 </Badge>
                             ))}
                         </div>
@@ -130,11 +121,10 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
     const { isPending: isDeleting, mutateAsync: deleteRoom } = useDeleteRoom(
         hotelId, // hotelId
         () => {
-            if (hotelId) {
-                queryClient.invalidateQueries({
-                    queryKey: [...QUERY_KEYS.roomsByHotel, hotelId],
-                });
-            }
+            console.log('onSuccess deleteRoom', hotelId);
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotelById],
+            });
             showToast('Номер успешно удален', 'success');
         },
     );

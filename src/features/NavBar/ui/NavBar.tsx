@@ -20,7 +20,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { User } from '@/shared';
-import { ChevronDownIcon, HamburgerIcon } from 'lucide-react';
+import { ChevronDownIcon, HamburgerIcon, MenuIcon } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -113,6 +113,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
         ref,
     ) => {
         const [isMobile, setIsMobile] = useState(false);
+        const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
         const containerRef = useRef<HTMLElement>(null);
         const pathname = usePathname();
 
@@ -166,14 +167,14 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                     <div className="flex flex-1 items-center gap-2">
                         {/* Mobile menu trigger */}
                         {isMobile && (
-                            <Popover>
+                            <Popover open={isMobileMenuOpen} onOpenChange={setIsMobileMenuOpen}>
                                 <PopoverTrigger asChild>
                                     <Button
                                         className="group h-8 w-8 hover:bg-accent hover:text-accent-foreground"
                                         variant="ghost"
                                         size="icon"
                                     >
-                                        <HamburgerIcon />
+                                        <MenuIcon />
                                     </Button>
                                 </PopoverTrigger>
                                 <PopoverContent align="start" className="w-64 p-1">
@@ -207,6 +208,9 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                                                             // className={`${cx.link} ${isActive ? cx.active : ''}`}
                                                             key={index}
                                                             prefetch={false}
+                                                            onClick={() =>
+                                                                setIsMobileMenuOpen(false)
+                                                            }
                                                         >
                                                             <Icon
                                                                 size={16}

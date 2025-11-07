@@ -3,6 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { AuthProps, useLogin } from '@/shared/api/auth/auth';
+import { routes, PagesEnum } from '@/shared/config/routes';
+import { useRouter } from 'next/navigation';
 import React from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import styles from './style.module.css';
@@ -35,6 +37,7 @@ const validationRules = {
 };
 
 export const Login = () => {
+    const router = useRouter();
     const { mutateAsync, isPending } = useLogin();
 
     const { control, handleSubmit } = useForm<AuthProps>({
@@ -45,6 +48,8 @@ export const Login = () => {
     const onSubmit = async (data: AuthProps) => {
         try {
             await mutateAsync(data);
+            // После успешного входа перенаправляем на главную страницу
+            router.push(routes[PagesEnum.MAIN]);
         } catch (error) {
             console.error('Ошибка входа:', error);
         }

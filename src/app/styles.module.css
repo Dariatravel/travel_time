@@ -3,8 +3,8 @@
     background-size: cover;
     background-position: center;
     background-repeat: no-repeat;
+    background-attachment: fixed; /* Фиксируем фон при скролле */
     width: 100%;
-    /* min-height: 100vh; */
+    min-height: 100vh; /* Минимальная высота на весь экран */
     position: relative;
-    /* z-index: -1; */
 }

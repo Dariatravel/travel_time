@@ -15,11 +15,9 @@ import { Room, RoomDTO, useCreateRoom, useUpdateRoomOrder } from '@/shared/api/r
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
-import { $isMobile } from '@/shared/models/mobile';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useQueryClient } from '@tanstack/react-query';
-import { useUnit } from 'effector-react/compat';
 import { Id } from 'my-react-calendar-timeline';
 
 import { cn } from '@/lib/utils';
@@ -27,28 +25,31 @@ import moment from 'moment';
 import { useCallback, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
 import cx from './style.module.scss';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 
 export interface CalendarProps {
     hotel: HotelRoomsReservesDTO;
     onHotelClick?: (hotel_id: string) => void;
     onRoomClick?: (room: RoomDTO) => void;
+    isLoading?: boolean;
 }
 
-export const Calendar = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) => {
-    const [isMobile] = useUnit([$isMobile]);
+export const Calendar = ({ hotel, onHotelClick, onRoomClick, isLoading }: CalendarProps) => {
+    const { isMobile } = useScreenSize();
     const queryClient = useQueryClient();
 
     // Используем данные из пропсов вместо отдельного запроса
     // Мемоизируем для оптимизации производительности
     // Сортируем номера по полю order
-    const data = useMemo(() => {
+    const getData = () => {
         const rooms = hotel.rooms || [];
         return [...rooms].sort((a, b) => {
             const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
             const orderB = b.order ?? 999;
             return orderA - orderB;
         });
-    }, [hotel.rooms]);
+    };
+    const data = getData();
 
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
@@ -227,9 +228,10 @@ export const Calendar = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) =>
         setIsRoomOpen(true);
     };
 
-    const sidebarWidth = useMemo(() => (isMobile ? 72 : 190), [isMobile]);
+    const sidebarWidth = useMemo(() => (isMobile ? 100 : 190), [isMobile]);
 
-    const isLoading = isRoomCreating || isUpdatingOrder;
+    console.log('sidebarWidth', sidebarWidth);
+    const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;
     const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
 
     // Возвращаем null только если данные загружены, но пустые
@@ -261,10 +263,11 @@ export const Calendar = ({ hotel, onHotelClick, onRoomClick }: CalendarProps) =>
         <div style={{ position: 'relative' }} className="p-0">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 <div className={cn(cx.calendarContainer, 'relative')}>
-                    {(reserveLoading || isLoading) && <FullWidthLoader />}
+                    {(reserveLoading || isLoadingCalendar) && <FullWidthLoader />}
                     <div
                         className={cn(
-                            (reserveLoading || isLoading) && 'opacity-50 pointer-events-none',
+                            (reserveLoading || isLoadingCalendar) &&
+                                'opacity-50 pointer-events-none',
                         )}
                     >
                         <Timeline

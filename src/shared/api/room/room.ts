@@ -225,6 +225,7 @@ export const useDeleteRoom = (
     return useMutation({
         mutationFn: deleteRoomApi,
         onSuccess: async (data, variables) => {
+            console.log('onSuccess deleteRoom', data, variables);
             // Точечная инвалидация: обновляем только конкретный отель
             const id = hotelId || variables;
             if (id) {
@@ -232,6 +233,9 @@ export const useDeleteRoom = (
                     queryKey: QUERY_KEYS.hotelDetail(id),
                 });
             }
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotelById],
+            });
             onSuccess?.();
         },
         onError,

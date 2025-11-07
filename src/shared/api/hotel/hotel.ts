@@ -138,13 +138,14 @@ export async function getAllHotels(
                     // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
                     if (filter?.freeHotels && hotel.id) {
                         const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
-                        if (allowedRoomIds.length > 0) {
-                            filteredRooms = filteredRooms.filter((room: any) =>
-                                allowedRoomIds.includes(room.id),
-                            );
-                        }
+                        // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                        // Пустой массив означает, что в отеле нет свободных номеров
+                        filteredRooms = filteredRooms.filter((room: any) =>
+                            allowedRoomIds.includes(room.id),
+                        );
                     }
 
+                    console.log(`${hotel.title}`, { rooms: hotel.rooms, filteredRooms });
                     return {
                         ...hotel,
                         rooms:
@@ -155,6 +156,7 @@ export async function getAllHotels(
                     };
                 }) || [];
 
+            console.log('getAllHotels', { data });
             return {
                 data,
                 count: response.count || 0,
@@ -199,11 +201,11 @@ export async function getAllHotels(
                 // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
                 if (filter?.freeHotels && hotel.id) {
                     const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
-                    if (allowedRoomIds.length > 0) {
-                        filteredRooms = filteredRooms.filter((room: any) =>
-                            allowedRoomIds.includes(room.id),
-                        );
-                    }
+                    // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                    // Пустой массив означает, что в отеле нет свободных номеров
+                    filteredRooms = filteredRooms.filter((room: any) =>
+                        allowedRoomIds.includes(room.id),
+                    );
                 }
 
                 // Сортируем номера по полю order перед маппингом
@@ -270,11 +272,11 @@ export async function getAllHotelsWithEmptyRooms(
                 // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
                 if (filter?.freeHotels && hotel.id) {
                     const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
-                    if (allowedRoomIds.length > 0) {
-                        filteredRooms = filteredRooms.filter((room: any) =>
-                            allowedRoomIds.includes(room.id),
-                        );
-                    }
+                    // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                    // Пустой массив означает, что в отеле нет свободных номеров
+                    filteredRooms = filteredRooms.filter((room: any) =>
+                        allowedRoomIds.includes(room.id),
+                    );
                 }
 
                 // Сортируем номера по полю order перед маппингом
@@ -355,59 +357,31 @@ export const useInfiniteHotelsQuery = (
                 ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
                 : await getAllHotels(filter, pageParam as number, limit);
 
-            // Если есть отели, загружаем брони параллельно
-            if (result.data && result.data.length > 0) {
-                // Фильтруем пустые и невалидные UUID перед запросом
-                const hotelIds = result.data
-                    .map((hotel) => hotel.id)
-                    .filter((id) => id && typeof id === 'string' && id.trim() !== '');
+            console.log('useInfiniteHotelsQuery', { result, filter });
 
-                const reservesMap =
-                    hotelIds.length > 0
-                        ? await getReservesByHotels(hotelIds)
-                        : new Map<string, RoomReserves[]>();
-
-                // Объединяем данные отелей с бронями
-                const hotelsWithReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
-                    const roomsReserves = reservesMap.get(hotel.id) || [];
-                    // Преобразуем RoomDTO[] в RoomReserves[] если нужно
-                    const rooms = hotel.rooms.map((room) => {
-                        const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
-                        return (
-                            roomWithReserves || {
-                                ...room,
-                                reserves: [],
-                            }
-                        );
-                    });
-                    // Сортируем номера по полю order
-                    const sortedRooms = [...rooms].sort((a, b) => {
-                        const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
-                        const orderB = b.order ?? 999;
-                        return orderA - orderB;
-                    });
-                    return {
-                        ...hotel,
-                        rooms: sortedRooms,
-                    };
+            // Возвращаем отели с номерами БЕЗ броней
+            // Брони будут загружены в HotelCard через useHotelDetailQuery
+            const hotelsWithEmptyReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
+                // Сортируем номера по полю order
+                const sortedRooms = [...hotel.rooms].sort((a, b) => {
+                    const orderA = a.order ?? 999;
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
                 });
 
                 return {
-                    ...result,
-                    data: hotelsWithReserves,
+                    ...hotel,
+                    rooms: sortedRooms.map((room) => ({
+                        ...room,
+                        reserves: [], // Пустой массив - брони загрузятся отдельно
+                    })),
                 };
-            }
+            });
 
-            // Если нет данных, возвращаем с пустыми бронями для соответствия типу
+            console.log('useInfiniteHotelsQueryEND', { hotelsWithEmptyReserves });
             return {
                 ...result,
-                data: result.data.map((hotel) => ({
-                    ...hotel,
-                    rooms: hotel.rooms.map((room) => ({
-                        ...room,
-                        reserves: [],
-                    })),
-                })),
+                data: hotelsWithEmptyReserves,
             };
         },
         initialPageParam: 0,
@@ -479,9 +453,13 @@ export const getHotelById = async (id: string) => {
  * Получение детальных данных конкретного отеля со всеми номерами и бронями
  * Используется для отображения календаря конкретного отеля
  * @param hotelId - ID отеля
+ * @param allowedRooms - Массив разрешённых ID номеров для фильтрации (опционально)
  * @returns Отель с полными данными о номерах и бронях
  */
-export const getHotelDetail = async (hotelId: string): Promise<HotelRoomsReservesDTO> => {
+export const getHotelDetail = async (
+    hotelId: string,
+    allowedRooms?: string[],
+): Promise<HotelRoomsReservesDTO> => {
     try {
         // Загружаем базовую информацию об отеле и его номерах
         const { data: hotelData, error: hotelError } = await supabase
@@ -493,12 +471,25 @@ export const getHotelDetail = async (hotelId: string): Promise<HotelRoomsReserve
         if (hotelError) throw hotelError;
         if (!hotelData) throw new Error(`Hotel with id ${hotelId} not found`);
 
+        // Фильтруем номера по allowedRooms, если они переданы
+        let filteredRooms = hotelData.rooms || [];
+        if (allowedRooms && allowedRooms.length > 0) {
+            filteredRooms = filteredRooms.filter((room: any) => allowedRooms.includes(room.id));
+        } else if (allowedRooms && allowedRooms.length === 0) {
+            // Если allowedRooms пустой массив, значит нет доступных номеров
+            filteredRooms = [];
+        }
+
         // Загружаем брони для номеров этого отеля
-        const reservesMap = await getReservesByHotels([hotelId]);
+        // Передаём allowedRooms через Map для фильтрации в getReservesByHotels
+        const allowedRoomsByHotel = allowedRooms
+            ? new Map<string, string[]>([[hotelId, allowedRooms]])
+            : undefined;
+        const reservesMap = await getReservesByHotels([hotelId], allowedRoomsByHotel);
         const roomsReserves = reservesMap.get(hotelId) || [];
 
         // Объединяем данные номеров с бронями
-        const rooms: RoomReserves[] = (hotelData.rooms || []).map((room: any) => {
+        const rooms: RoomReserves[] = filteredRooms.map((room: any) => {
             const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
             return (
                 roomWithReserves || {
@@ -529,14 +520,24 @@ export const getHotelDetail = async (hotelId: string): Promise<HotelRoomsReserve
  * Хук для получения детальных данных конкретного отеля
  * Автоматически обновляется при изменении броней/номеров этого отеля
  * @param hotelId - ID отеля
+ * @param allowedRooms - Массив разрешённых ID номеров для фильтрации (опционально)
  * @param enabled - включен ли запрос (по умолчанию true если есть hotelId)
  */
-export const useHotelDetailQuery = (hotelId?: string, enabled: boolean = true) => {
+export const useHotelDetailQuery = (
+    hotelId?: string,
+    allowedRooms?: string[],
+    enabled: boolean = true,
+) => {
     return useQuery({
-        queryKey: hotelId ? QUERY_KEYS.hotelDetail(hotelId) : ['hotels', 'detail', 'null'],
+        queryKey: hotelId
+            ? [
+                  ...QUERY_KEYS.hotelDetail(hotelId),
+                  allowedRooms ? allowedRooms.slice().sort().join(',') : 'all', // Сортируем для стабильности queryKey
+              ]
+            : ['hotels', 'detail', 'null'],
         queryFn: () => {
             if (!hotelId) throw new Error('Hotel ID is required');
-            return getHotelDetail(hotelId);
+            return getHotelDetail(hotelId, allowedRooms);
         },
         enabled: enabled && !!hotelId,
         placeholderData: keepPreviousData, // Сохраняем предыдущие данные во время загрузки

@@ -479,7 +479,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                 render={({ field, fieldState: { error } }) => (
                                     <div className="space-y-2">
                                         <Label htmlFor="quantity">
-                                            Количество человек{' '}
+                                            Кол-во
                                             <span className="text-red-500">*</span>
                                         </Label>
                                         <Input

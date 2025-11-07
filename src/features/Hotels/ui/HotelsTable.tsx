@@ -15,7 +15,7 @@ import {
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { getValueLabel } from '@/features/AdvancedFilters/lib/constants';
 import { HotelRoomsDTO, useDeleteHotel } from '@/shared/api/hotel/hotel';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
+import { queryClient } from '@/shared/config/reactQuery';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -239,8 +239,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
         () => [
             {
                 accessorKey: 'title',
-                size: 300,
-                enableResizing: true,
+                size: 250,
+                minSize: 250,
+                maxSize: 250,
+                enableResizing: false,
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -271,6 +273,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 accessorKey: 'city',
+                size: 150,
+                minSize: 150,
+                maxSize: 150,
+                enableResizing: false,
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -287,6 +293,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 accessorKey: 'type',
+                size: 120,
+                minSize: 120,
+                maxSize: 120,
+                enableResizing: false,
                 header: ({ column }) => (
                     <Button
                         variant="ghost"
@@ -303,6 +313,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
 
             {
                 accessorKey: 'address',
+                size: 200,
+                minSize: 200,
+                maxSize: 200,
+                enableResizing: false,
                 header: 'Адрес',
                 cell: ({ row }) => (
                     <TooltipProvider>
@@ -321,6 +335,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 accessorKey: 'phone',
+                size: 150,
+                minSize: 150,
+                maxSize: 150,
+                enableResizing: false,
                 header: () => (
                     <div className="flex items-center gap-1 min-w-[125px] max-w-[125px]">
                         <Phone className="w-4 h-4" />
@@ -331,6 +349,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 id: 'rooms',
+                size: 100,
+                minSize: 100,
+                maxSize: 100,
+                enableResizing: false,
                 header: 'Номера',
                 cell: ({ row }) => (
                     <Badge variant="outline">
@@ -340,6 +362,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 id: 'features',
+                size: 180,
+                minSize: 180,
+                maxSize: 180,
+                enableResizing: false,
                 header: 'Особенности',
                 cell: ({ row }) => (
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
@@ -358,6 +384,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 id: 'eat',
+                size: 150,
+                minSize: 150,
+                maxSize: 150,
+                enableResizing: false,
                 header: 'Питание',
                 cell: ({ row }) => (
                     <div className="flex flex-wrap gap-1 max-w-[200px]">
@@ -376,6 +406,10 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             },
             {
                 id: 'actions',
+                size: 120,
+                minSize: 120,
+                maxSize: 120,
+                enableResizing: false,
                 header: () => <div className="text-right">Действия</div>,
                 cell: ({ row }) => (
                     <div className="flex justify-end gap-2">

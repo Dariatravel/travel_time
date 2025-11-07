@@ -27,7 +27,7 @@ import { useUnit } from 'effector-react/compat';
 import { MapPin } from 'lucide-react';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import './calendar.scss';
 import cx from './page.module.css';
 
@@ -40,6 +40,7 @@ const HotelCard = ({
     onHotelInfoClick,
     onRoomClick,
     measureElement,
+    allowedRooms,
 }: {
     virtualItem: { index: number; start: number; size: number };
     hotel: HotelRoomsReservesDTO;
@@ -48,11 +49,16 @@ const HotelCard = ({
     onHotelInfoClick?: (hotel: HotelRoomsReservesDTO) => void;
     onRoomClick?: (room: RoomDTO, hotel: HotelRoomsReservesDTO) => void;
     measureElement: (element: Element | null) => void;
+    allowedRooms?: string[];
 }) => {
     const elementRef = useRef<HTMLDivElement>(null);
 
     // Загружаем детальные данные конкретного отеля (с автообновлением при изменениях)
-    const { data: hotelDetail } = useHotelDetailQuery(hotel.id);
+    // Передаём allowedRooms для фильтрации номеров
+    const { data: hotelDetail, isLoading: isHotelDetailLoading } = useHotelDetailQuery(
+        hotel.id,
+        allowedRooms,
+    );
 
     // Используем детальные данные если они загружены, иначе базовые из списка
     const hotelData = hotelDetail || hotel;
@@ -87,9 +93,9 @@ const HotelCard = ({
                 transform: `translateY(${virtualItem.start}px)`,
                 willChange: 'transform', // Оптимизация для GPU
             }}
-            className="px-1 pb-3 sm:px-2"
+            className="p-0"
         >
-            <Card className="h-full border border-border/60 shadow-sm">
+            <Card className="h-full p-0">
                 <CardHeader className="p-0">
                     <CardTitle>
                         <div className="space-y-2 p-3 sm:p-4">
@@ -146,6 +152,7 @@ const HotelCard = ({
                 </CardHeader>
                 <CardContent className="p-0">
                     <Calendar
+                        isLoading={isHotelDetailLoading}
                         hotel={hotelData}
                         onHotelClick={onHotelClick}
                         onRoomClick={(room) => {
@@ -178,12 +185,10 @@ export default function Home() {
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
-    const hotels = useMemo(() => data?.pages.flatMap((page) => page.data) ?? [], [data]);
-    const hotelsWithRooms = useMemo(
-        () => hotels.filter((hotel) => hotel?.rooms?.length > 0),
-        [hotels],
-    );
+    const hotels = data?.pages.flatMap((page) => page.data) ?? [];
+    const hotelsWithRooms = hotels?.filter((hotel) => hotel?.rooms?.length > 0);
 
+    console.log({ data, hotels, hotelsWithRooms });
     // Виртуализатор для списка календарей с динамической высотой
     const virtualizer = useWindowVirtualizer({
         count: hotelsWithRooms.length,
@@ -361,6 +366,10 @@ export default function Home() {
                     {virtualizer.getVirtualItems().map((virtualItem) => {
                         const hotel = hotelsWithRooms[virtualItem.index];
                         if (!hotel) return null;
+
+                        // Извлекаем разрешённые номера для этого отеля из фильтра
+                        const allowedRooms = filter?.freeHotels?.get(hotel.id);
+
                         return (
                             <HotelCard
                                 key={hotel.id}
@@ -371,6 +380,7 @@ export default function Home() {
                                 measureElement={virtualizer.measureElement}
                                 onHotelInfoClick={onHotelInfoClick}
                                 onRoomClick={onRoomClick}
+                                allowedRooms={allowedRooms}
                             />
                         );
                     })}

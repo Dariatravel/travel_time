@@ -279,7 +279,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     render={({ field, fieldState: { error } }) => (
                                         <div className="space-y-2">
                                             <Label htmlFor="quantity">
-                                                Вместимость <span className="text-red-500">*</span>
+                                                Кол-во <span className="text-red-500">*</span>
                                             </Label>
                                             <Input
                                                 {...field}

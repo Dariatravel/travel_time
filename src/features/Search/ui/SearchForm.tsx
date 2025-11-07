@@ -19,7 +19,7 @@ import {
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
-import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { useDeviceDetection } from '@/shared/lib/useDeviceDetection';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
 import {
     $hotelsFilter,
@@ -75,7 +75,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const { data: hotels } = useGetHotelsForRoom();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
     const filter = useUnitCompat($hotelsFilter);
-    const { isMobile } = useScreenSize();
+    const { isMobile, isTablet } = useDeviceDetection();
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
     const [isInitialized, setIsInitialized] = useState(false);
 
@@ -173,10 +173,19 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         }
 
         setIsInitialized(true);
+
+        // Если есть фильтры в URL, автоматически выполняем поиск
+        if (Object.keys(filterValues).length > 0) {
+            // Используем setTimeout, чтобы форма успела обновиться
+            setTimeout(() => {
+                handleSubmit(onSearch)();
+            }, 100);
+        }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hotels, isInitialized]); // Зависимость от hotels и isInitialized
 
     useEffect(() => {
+        // Сворачиваем форму только на мобильных и планшетах
         if (isMobile) {
             setIsMobileFiltersOpen(false);
         } else {
@@ -470,28 +479,35 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                     )}
                                 />
                             </div>
-                            <Button
-                                type="button"
-                                variant="secondary"
-                                size="icon"
-                                className="h-10 w-10 shrink-0 rounded-full sm:hidden "
-                                onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
-                                aria-label="Показать дополнительные фильтры"
-                            >
-                                <ChevronDown
-                                    className={cn(
-                                        'h-4 w-4 transition-transform duration-200',
-                                        isMobileFiltersOpen && 'rotate-180',
-                                    )}
-                                />
-                            </Button>
+                            {/* Кнопка сворачивания только на мобильных и планшетах */}
+                            {(isMobile || isTablet) && (
+                                <Button
+                                    type="button"
+                                    variant="secondary"
+                                    size="icon"
+                                    className="h-10 w-10 shrink-0 rounded-full"
+                                    onClick={() => setIsMobileFiltersOpen((prev) => !prev)}
+                                    aria-label="Показать дополнительные фильтры"
+                                >
+                                    <ChevronDown
+                                        className={cn(
+                                            'h-4 w-4 transition-transform duration-200',
+                                            isMobileFiltersOpen && 'rotate-180',
+                                        )}
+                                    />
+                                </Button>
+                            )}
                         </div>
 
                         <div
                             className={cn(
                                 'flex w-full flex-col gap-3 sm:flex-1 sm:flex-row sm:flex-wrap sm:items-end sm:gap-4',
+                                'transition-all duration-300 ease-in-out',
                                 styles.container,
-                                isMobile && !isMobileFiltersOpen && 'hidden',
+                                // На мобильных и планшетах - плавное раскрытие/сворачивание
+                                (isMobile || isTablet) && !isMobileFiltersOpen
+                                    ? 'max-h-0 overflow-hidden opacity-0'
+                                    : 'max-h-[2000px] opacity-100',
                             )}
                         >
                             {/* Период бронирования */}
