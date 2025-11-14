@@ -46,6 +46,7 @@ export const TravelDialog: FC<TravelDialogProps> = ({
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
             <DialogContent
+                onOpenAutoFocus={(event) => event.preventDefault()}
                 className={cn(
                     // Базовые стили для мобильных (full-screen)
                     'top-0 translate-y-2 max-h-[calc(100svh-2rem)] max-h-[calc(100dvh-2rem)] min-w-[calc(100vw-2rem)] overflow-y-auto flex-col p-1',
