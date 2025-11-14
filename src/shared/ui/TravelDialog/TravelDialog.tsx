@@ -48,7 +48,7 @@ export const TravelDialog: FC<TravelDialogProps> = ({
             <DialogContent
                 className={cn(
                     // Базовые стили для мобильных (full-screen)
-                    'top-0 translate-y-2 max-h-[calc(100vh-2rem)] min-w-[calc(100vw-2rem)] overflow-y-auto flex-col p-1',
+                    'top-0 translate-y-2 max-h-[calc(100svh-2rem)] max-h-[calc(100dvh-2rem)] min-w-[calc(100vw-2rem)] overflow-y-auto flex-col p-1',
                     // Стили для десктопа
                     'sm:top-[50%] sm:translate-y-[-50%] sm:h-auto sm:max-h-[90vh] sm:w-auto sm:max-w-2xl sm:min-w-auto sm:rounded-xl sm:p-4',
                     className,
