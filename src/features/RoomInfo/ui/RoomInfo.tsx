@@ -1,4 +1,3 @@
-import { FormTitle } from '@/components/ui/form-title';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -146,8 +145,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     };
 
     return (
-        <div className={cx.container}>
-            <FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>
+        <>
             <Form {...form}>
                 <form
                 // onSubmit={(e) => {
@@ -331,6 +329,6 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                     </div>
                 </form>
             </Form>
-        </div>
+        </>
     );
 };

@@ -1,5 +1,6 @@
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { FormTitle } from '@/components/ui/form-title';
 import { ReserveInfo } from '@/features/ReserveInfo/ui/ReserveInfo';
+import { TravelDialog } from '@/shared';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { FC } from 'react';
 
@@ -21,8 +22,11 @@ export const ReserveModal: FC<ReserveModalProps> = ({
     isLoading = false,
 }: ReserveModalProps) => {
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-h-[93vh]  min-h-[93vh] md:max-h-[93vh] md:min-h-auto  overflow-y-auto rounded-2xl px-4 py-4 sm:w-auto sm:max-w-4xl sm:px-6 sm:py-5">
+        <TravelDialog
+            isOpen={isOpen}
+            onClose={onClose}
+            title={<FormTitle>Бронирование</FormTitle>}
+            description={
                 <ReserveInfo
                     isEdit={!!currentReserve?.reserve?.id}
                     onClose={onClose}
@@ -32,7 +36,7 @@ export const ReserveModal: FC<ReserveModalProps> = ({
                     isLoading={isLoading}
                     isOpen={isOpen}
                 />
-            </DialogContent>
-        </Dialog>
+            }
+        />
     );
 };

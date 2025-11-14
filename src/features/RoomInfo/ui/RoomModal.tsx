@@ -1,5 +1,6 @@
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { FormTitle } from '@/components/ui/form-title';
 import { RoomInfo } from '@/features/RoomInfo/ui/RoomInfo';
+import { TravelDialog } from '@/shared';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, useCreateRoom, useDeleteRoom, useUpdateRoom } from '@/shared/api/room/room';
 import { devLog } from '@/shared/lib/logger';
@@ -60,8 +61,11 @@ export const RoomModal: FC<RoomModalProps> = ({
     const isEdit = !!currentReserve?.room?.id;
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="w-[calc(100vw-2rem)] max-h-[93vh]  min-h-[93vh] md:max-h-[93vh] md:min-h-auto  overflow-y-auto rounded-2xl px-4 py-4 sm:w-auto sm:max-w-4xl sm:px-6 sm:py-5">
+        <TravelDialog
+            isOpen={isOpen}
+            onClose={onClose}
+            title={<FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>}
+            description={
                 <RoomInfo
                     onClose={onClose}
                     currentReserve={currentReserve}
@@ -74,7 +78,7 @@ export const RoomModal: FC<RoomModalProps> = ({
                     isLoading={loading}
                     isEdit={isEdit}
                 />
-            </DialogContent>
-        </Dialog>
+            }
+        />
     );
 };

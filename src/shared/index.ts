@@ -6,3 +6,5 @@ export { Datepicker } from './ui/Datepicker/Datepicker';
 export { FormButtons } from './ui/FormButtons/FormButtons';
 export { FullWidthLoader, Loader } from './ui/Loader/Loader';
 export { PhoneInput } from './ui/PhoneInput/PhoneInput';
+export { TravelDialog } from './ui/TravelDialog';
+export type { TravelDialogProps } from './ui/TravelDialog';

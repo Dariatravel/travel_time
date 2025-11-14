@@ -6,5 +6,13 @@
     background-attachment: fixed; /* Фиксируем фон при скролле */
     width: 100%;
     min-height: 100vh; /* Минимальная высота на весь экран */
+    height: 100%;
     position: relative;
+}
+
+/* Для мобильных устройств используем scroll вместо fixed для лучшей производительности */
+@media (max-width: 768px) {
+    .layout {
+        background-attachment: scroll;
+    }
 }

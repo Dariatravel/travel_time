@@ -1,14 +1,7 @@
 'use client';
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogFooter,
-    DialogHeader,
-    DialogTitle,
-    DialogTrigger,
-} from '@/components/ui/dialog';
+import { Dialog, DialogTrigger } from '@/components/ui/dialog';
+import { TravelDialog } from '@/shared';
 import cx from 'classnames';
 import { useUnit } from 'effector-react';
 import { Filter } from 'lucide-react';
@@ -123,11 +116,12 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                     </Button>
                 </DialogTrigger>
 
-                <DialogContent className="flex w-[calc(100vw-2rem)] max-h-[88vh] flex-col overflow-hidden rounded-2xl p-4 shadow-lg sm:w-auto sm:max-w-4xl sm:p-6">
-                    <DialogHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                        <DialogTitle className="text-lg font-semibold sm:text-xl">{title}</DialogTitle>
-                    </DialogHeader>
-                    <DialogDescription className="flex-1 overflow-y-auto pr-1 sm:pr-2">
+                <TravelDialog
+                    isOpen={isOpen}
+                    onClose={() => handleOpenChange(false)}
+                    contentClassName="sm:max-w-4xl"
+                    title={<span className="text-lg font-semibold sm:text-xl">{title}</span>}
+                    description={
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                             <FilterSection
                                 section={filters.city}
@@ -158,33 +152,33 @@ export const AdvancedFilters: React.FC<AdvancedFiltersProps> = ({
                                 onOptionToggle={handleOptionToggle}
                             />
                         </div>
-                        {/* </div> */}
-                    </DialogDescription>
-
-                    {/* Кнопки действий */}
-                    <DialogFooter className="flex flex-col gap-2 pt-4 sm:flex-row sm:justify-end">
-                        <Button
-                            variant="outline"
-                            onClick={handleResetFilters}
-                            className="w-full text-muted-foreground hover:text-foreground sm:w-auto"
-                        >
-                            Сбросить фильтры
-                        </Button>
-
-                        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                    }
+                    descriptionClassName="pr-1 sm:pr-2"
+                    footer={
+                        <>
                             <Button
                                 variant="outline"
-                                onClick={() => setIsOpen(false)}
-                                className="w-full sm:w-auto"
+                                onClick={handleResetFilters}
+                                className="w-full text-muted-foreground hover:text-foreground sm:w-auto"
                             >
-                                Отмена
+                                Сбросить фильтры
                             </Button>
-                            <Button onClick={handleApplyFilters} className="w-full sm:w-auto">
-                                Применить фильтры
-                            </Button>
-                        </div>
-                    </DialogFooter>
-                </DialogContent>
+
+                            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+                                <Button
+                                    variant="outline"
+                                    onClick={() => setIsOpen(false)}
+                                    className="w-full sm:w-auto"
+                                >
+                                    Отмена
+                                </Button>
+                                <Button onClick={handleApplyFilters} className="w-full sm:w-auto">
+                                    Применить фильтры
+                                </Button>
+                            </div>
+                        </>
+                    }
+                />
             </Dialog>
         </>
     );

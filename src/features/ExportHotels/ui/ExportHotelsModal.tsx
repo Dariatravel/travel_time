@@ -1,14 +1,8 @@
 'use client';
 
 import { Button } from '@/components/ui/button';
-import {
-    Dialog,
-    DialogContent,
-    DialogDescription,
-    DialogHeader,
-    DialogTitle,
-} from '@/components/ui/dialog';
 import { FreeHotelsDTO, HotelForRoom } from '@/shared/api/hotel/hotel';
+import { TravelDialog } from '@/shared';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { Check, Copy } from 'lucide-react';
 import { FC, useEffect, useMemo, useState } from 'react';
@@ -64,35 +58,35 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
 
     if (hotels.length === 0) {
         return (
-            <Dialog open={isOpen} onOpenChange={onClose}>
-                <DialogContent className="max-w-2xl">
-                    <DialogHeader>
-                        <DialogTitle>Экспорт списка отелей</DialogTitle>
-                        <DialogDescription>
-                            Нет доступных отелей для экспорта. Пожалуйста, выполните поиск.
-                        </DialogDescription>
-                    </DialogHeader>
-                    <div className="flex justify-end">
-                        <Button onClick={onClose} variant="outline">
-                            Закрыть
-                        </Button>
-                    </div>
-                </DialogContent>
-            </Dialog>
+            <TravelDialog
+                isOpen={isOpen}
+                onClose={onClose}
+                title="Экспорт списка отелей"
+                description={
+                    <p className="text-sm text-muted-foreground">
+                        Нет доступных отелей для экспорта. Пожалуйста, выполните поиск.
+                    </p>
+                }
+                footer={
+                    <Button onClick={onClose} variant="outline">
+                        Закрыть
+                    </Button>
+                }
+            />
         );
     }
 
     return (
-        <Dialog open={isOpen} onOpenChange={onClose}>
-            <DialogContent className="sm:min-w-2xl sm:max-w-2xl max-w-4xl min-w-4xl  max-h-[80vh]  flex flex-col">
-                <DialogHeader>
-                    <DialogTitle>Экспорт списка отелей</DialogTitle>
-                    <DialogDescription>
+        <TravelDialog
+            isOpen={isOpen}
+            onClose={onClose}
+            contentClassName="sm:max-w-4xl"
+            title="Экспорт списка отелей"
+            description={
+                <>
+                    <p className="mb-4 text-sm text-muted-foreground">
                         Список отелей для отправки в Telegram/WhatsApp (автоматически скопирован)
-                    </DialogDescription>
-                </DialogHeader>
-
-                <div className="flex-1 overflow-auto">
+                    </p>
                     <div className="rounded-md border">
                         <div className="p-4 bg-gray-50">
                             <table className="w-full">
@@ -134,9 +128,7 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
                                                             Открыть
                                                         </a>
                                                     ) : (
-                                                        <span className="text-gray-400">
-                                                            Нет ссылки
-                                                        </span>
+                                                        <span className="text-gray-400">Нет ссылки</span>
                                                     )}
                                                 </td>
                                                 <td className="py-3 px-3 text-sm">
@@ -164,9 +156,10 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
                             {formattedText}
                         </pre>
                     </div>
-                </div>
-
-                <div className="flex justify-between gap-2 pt-4 border-t">
+                </>
+            }
+            footer={
+                <>
                     <Button onClick={onClose} variant="outline">
                         Закрыть
                     </Button>
@@ -183,8 +176,8 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
                             </>
                         )}
                     </Button>
-                </div>
-            </DialogContent>
-        </Dialog>
+                </>
+            }
+        />
     );
 };
