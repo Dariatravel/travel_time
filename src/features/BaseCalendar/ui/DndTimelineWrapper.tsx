@@ -51,7 +51,12 @@ export const DndTimelineWrapper = ({
 
     const sensors = useSensors(
         useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
-        useSensor(TouchSensor, { activationConstraint: { delay: 0, tolerance: 5 } }),
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                distance: 20,
+                tolerance: 10,
+            },
+        }),
     );
 
     const getIsBefore = (over: Over, active: Active): boolean => {

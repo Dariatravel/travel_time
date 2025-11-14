@@ -17,7 +17,7 @@ import {
     TimelineHeaders,
 } from 'my-react-calendar-timeline';
 import { nanoid } from 'nanoid';
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { DndTimelineWrapper } from './DndTimelineWrapper';
 import { DraggableGroup } from './DraggableGroup';
 import styles from './style.module.scss';
@@ -70,7 +70,8 @@ export const Timeline = ({
 }: TimelineProps) => {
     const [isMobile] = useUnit([$isMobile]);
     const timelineRef = useRef<TimelineComponent>(null);
-    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
+    const touchWrapperRef = useRef<HTMLDivElement | null>(null);
+    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isMobile ? 'month' : 'day');
 
     const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 40 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
@@ -132,13 +133,16 @@ export const Timeline = ({
     };
 
     const getDefaultTime = () => {
-        let defaultTimeStart = moment().add(-15, 'day');
-        let defaultTimeEnd = moment().add(15, 'day');
+        const mobileStartOffset = isMobile ? -20 : -15;
+        const mobileEndOffset = isMobile ? 40 : 15;
+        const desktopStartOffset = -15;
+        const desktopEndOffset = 15;
 
-        if (isMobile) {
-            defaultTimeStart = moment().add(-3, 'day');
-            defaultTimeEnd = moment().add(3, 'day');
-        }
+        const defaultTimeStart = moment().add(
+            isMobile ? mobileStartOffset : desktopStartOffset,
+            'day',
+        );
+        const defaultTimeEnd = moment().add(isMobile ? mobileEndOffset : desktopEndOffset, 'day');
 
         return { defaultTimeStart, defaultTimeEnd };
     };
@@ -197,166 +201,226 @@ export const Timeline = ({
         onGroupsReorder?.(roomIds);
     };
 
+    useEffect(() => {
+        if (!isMobile) return;
+        const wrapper = touchWrapperRef.current;
+        if (!wrapper) return;
+        const scrollContainer = wrapper.querySelector('.rct-outer') as HTMLDivElement | null;
+        if (!scrollContainer) return;
+
+        let startX = 0;
+        let startY = 0;
+        let detectedDirection: 'horizontal' | 'vertical' | null = null;
+
+        const resetLock = () => {
+            detectedDirection = null;
+            scrollContainer.style.touchAction = '';
+            scrollContainer.style.overflowY = '';
+        };
+
+        const handleTouchStart = (event: TouchEvent) => {
+            if (event.touches.length !== 1) return;
+            startX = event.touches[0].clientX;
+            startY = event.touches[0].clientY;
+            resetLock();
+        };
+
+        const handleTouchMove = (event: TouchEvent) => {
+            if (event.touches.length !== 1 || detectedDirection) return;
+            const currentTouch = event.touches[0];
+            const deltaX = Math.abs(currentTouch.clientX - startX);
+            const deltaY = Math.abs(currentTouch.clientY - startY);
+
+            if (deltaX < 8 && deltaY < 8) return;
+
+            if (deltaX > deltaY) {
+                detectedDirection = 'horizontal';
+                scrollContainer.style.touchAction = 'pan-x';
+                scrollContainer.style.overflowY = 'hidden';
+            } else {
+                detectedDirection = 'vertical';
+            }
+        };
+
+        scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
+        scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
+        scrollContainer.addEventListener('touchend', resetLock);
+        scrollContainer.addEventListener('touchcancel', resetLock);
+
+        return () => {
+            scrollContainer.removeEventListener('touchstart', handleTouchStart);
+            scrollContainer.removeEventListener('touchmove', handleTouchMove);
+            scrollContainer.removeEventListener('touchend', resetLock);
+            scrollContainer.removeEventListener('touchcancel', resetLock);
+        };
+    }, [isMobile, hotelRooms.length, timelineId]);
+
     return (
-        <DndTimelineWrapper
-            groups={groupsForDnd}
-            onGroupsReorder={handleGroupsReorder}
-            timelineId={timelineId}
-        >
-            <TimelineComponent
-                ref={timelineRef}
-                onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
-                className={timelineClassName}
-                groups={hotelRooms}
-                items={hotelReserves}
-                keys={keys}
-                sidebarWidth={defaultSidebarWidth}
-                canMove
-                canResize="both"
-                canSelect
-                itemTouchSendsClick={true}
-                stackItems={false}
-                itemHeightRatio={0.75}
-                defaultTimeStart={defaultTimeStart as unknown as number}
-                defaultTimeEnd={defaultTimeEnd as unknown as number}
-                minZoom={WEEK}
-                maxZoom={THREE_MONTHS}
-                onCanvasClick={(groupId, time, e) => {
-                    // @typescript-eslint/ban-ts-comment
-                    // @ts-expect-error - Событие touch не определено в типах Timeline
-                    if (e?.nativeEvent?.pointerType === 'touch') {
-                        onReserveAdd(groupId, time, e);
-                    }
-                }}
-                onCanvasDoubleClick={onReserveAdd}
-                itemRenderer={itemRenderer}
-                groupRenderer={groupRenderer}
+        <div ref={touchWrapperRef}>
+            <DndTimelineWrapper
+                groups={groupsForDnd}
+                onGroupsReorder={handleGroupsReorder}
+                timelineId={timelineId}
             >
-                <TimelineHeaders className={styles.calendarHeader}>
-                    <SidebarHeader>
-                        {({ getRootProps }) => {
-                            const IconSize = isMobile ? 8 : 24;
-                            return (
-                                <div
-                                    {...getRootProps()}
-                                    className={cn(
-                                        styles.calendarTitle,
-                                        'pl-2 flex gap-1 flex-col items-start bg-transparent!',
-                                    )}
-                                >
-                                    <div className="flex gap-1 items-center">
-                                        {onCreateRoom && (
+                <TimelineComponent
+                    ref={timelineRef}
+                    onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
+                    className={timelineClassName}
+                    groups={hotelRooms}
+                    items={hotelReserves}
+                    keys={keys}
+                    sidebarWidth={defaultSidebarWidth}
+                    canMove
+                    canResize="both"
+                    canSelect
+                    itemTouchSendsClick={true}
+                    stackItems={false}
+                    itemHeightRatio={0.75}
+                    defaultTimeStart={defaultTimeStart as unknown as number}
+                    defaultTimeEnd={defaultTimeEnd as unknown as number}
+                    minZoom={WEEK}
+                    maxZoom={THREE_MONTHS}
+                    onCanvasClick={(groupId, time, e) => {
+                        // @typescript-eslint/ban-ts-comment
+                        // @ts-expect-error - Событие touch не определено в типах Timeline
+                        if (e?.nativeEvent?.pointerType === 'touch') {
+                            onReserveAdd(groupId, time, e);
+                        }
+                    }}
+                    onCanvasDoubleClick={onReserveAdd}
+                    itemRenderer={itemRenderer}
+                    groupRenderer={groupRenderer}
+                >
+                    <TimelineHeaders className={styles.calendarHeader}>
+                        <SidebarHeader>
+                            {({ getRootProps }) => {
+                                const IconSize = isMobile ? 8 : 24;
+                                return (
+                                    <div
+                                        {...getRootProps()}
+                                        className={cn(
+                                            styles.calendarTitle,
+                                            'pl-2 flex gap-1 flex-col items-start bg-transparent!',
+                                        )}
+                                    >
+                                        <div className="flex gap-1 items-center">
+                                            {onCreateRoom && (
+                                                <Button
+                                                    className={'!p-1'}
+                                                    variant="link"
+                                                    onClick={onCreateRoom}
+                                                >
+                                                    <Plus size={IconSize} />
+                                                </Button>
+                                            )}
                                             <Button
                                                 className={'!p-1'}
                                                 variant="link"
-                                                onClick={onCreateRoom}
+                                                onClick={() => onZoomIn(currentUnit)}
                                             >
-                                                <Plus size={IconSize} />
+                                                <ZoomIn size={IconSize} />
                                             </Button>
-                                        )}
-                                        <Button
-                                            className={'!p-1'}
-                                            variant="link"
-                                            onClick={() => onZoomIn(currentUnit)}
-                                        >
-                                            <ZoomIn size={IconSize} />
-                                        </Button>
-                                        <Button
-                                            className={'!p-1'}
-                                            variant="link"
-                                            onClick={() => onZoomOut(currentUnit)}
-                                        >
-                                            <ZoomOut size={IconSize} />
-                                        </Button>
+                                            <Button
+                                                className={'!p-1'}
+                                                variant="link"
+                                                onClick={() => onZoomOut(currentUnit)}
+                                            >
+                                                <ZoomOut size={IconSize} />
+                                            </Button>
+                                        </div>
                                     </div>
-                                </div>
-                            );
-                        }}
-                    </SidebarHeader>
-                    <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
-                        {({
-                            headerContext: { intervals, unit },
-                            getRootProps,
-                            getIntervalProps,
-                            showPeriod,
-                        }) => {
-                            const isYear = unit === 'year';
-                            return (
-                                <div {...getRootProps()}>
-                                    {intervals.map((interval, i) => {
-                                        // Используем дату интервала для стабильного цвета
-                                        const intervalDate = moment(interval.startTime.toDate());
-                                        let colorIndex;
+                                );
+                            }}
+                        </SidebarHeader>
+                        <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
+                            {({
+                                headerContext: { intervals, unit },
+                                getRootProps,
+                                getIntervalProps,
+                                showPeriod,
+                            }) => {
+                                const isYear = unit === 'year';
+                                return (
+                                    <div {...getRootProps()}>
+                                        {intervals.map((interval, i) => {
+                                            // Используем дату интервала для стабильного цвета
+                                            const intervalDate = moment(
+                                                interval.startTime.toDate(),
+                                            );
+                                            let colorIndex;
 
-                                        if (isYear) {
-                                            // Для годов используем год
-                                            colorIndex = intervalDate.year() % 3;
-                                        } else {
-                                            // Для месяцев используем месяц
-                                            colorIndex = intervalDate.month() % 3;
-                                        }
+                                            if (isYear) {
+                                                // Для годов используем год
+                                                colorIndex = intervalDate.year() % 3;
+                                            } else {
+                                                // Для месяцев используем месяц
+                                                colorIndex = intervalDate.month() % 3;
+                                            }
 
-                                        const backgroundColor = monthColors[colorIndex];
-                                        const dateText = isYear
-                                            ? moment(interval.startTime.toDate()).format('YYYY')
-                                            : moment(interval.startTime.toDate()).format('MMM');
+                                            const backgroundColor = monthColors[colorIndex];
+                                            const dateText = isYear
+                                                ? moment(interval.startTime.toDate()).format('YYYY')
+                                                : moment(interval.startTime.toDate()).format('MMM');
 
-                                        return (
-                                            <Interval
-                                                key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
-                                                interval={interval}
-                                                unit={unit}
-                                                getIntervalProps={getIntervalProps}
-                                                getRootProps={getRootProps}
-                                                dateText={dateText}
-                                                showPeriod={showPeriod}
-                                                intervalStyles={{
-                                                    backgroundColor: backgroundColor,
-                                                    color: '#fff',
-                                                }}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            );
-                        }}
-                    </CustomHeader>
-                    <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
-                        {({
-                            headerContext: { intervals, unit },
-                            getRootProps,
-                            getIntervalProps,
-                            showPeriod,
-                        }) => {
-                            return (
-                                <div {...getRootProps()}>
-                                    {intervals.map((interval) => {
-                                        const isMonth = unit === 'month';
-                                        const isYear = unit === 'year';
+                                            return (
+                                                <Interval
+                                                    key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
+                                                    interval={interval}
+                                                    unit={unit}
+                                                    getIntervalProps={getIntervalProps}
+                                                    getRootProps={getRootProps}
+                                                    dateText={dateText}
+                                                    showPeriod={showPeriod}
+                                                    intervalStyles={{
+                                                        backgroundColor: backgroundColor,
+                                                        color: '#fff',
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            }}
+                        </CustomHeader>
+                        <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
+                            {({
+                                headerContext: { intervals, unit },
+                                getRootProps,
+                                getIntervalProps,
+                                showPeriod,
+                            }) => {
+                                return (
+                                    <div {...getRootProps()}>
+                                        {intervals.map((interval) => {
+                                            const isMonth = unit === 'month';
+                                            const isYear = unit === 'year';
 
-                                        const dateText =
-                                            isMonth || isYear
-                                                ? moment(interval.startTime.toDate()).format('MMM')
-                                                : interval.startTime.format('DD');
+                                            const dateText =
+                                                isMonth || isYear
+                                                    ? moment(interval.startTime.toDate()).format(
+                                                          'MMM',
+                                                      )
+                                                    : interval.startTime.format('DD');
 
-                                        return (
-                                            <Interval
-                                                interval={interval}
-                                                unit={unit}
-                                                getIntervalProps={getIntervalProps}
-                                                getRootProps={getRootProps}
-                                                dateText={dateText}
-                                                showPeriod={showPeriod}
-                                                key={nanoid()}
-                                            />
-                                        );
-                                    })}
-                                </div>
-                            );
-                        }}
-                    </CustomHeader>
-                </TimelineHeaders>
-            </TimelineComponent>
-        </DndTimelineWrapper>
+                                            return (
+                                                <Interval
+                                                    interval={interval}
+                                                    unit={unit}
+                                                    getIntervalProps={getIntervalProps}
+                                                    getRootProps={getRootProps}
+                                                    dateText={dateText}
+                                                    showPeriod={showPeriod}
+                                                    key={nanoid()}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            }}
+                        </CustomHeader>
+                    </TimelineHeaders>
+                </TimelineComponent>
+            </DndTimelineWrapper>
+        </div>
     );
 };
