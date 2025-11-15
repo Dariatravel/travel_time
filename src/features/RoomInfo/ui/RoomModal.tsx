@@ -79,6 +79,7 @@ export const RoomModal: FC<RoomModalProps> = ({
                     isEdit={isEdit}
                 />
             }
+            descriptionClassName={'max-w-lg'}
         />
     );
 };
