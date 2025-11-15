@@ -1,7 +1,7 @@
 import { InsertionIndicator } from '@/shared/ui/InsertIndicator/InsertIndicator';
-import { MenuOutlined } from '@ant-design/icons';
 import { useSortable } from '@dnd-kit/sortable';
 import { useUnit } from 'effector-react/compat';
+import { MenuIcon } from 'lucide-react';
 import React from 'react';
 import { $insertPosition } from './model/dnd';
 import styles from './style.module.scss';
@@ -11,11 +11,18 @@ export interface DraggableGroupProps {
     children: React.ReactNode;
     title: string;
     className?: string;
+    onClick?: () => void;
 }
 
-export const DraggableGroup = ({ id, children, title, className }: DraggableGroupProps) => {
+export const DraggableGroup = ({
+    id,
+    children,
+    title,
+    className,
+    onClick,
+}: DraggableGroupProps) => {
     const insertPosition = useUnit($insertPosition);
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    const { attributes, listeners, setNodeRef, transition, isDragging } = useSortable({
         id,
     });
 
@@ -34,12 +41,23 @@ export const DraggableGroup = ({ id, children, title, className }: DraggableGrou
         >
             {insertPosition.beforeId === id && <InsertionIndicator type="before" />}
             <div className={styles.groupHeader}>
-                <div className={styles.dragHandle} {...attributes} {...listeners}>
+                <div
+                    className={styles.dragHandle}
+                    style={{ touchAction: 'none' }}
+                    {...attributes}
+                    {...listeners}
+                >
                     <span className={styles.dragIcon}>
-                        <MenuOutlined />
+                        <MenuIcon />
                     </span>
                 </div>
-                <div className={styles.groupTitle}>{title}</div>
+                <div
+                    className={styles.groupTitle}
+                    onClick={onClick}
+                    style={{ cursor: onClick ? 'pointer' : 'default' }}
+                >
+                    {title}
+                </div>
             </div>
 
             <div className={styles.groupContent}>{children}</div>

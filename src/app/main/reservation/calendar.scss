@@ -1,61 +1,62 @@
 .rct-header-row {
-  background-color: #f9f9f9;
-  font-size: 14px;
+    background-color: #f9f9f9;
+    font-size: 14px;
 }
 
 .rct-item {
-  background-color: var(--color-bg-success) !important;
-  color: white;
-  border-radius: 5px;
+    background-color: var(--color-bg-success) !important;
+    color: white;
+    border-radius: 5px;
+    z-index: 5 !important;
 }
 
 .rct-sidebar {
-  background-color: var(--color-bg-default);
-  color: var(--color-typo-primary);
+    background-color: var(--color-bg-default);
+    color: var(--color-typo-primary);
 }
 
 .react-calendar-timeline .rct-dateHeader-primary {
-  background-color: var(--color-bg-success) !important;
+    background-color: var(--primary) !important;
 }
 
 .travel-timeline {
-  .rct-outer {
-    max-height: 250px !important;
-    min-height: 250px !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    .rct-outer {
+        max-height: 250px !important;
+        // min-height: 250px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
 
-    @media (max-width: 1365px) {
-      max-height: auto !important;
-      min-height: auto !important;
+        @media (max-width: 1365px) {
+            max-height: auto !important;
+            min-height: auto !important;
+        }
     }
-  }
 }
 
 .rct-header-root > div {
-  background-color: var(--color-bg-default);
-  /*color: var(--color-typo-primary) !important;*/
+    background-color: var(--primary);
+    /*color: var(--color-typo-primary) !important;*/
 }
 
 .react-calendar-timeline .rct-vertical-lines .rct-vl {
-  z-index: 5 !important;
+    z-index: 5 !important;
 }
 
 .hotelTimeline {
-  .rct-outer {
-    max-height: 75vh !important;
-    min-height: 250px !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
+    .rct-outer {
+        max-height: 75vh !important;
+        min-height: 250px !important;
+        overflow-y: auto !important;
+        overflow-x: hidden !important;
 
-    @media (max-width: 1365px) {
-      max-height: 75vh !important;
-      min-height: auto !important;
-    }
+        @media (max-width: 1365px) {
+            max-height: 75vh !important;
+            min-height: auto !important;
+        }
 
-    @media (max-width: 800px) {
-      max-height: 58vh !important;
-      min-height: auto !important;
+        @media (max-width: 800px) {
+            max-height: 75vh !important;
+            min-height: auto !important;
+        }
     }
-  }
 }

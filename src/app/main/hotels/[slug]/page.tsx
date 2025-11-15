@@ -1,103 +1,105 @@
-'use client'
-import { Room } from '@/features/Room/Room'
-import { RoomModal } from '@/features/RoomInfo/ui/RoomModal'
-import { useHotelById } from '@/shared/api/hotel/hotel'
-import { Nullable } from '@/shared/api/reserve/reserve'
-import { RoomDTO } from '@/shared/api/room/room'
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery'
-import { TravelButton } from '@/shared/ui/Button/Button'
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader'
-import { PageTitle } from '@/shared/ui/PageTitle/PageTitle'
-import { ResponsesNothingFound } from '@consta/uikit/ResponsesNothingFound'
-import { Flex } from 'antd'
-import { useParams } from 'next/navigation'
-import { useEffect, useState } from 'react'
-import style from './page.module.scss'
+'use client';
+import { NoDataAvailable } from '@/components/ui/empty-state';
+import { RoomsTable } from '@/features/Hotels/ui/RoomsTable';
+import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
+import { useHotelById } from '@/shared/api/hotel/hotel';
+import { Nullable } from '@/shared/api/reserve/reserve';
+import { RoomDTO } from '@/shared/api/room/room';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
+import { TravelButton } from '@/shared/ui/Button/Button';
+import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
+import { PageTitle } from '@/shared/ui/PageTitle/PageTitle';
+// Flex заменен на Tailwind CSS
+import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import style from './page.module.scss';
 
 export default function Rooms() {
-  const params = useParams()
+    const params = useParams();
+    const router = useRouter();
 
-  const [isRoomOpen, setIsRoomOpen] = useState(false)
-  const [currentRoom, setIsCurrentRoom] = useState<Nullable<RoomDTO>>(null)
+    const [isRoomOpen, setIsRoomOpen] = useState(false);
+    const [currentRoom, setIsCurrentRoom] = useState<Nullable<RoomDTO>>(null);
 
-  const { data: hotel, isFetching } = useHotelById(params?.slug as string)
+    const { data: hotel, isFetching } = useHotelById(params?.slug as string);
 
-  useEffect(() => {
-    return () => {
-      queryClient.invalidateQueries({
-        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel],
-      })
+    useEffect(() => {
+        return () => {
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel],
+            });
+        };
+    }, []);
+
+    if (isFetching) {
+        return <FullWidthLoader />;
     }
-  }, [])
 
-  if (isFetching) {
-    return <FullWidthLoader />
-  }
+    const rooms: RoomDTO[] = hotel?.rooms ?? [];
 
-  const rooms: RoomDTO[] = hotel?.rooms ?? []
+    const sortedRooms = rooms.sort((a, b) => a?.title?.localeCompare(b?.title));
 
-  const sortedRooms = rooms.sort((a, b) => a?.title?.localeCompare(b?.title))
+    const handleBackToHotels = () => {
+        router.push('/main/hotels');
+    };
 
-  if (!sortedRooms?.length) {
+    if (!sortedRooms?.length) {
+        return (
+            <div>
+                <PageTitle
+                    title={'Все номера'}
+                    rooms={0}
+                    backButtonProps={{
+                        onClick: handleBackToHotels,
+                    }}
+                />
+                <NoDataAvailable
+                    title="Номер пока не добавлен"
+                    description="В настоящий момент не добавлено ни одного номера"
+                    actions={
+                        <TravelButton label="Добавить номер" onClick={() => setIsRoomOpen(true)} />
+                    }
+                />
+                <RoomModal
+                    isOpen={isRoomOpen}
+                    onClose={() => {
+                        setIsCurrentRoom(null);
+                        setIsRoomOpen(false);
+                    }}
+                    currentReserve={{ hotel: hotel }}
+                />
+            </div>
+        );
+    }
+
     return (
-      <div>
-        <PageTitle title={'Все номера'} rooms={0} />
-        <ResponsesNothingFound
-          title={'Номер пока не добавлен'}
-          description={'В настоящий момент не добавлено ни одного номера'}
-          actions={
-            <TravelButton
-              label={'Добавить номер'}
-              onClick={() => setIsRoomOpen(true)}
+        <div className={style.container}>
+            <PageTitle
+                title={hotel?.title}
+                rooms={sortedRooms?.length}
+                backButtonProps={{
+                    onClick: handleBackToHotels,
+                }}
             />
-          }
-        />
-        <RoomModal
-          isOpen={isRoomOpen}
-          onClose={() => {
-            setIsCurrentRoom(null)
-            setIsRoomOpen(false)
-          }}
-          currentReserve={{ hotel: hotel }}
-        />
-      </div>
-    )
-  }
 
-  return (
-    <div className={style.container}>
-      {/*{isLoading && <FullWidthLoader />}*/}
-      <PageTitle
-        title={hotel?.title}
-        rooms={sortedRooms?.length}
-        buttonProps={{
-          label: 'Добавить номер',
-          onClick: () => setIsRoomOpen(true),
-        }}
-      />
-      <div className={style.roomsContainer}>
-        <Flex wrap gap={'small'}>
-          {sortedRooms?.map(room => (
-            <Room
-              room={room}
-              key={room.id}
-              onEdit={room => {
-                setIsCurrentRoom(room)
-                setIsRoomOpen(true)
-              }}
+            <RoomsTable
+                rooms={sortedRooms}
+                onEdit={(room) => {
+                    setIsCurrentRoom(room);
+                    setIsRoomOpen(true);
+                }}
+                onAddRoom={() => setIsRoomOpen(true)}
+                hotelId={hotel?.id}
             />
-          ))}
-        </Flex>
-      </div>
 
-      <RoomModal
-        isOpen={isRoomOpen}
-        onClose={() => {
-          setIsCurrentRoom(null)
-          setIsRoomOpen(false)
-        }}
-        currentReserve={{ hotel: hotel, room: currentRoom }}
-      />
-    </div>
-  )
+            <RoomModal
+                isOpen={isRoomOpen}
+                onClose={() => {
+                    setIsCurrentRoom(null);
+                    setIsRoomOpen(false);
+                }}
+                currentReserve={{ hotel: hotel, room: currentRoom }}
+            />
+        </div>
+    );
 }

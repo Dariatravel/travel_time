@@ -1,7 +1,7 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
-import { HotelDTO } from '@/shared/api/hotel/hotel';
+import { HotelDTO, HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import {
     CurrentReserveType,
     Nullable,
@@ -11,104 +11,102 @@ import {
     useDeleteReserve,
     useUpdateReserve,
 } from '@/shared/api/reserve/reserve';
-import {
-    Room,
-    RoomDTO,
-    useCreateRoom,
-    useGetRoomsWithReservesByHotel,
-    useUpdateRoomOrder,
-} from '@/shared/api/room/room';
+import { Room, RoomDTO, useCreateRoom, useUpdateRoomOrder } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
-import { $hotelsFilter } from '@/shared/models/hotels';
-import { $isMobile } from '@/shared/models/mobile';
-import { HotelImage } from '@/shared/ui/Hotel/HotelImage/HotelImage';
-import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
-import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { getHotelUrl } from '@/utils/getHotelUrl';
 import { useQueryClient } from '@tanstack/react-query';
-import { Flex } from 'antd';
-import { useUnit } from 'effector-react/compat';
 import { Id } from 'my-react-calendar-timeline';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { cn } from '@/lib/utils';
+import moment from 'moment';
+import { useCallback, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
-import hotelImage from '../hotel.svg';
 import cx from './style.module.scss';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 
 export interface CalendarProps {
-    hotel: HotelDTO;
+    hotel: HotelRoomsReservesDTO;
     onHotelClick?: (hotel_id: string) => void;
+    onRoomClick?: (room: RoomDTO) => void;
+    isLoading?: boolean;
 }
 
-export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
-    const [isMobile] = useUnit([$isMobile]);
-    const filter = useUnit($hotelsFilter);
+export const Calendar = ({ hotel, onHotelClick, onRoomClick, isLoading }: CalendarProps) => {
+    const { isMobile } = useScreenSize();
     const queryClient = useQueryClient();
-    const {
-        data,
-        isFetching: isRoomLoading,
-        refetch,
-    } = useGetRoomsWithReservesByHotel(hotel.id, filter, true);
 
-    useEffect(() => {
-        refetch();
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
+    // Используем данные из пропсов вместо отдельного запроса
+    // Мемоизируем для оптимизации производительности
+    // Сортируем номера по полю order
+    const getData = () => {
+        const rooms = hotel.rooms || [];
+        return [...rooms].sort((a, b) => {
+            const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+            const orderB = b.order ?? 999;
+            return orderA - orderB;
         });
-    }, [filter]);
+    };
+    const data = getData();
 
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
-    const [sort, setSort] = useState<'asc' | 'desc'>('asc');
 
     const {
         isPending: isReserveCreating,
         mutateAsync: createReserve,
         error: reserveError,
     } = useCreateReserve(
+        hotel.id, // hotelId
+        currentReserve?.room?.id, // roomId - будет обновляться при изменении currentReserve
         () => {
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-            });
+            // Оптимистичное обновление уже выполнено в мутации
             setCurrentReserve(null);
             setIsReserveOpen(false);
+            showToast('Бронь успешно создана');
         },
-        (e) => {
-            showToast(`Ошибка при обновлении брони ${e}`, 'error');
+        (e: Error) => {
+            showToast(`Ошибка при создании брони ${e.message}`, 'error');
         },
     );
 
-    const { isPending: isReserveUpdating, mutate: updateReserve } = useUpdateReserve(
+    const { isPending: isReserveUpdating, mutateAsync: updateReserve } = useUpdateReserve(
+        hotel.id, // hotelId
+        currentReserve?.room?.id, // roomId
         () => {
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-            });
+            // Оптимистичное обновление уже выполнено в мутации
             setCurrentReserve(null);
             setIsReserveOpen(false);
+            showToast('Бронь успешно обновлена');
         },
-        (e) => {
-            showToast('Ошибка при обновлении брони', 'error');
+        (e: Error) => {
+            showToast(`Ошибка при обновлении брони ${e.message}`, 'error');
         },
     );
 
-    const { isPending: isReserveDeleting, mutateAsync: deleteReserve } = useDeleteReserve(() => {
-        queryClient.invalidateQueries({
-            queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
-        });
-        setCurrentReserve(null);
-        setIsReserveOpen(false);
-    });
+    const { isPending: isReserveDeleting, mutateAsync: deleteReserve } = useDeleteReserve(
+        hotel.id, // hotelId
+        currentReserve?.reserve?.room_id, // roomId из резерва
+        () => {
+            // Оптимистичное обновление уже выполнено в мутации
+            setCurrentReserve(null);
+            setIsReserveOpen(false);
+            showToast('Бронь успешно удалена');
+        },
+        (e: Error) => {
+            showToast(`Ошибка при удалении брони ${e.message}`, 'error');
+        },
+    );
 
     const {
         isPending: isRoomCreating,
         mutate: createRoom,
         error: roomError,
     } = useCreateRoom(
+        hotel.id, // hotelId
         () => {
             queryClient.invalidateQueries({
                 queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel.id],
@@ -173,68 +171,79 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
             })) ?? [];
 
         return rooms;
-    }, [data, sort]);
+    }, [data]); // Убираем sort из зависимостей, так как он не используется
 
-    let hotelReserves: Array<ReserveDTO & { group: string }> = [];
+    // Мемоизируем hotelReserves для оптимизации производительности
+    const hotelReserves = useMemo(() => {
+        const reserves: Array<ReserveDTO & { group: string }> = [];
 
-    data?.forEach(({ id: room_id, reserves }) => {
-        const reservesTmp = reserves.map(({ end, start, ...reserve }) => ({
-            ...reserve,
-            id: reserve.id,
-            group: room_id,
-            end: getDateFromUnix(end),
-            start: getDateFromUnix(start),
-        }));
+        data?.forEach(({ id: room_id, reserves: roomReserves }) => {
+            const reservesTmp = roomReserves.map(({ end, start, ...reserve }) => ({
+                ...reserve,
+                id: reserve.id,
+                group: room_id,
+                end: getDateFromUnix(
+                    typeof end === 'number' ? end : Math.floor(end.getTime() / 1000),
+                ),
+                start: getDateFromUnix(
+                    typeof start === 'number' ? start : Math.floor(start.getTime() / 1000),
+                ),
+            }));
 
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        hotelReserves = hotelReserves.concat(reservesTmp);
-    });
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            reserves.push(...reservesTmp);
+        });
+
+        return reserves;
+    }, [data]);
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
+
         if (room) {
             setCurrentReserve({
                 room,
                 hotel,
                 reserve: {
-                    start: time,
-                    end: getDateFromUnix(time).add(1, 'day').unix(),
+                    start: moment(time).startOf('day').toDate(),
+                    end: moment(time).add(1, 'day').startOf('day').toDate(),
                 },
             });
             setIsReserveOpen(true);
         }
     };
 
-    const onItemClick = (reserve: ReserveDTO, hotel: HotelDTO) => {
+    const onItemClick = (reserve: ReserveDTO, hotelItem: HotelDTO) => {
         const room = hotelRooms.find((room) => room.id === reserve?.room_id);
 
         if (room) {
-            setCurrentReserve({ room, reserve, hotel });
+            setCurrentReserve({ room, reserve, hotel: hotelItem });
             setIsReserveOpen(true);
         }
     };
 
     const onCreate = () => {
         setCurrentReserve({ hotel: hotel });
-        setIsReserveOpen(true);
+        setIsRoomOpen(true);
     };
 
-    const sidebarWidth = useMemo(() => (isMobile ? 100 : 230), [isMobile]);
+    const sidebarWidth = useMemo(() => (isMobile ? 100 : 190), [isMobile]);
 
+    console.log('sidebarWidth', sidebarWidth);
+    const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;
+    const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
+
+    // Возвращаем null только если данные загружены, но пустые
     const isEmpty = !hotelRooms?.length;
-
     if (isEmpty) {
         return null;
     }
 
-    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
-    const reserveLoading = isReserveCreating || isReserveUpdating;
-
     // Уникальный ID для этого Timeline
     const timelineId = `calendar-${hotel.id}`;
 
-    const handleGroupsReorder = (newOrder: string[]) => {
+    const handleGroupsReorder = async (newOrder: string[]) => {
         devLog('Новый порядок групп:', newOrder);
         // Формируем новый массив RoomDTO с актуальным порядком
         const roomsWithNewOrder = newOrder
@@ -244,38 +253,23 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
             })
             .filter((room) => room !== null) as RoomDTO[];
         updateRoomOrder({ hotelId: hotel.id, rooms: roomsWithNewOrder });
+        // После обновления порядка групп обновляем списки
+        await queryClient.invalidateQueries({ queryKey: ['hotels', 'list'] });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
+        await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsWithReservesByHotel });
     };
 
     return (
-        <div style={{ position: 'relative' }}>
-            <Flex gap={'middle'} className={cx.container} vertical={isMobile}>
-                {isLoading && <FullWidthLoader />}
-                <div className={cx.hotelInfo}>
-                    <HotelImage
-                        type={hotel?.type}
-                        className={cx.hotelIcon}
-                        tagClassName={cx.hotelTag}
-                        src={hotelImage.src}
-                        onClick={() => (onHotelClick ? onHotelClick(hotel?.id) : undefined)}
-                    />
-
-                    <div className={cx.hotelDescription}>
-                        <HotelTitle
-                            size={isMobile ? 's' : 'xl'}
-                            className={cx.hotelTitle}
-                            href={getHotelUrl(hotel)}
-                        >
-                            {hotel?.title}
-                        </HotelTitle>
-                        <div>{hotel?.address}</div>
-                        <div>
-                            {hotel?.telegram_url && <HotelTelegram url={hotel?.telegram_url} />}
-                        </div>
-                    </div>
-                </div>
-
-                {!!hotelRooms?.length && (
-                    <div className={cx.calendarContainer}>
+        <div style={{ position: 'relative' }} className="p-0">
+            <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
+                <div className={cn(cx.calendarContainer, 'relative')}>
+                    {(reserveLoading || isLoadingCalendar) && <FullWidthLoader />}
+                    <div
+                        className={cn(
+                            (reserveLoading || isLoadingCalendar) &&
+                                'opacity-50 pointer-events-none',
+                        )}
+                    >
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}
@@ -284,25 +278,26 @@ export const Calendar = ({ hotel, onHotelClick }: CalendarProps) => {
                             sidebarWidth={sidebarWidth}
                             onReserveAdd={onReserveAdd}
                             onItemClick={onItemClick}
+                            onGroupClick={onRoomClick}
                             onCreateRoom={onCreate}
                             calendarItemClassName={cx.calendarItem}
                             timelineId={timelineId}
                             onGroupsReorder={handleGroupsReorder}
                         />
                     </div>
-                )}
-            </Flex>
+                </div>
+            </div>
             <RoomModal
                 isOpen={isRoomOpen}
                 onClose={() => setIsRoomOpen(false)}
-                onAccept={onRoomCreate}
+                onAccept={(room: unknown) => onRoomCreate(room as Room)}
                 isLoading={isRoomCreating}
                 currentReserve={currentReserve}
             />
             <ReserveModal
                 isOpen={isReserveOpen}
                 onClose={onClose}
-                onAccept={onReserveAccept}
+                onAccept={(reserve: unknown) => onReserveAccept(reserve as Reserve)}
                 onDelete={onReserveDelete}
                 currentReserve={currentReserve}
                 isLoading={reserveLoading}

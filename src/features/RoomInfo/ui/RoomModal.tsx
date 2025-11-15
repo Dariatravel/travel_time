@@ -1,32 +1,28 @@
+import { FormTitle } from '@/components/ui/form-title';
 import { RoomInfo } from '@/features/RoomInfo/ui/RoomInfo';
+import { TravelDialog } from '@/shared';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, useCreateRoom, useDeleteRoom, useUpdateRoom } from '@/shared/api/room/room';
-import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { devLog } from '@/shared/lib/logger';
-import { Modal } from '@/shared/ui/Modal/Modal';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC, useCallback } from 'react';
 export interface RoomModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAccept?: (args?: any) => void;
+    onAccept?: (args?: unknown) => void;
     currentReserve: Nullable<CurrentReserveType>;
     isLoading?: boolean;
 }
 
-export const RoomModal: FC<RoomModalProps> = ({ isOpen = false, onClose, currentReserve, isLoading = false }: RoomModalProps) => {
-    const {
-        isPending: isRoomCreating,
-        mutate: createRoom,
-        error: roomError,
-    } = useCreateRoom(
+export const RoomModal: FC<RoomModalProps> = ({
+    isOpen = false,
+    onClose,
+    currentReserve,
+    isLoading = false,
+}: RoomModalProps) => {
+    const { isPending: isRoomCreating, mutate: createRoom } = useCreateRoom(
+        currentReserve?.hotel?.id,
         () => {
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotels });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.roomsByHotel });
-            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.hotelById });
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel],
-            });
             onClose();
             showToast('Номер успешно добавлен');
         },
@@ -35,25 +31,28 @@ export const RoomModal: FC<RoomModalProps> = ({ isOpen = false, onClose, current
         },
     );
 
-    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(() => {
-        queryClient.invalidateQueries({
-            queryKey: QUERY_KEYS.hotelById,
-        });
-        onClose();
-        showToast('Информация в отели обновлена');
-    });
+    const { isPending: isRoomUpdating, mutateAsync: updateRoom } = useUpdateRoom(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Информация в отеле обновлена');
+        },
+    );
 
-    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(() => {
-        queryClient.invalidateQueries({
-            queryKey: QUERY_KEYS.hotelById,
-        });
-        onClose();
-        showToast('Отель удалён');
-    });
-    const onCreate = useCallback(async (room: Room) => {
-        await createRoom(room);
-        devLog('Создаю ROOM', room);
-    }, []);
+    const { isPending: isRoomDeleting, mutateAsync: deleteRoom } = useDeleteRoom(
+        currentReserve?.hotel?.id,
+        async () => {
+            onClose();
+            showToast('Отель удалён');
+        },
+    );
+    const onCreate = useCallback(
+        async (room: Room) => {
+            await createRoom(room);
+            devLog('Создаю ROOM', room);
+        },
+        [createRoom],
+    );
     const onEdit = async (room: RoomDTO) => await updateRoom(room);
     const onDelete = async (id: string) => await deleteRoom(id);
 
@@ -62,8 +61,24 @@ export const RoomModal: FC<RoomModalProps> = ({ isOpen = false, onClose, current
     const isEdit = !!currentReserve?.room?.id;
 
     return (
-        <Modal hasOverlay isOpen={isOpen} onEsc={onClose} loading={loading} onClose={onClose}>
-            <RoomInfo onClose={onClose} currentReserve={currentReserve} onAccept={isEdit ? onEdit : onCreate} onDelete={onDelete} isLoading={loading} isEdit={isEdit} />
-        </Modal>
+        <TravelDialog
+            isOpen={isOpen}
+            onClose={onClose}
+            title={<FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>}
+            description={
+                <RoomInfo
+                    onClose={onClose}
+                    currentReserve={currentReserve}
+                    onAccept={
+                        isEdit
+                            ? (args: unknown) => onEdit(args as RoomDTO)
+                            : (args: unknown) => onCreate(args as RoomDTO)
+                    }
+                    onDelete={onDelete}
+                    isLoading={loading}
+                    isEdit={isEdit}
+                />
+            }
+        />
     );
 };

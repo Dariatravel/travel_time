@@ -1,233 +1,334 @@
-import { RoomForm, useGetHotelsForRoom } from '@/shared/api/hotel/hotel'
-import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve'
-import { Room, RoomDTO } from '@/shared/api/room/room'
-import { adaptToOption } from '@/shared/lib/adaptHotel'
-import { FORM_GAP_SIZE, FORM_SIZE } from '@/shared/lib/const'
-import { devLog } from '@/shared/lib/logger'
-import { FormButtons } from '@/shared/ui/FormButtons/FormButtons'
-import { FormTitle } from '@/shared/ui/FormTitle/FormTitle'
-import { Button } from '@consta/uikit/Button'
-import { DragNDropField } from '@consta/uikit/DragNDropField'
-import { Grid, GridItem } from '@consta/uikit/Grid'
-import { Select } from '@consta/uikit/Select'
-import { Text } from '@consta/uikit/Text'
-import { TextField } from '@consta/uikit/TextField'
-import { Flex } from 'antd'
-import cn from 'classnames'
-import { FC, useMemo } from 'react'
-import { Controller, SubmitErrorHandler, useForm } from 'react-hook-form'
-import cx from './style.module.css'
-import { showToast } from '@/shared/ui/Toast/Toast'
-
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
+import { INITIAL_ROOM_FEATURES } from '@/features/AdvancedFilters';
+import { FormMultipleSelector } from '@/features/HotelModal/ui/components/FormMultipleSelector';
+import { FormButtons } from '@/shared';
+import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
+import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
+import { Room, RoomDTO } from '@/shared/api/room/room';
+import { adaptToOption } from '@/shared/lib/adaptHotel';
+import { devLog } from '@/shared/lib/logger';
+import { showToast } from '@/shared/ui/Toast/Toast';
+import { zodResolver } from '@hookform/resolvers/zod';
+import cn from 'classnames';
+import { FC, useMemo } from 'react';
+import { Controller, Form, SubmitErrorHandler, useForm } from 'react-hook-form';
+import { z } from 'zod';
+import cx from './style.module.css';
 export interface RoomInfoProps {
-  onClose: () => void
-  onAccept: (args?: any) => void
-  onDelete: (id: string) => void
-  currentReserve?: Nullable<CurrentReserveType>
-  isLoading?: boolean
-  isEdit?: boolean
+    onClose: () => void;
+    onAccept: (args?: unknown) => void;
+    onDelete: (id: string) => void;
+    currentReserve?: Nullable<CurrentReserveType>;
+    isLoading?: boolean;
+    isEdit?: boolean;
 }
+
+/**
+ * RoomFormSchema — схема валидации для формы создания/редактирования номера.
+ */
+export const RoomFormSchema = z.object({
+    hotel_id: z.string().min(1, 'Отель обязателен для выбора'),
+
+    title: z.string().min(1, 'Название номера обязательно'),
+    price: z
+        .string()
+        .min(1, 'Стоимость обязательна для заполнения')
+        .refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
+            message: 'Стоимость должна быть положительным числом',
+        }),
+    quantity: z.union([z.string(), z.number()]).refine(
+        (val) => {
+            const num = typeof val === 'string' ? Number(val) : val;
+            return !isNaN(num) && num > 0;
+        },
+        { message: 'Вместимость должна быть положительным числом' },
+    ),
+    room_features: z.array(z.string()),
+    comment: z.string().optional(),
+});
+
+export type RoomFormSchemaType = z.infer<typeof RoomFormSchema>;
 
 export const RoomInfo: FC<RoomInfoProps> = ({
-  onAccept,
-  onClose,
-  currentReserve,
-  isLoading = false,
-  isEdit = false,
-  onDelete,
+    onAccept,
+    onClose,
+    currentReserve,
+    isLoading = false,
+    isEdit = false,
+    onDelete,
 }: RoomInfoProps) => {
-  const { data: hotels, isLoading: isHotelsLoading } = useGetHotelsForRoom()
+    const { data: hotels, isLoading: isHotelsLoading } = useGetHotelsForRoom();
 
-  const loading = isLoading || isHotelsLoading
+    const loading = isLoading || isHotelsLoading;
 
-  const {
-    control,
-    watch,
-    formState: { errors },
-    trigger,
-    handleSubmit,
-  } = useForm<RoomForm>({
-    defaultValues: {
-      hotel_id: currentReserve?.hotel
-        ? adaptToOption({
-            id: currentReserve?.hotel?.id,
-            title: currentReserve?.hotel?.title,
-          })
-        : undefined,
-      title: currentReserve?.room?.title,
-      comment: currentReserve?.room?.comment,
-      quantity: currentReserve?.room?.quantity ?? 3,
-      price: String(currentReserve?.room?.price ?? ''),
-    },
-    mode: 'all',
-    reValidateMode: 'onBlur',
-  })
+    const form = useForm<RoomFormSchemaType>({
+        resolver: zodResolver(RoomFormSchema),
+        defaultValues: {
+            hotel_id: currentReserve?.hotel?.id ? currentReserve?.hotel?.id : '',
+            title: currentReserve?.room?.title || '',
+            comment: currentReserve?.room?.comment || '',
+            quantity: currentReserve?.room?.quantity ?? 3,
+            price: String(currentReserve?.room?.price ?? ''),
+            room_features: currentReserve?.room?.room_features ?? [],
+        },
+        mode: 'onBlur',
+        reValidateMode: 'onBlur',
+    });
 
-  const hotelOptions = useMemo(() => {
-    const hotelsTmp = hotels?.map(adaptToOption)
-    return hotelsTmp ?? []
-  }, [hotels])
-  const formData = watch()
+    const { control, handleSubmit, formState } = form;
 
-  const deserializeData = (data: RoomForm): Room | RoomDTO => {
-    return {
-      ...data,
-      id: currentReserve?.room?.id,
-      price: Number(data?.price ? data?.price : '0'),
-      hotel_id: data?.hotel_id?.id,
-      image_path: '',
-      image_title: '',
-    }
-  }
+    const hotelOptions = useMemo(() => {
+        const hotelsTmp = hotels?.map(adaptToOption);
+        return hotelsTmp ?? [];
+    }, [hotels]);
 
-  const onAcceptForm = async () => {
-    const data = deserializeData(formData)
+    const deserializeData = (data: RoomFormSchemaType): Room | RoomDTO => {
+        return {
+            title: data.title,
+            price: Number(data?.price ? data?.price : '0'),
+            quantity: typeof data.quantity === 'string' ? Number(data.quantity) : data.quantity,
+            comment: data.comment,
+            room_features: data.room_features || [],
+            hotel_id: data.hotel_id || '',
+            image_path: '',
+            image_title: '',
+            ...(currentReserve?.room?.id && { id: currentReserve.room.id }),
+        };
+    };
 
-    devLog('onAcceptForm', data)
-    onAccept(data)
-  }
+    const onAcceptForm = async (data: RoomFormSchemaType) => {
+        console.log('Данные формы перед отправкой:', data);
+        const serializedData = deserializeData(data);
 
-  const onError: SubmitErrorHandler<RoomForm> = errors => {
-    showToast(`Заполните все обязательные поля`, 'error')
-    return
-  }
+        devLog('onAcceptForm', serializedData);
+        onAccept(serializedData);
+    };
 
-  return (
-    <Flex vertical className={cx.container}>
-      <FormTitle>
-        {isEdit ? 'Редактирование номера' : 'Добавление номера'}
-      </FormTitle>
-      <Controller
-        name="hotel_id"
-        control={control}
-        rules={{ required: 'Отель обязателен для заполнения' }}
-        render={({ field, fieldState: { error } }) => (
-          <Select
-            {...field}
-            items={hotelOptions}
-            placeholder={'Выберите из списка'}
-            label={'Название отеля'}
-            required
-            size={FORM_SIZE}
-            dropdownClassName={cx.dropdown}
-            className={cx.fields}
-            disabled={loading || !!currentReserve?.hotel?.id}
-            status={error?.message ? 'alert' : undefined}
-            caption={error?.message}
-          />
-        )}
-      />
+    const onError: SubmitErrorHandler<RoomFormSchemaType> = (errors) => {
+        console.log('Ошибки валидации:', errors);
+        console.log('Значения формы:', form.watch());
 
-      <Controller
-        name="title"
-        control={control}
-        rules={{ required: 'Название номера обязательно для заполнения' }}
-        render={({ field, fieldState: { error } }) => (
-          <TextField
-            {...field}
-            placeholder="Введите название"
-            label="Название номера"
-            required
-            size={FORM_SIZE}
-            className={cx.fields}
-            disabled={loading}
-            status={error?.message ? 'alert' : undefined}
-            caption={error?.message}
-          />
-        )}
-      />
+        // Маппинг полей на понятные названия
+        const fieldNames: Record<string, string> = {
+            hotel_id: 'Отель',
+            title: 'Название номера',
+            price: 'Стоимость',
+            quantity: 'Вместимость',
+            room_features: 'Особенности номера',
+            comment: 'Комментарий',
+        };
 
-      <Grid cols={3} gap={FORM_GAP_SIZE}>
-        <GridItem col={2}>
-          <Controller
-            name="price"
-            control={control}
-            rules={{ required: 'Стоимость номера обязательна для заполнения' }}
-            render={({ field, fieldState: { error } }) => (
-              <TextField
-                {...field}
-                value={field?.value}
-                placeholder="Введите стоимость"
-                label="Стоимость номера"
-                required
-                size={FORM_SIZE}
-                className={cx.fields}
-                disabled={loading}
-                type="number"
-                incrementButtons={false}
-                status={error?.message ? 'alert' : undefined}
-                caption={error?.message}
-              />
-            )}
-          />
-        </GridItem>
-        <GridItem>
-          <Controller
-            name="quantity"
-            control={control}
-            rules={{ required: 'Вместимость обязательна для заполнения' }}
-            render={({ field, fieldState: { error } }) => (
-              <TextField
-                {...field}
-                placeholder="Введите число"
-                label="Вместимость"
-                required
-                value={String(field?.value)}
-                size={FORM_SIZE}
-                className={cx.fields}
-                disabled={loading}
-                type="number"
-                status={error?.message ? 'alert' : undefined}
-                caption={error?.message}
-              />
-            )}
-          />
-        </GridItem>
-      </Grid>
-      <DragNDropField
-        onDropFiles={files => devLog('onDropFiles', files)}
-        disabled={loading}
-        className={cx.fields}
-      >
-        {({ openFileDialog }) => (
-          <>
-            <Button onClick={openFileDialog} label="Выбрать файл" />
-            <br />
-            <Text view="primary">Перетащите изображения или загрузите</Text>
-            <Text view="secondary">Поддерживаемые форматы: PNG, TIFF, JPG</Text>
-          </>
-        )}
-      </DragNDropField>
-      <Controller
-        name="comment"
-        control={control}
-        rules={{ required: true }}
-        render={({ field }) => (
-          <TextField
-            {...field}
-            label="Комментарии"
-            type="textarea"
-            cols={200}
-            rows={3}
-            placeholder="Введите комментарий"
-            size={FORM_SIZE}
-            className={cn(cx.fields, cx.description)}
-            disabled={loading}
-          />
-        )}
-      />
+        // Получаем список полей с ошибками
+        const errorFields = Object.keys(errors);
+        const errorMessages = errorFields.map((field) => {
+            const error = errors[field as keyof typeof errors];
+            const fieldName = fieldNames[field] || field;
+            return error?.message || `${fieldName} содержит ошибку`;
+        });
 
-      <FormButtons
-        className={cx.buttons}
-        isLoading={loading}
-        onAccept={handleSubmit(onAcceptForm, onError)}
-        onClose={onClose}
-        isEdit={isEdit}
-        onDelete={() =>
-          currentReserve?.room?.id && onDelete(currentReserve?.room?.id)
-        }
-        deleteText={'Удалить номер'}
-      />
-    </Flex>
-  )
-}
+        const errorText =
+            errorMessages.length > 0
+                ? `Ошибки в полях: ${errorMessages.join(', ')}`
+                : 'Заполните все обязательные поля';
+
+        showToast(errorText, 'error');
+        return;
+    };
+
+    return (
+        <>
+            <Form {...form}>
+                <form
+                // onSubmit={(e) => {
+                //     e.preventDefault();
+                //     e.stopPropagation();
+                //     handleSubmit(onAcceptForm, onError)(e);
+                // }}
+                >
+                    <div className="space-y-4">
+                        <Controller
+                            name="hotel_id"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="hotel_id">
+                                        Название отеля <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                        value={field.value}
+                                        onValueChange={(value) => {
+                                            const selectedHotel = hotelOptions.find(
+                                                (hotel) => hotel.id === value,
+                                            );
+                                            if (selectedHotel) {
+                                                field.onChange(selectedHotel.id);
+                                            }
+                                        }}
+                                        disabled={loading || !!currentReserve?.hotel?.id}
+                                    >
+                                        <SelectTrigger className={cx.fields}>
+                                            <SelectValue placeholder="Выберите из списка" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {hotelOptions.map((hotel) => (
+                                                <SelectItem key={hotel.id} value={hotel.id}>
+                                                    {hotel.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {error?.message && (
+                                        <p className="text-sm text-red-500">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                        <Controller
+                            name="title"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="title">
+                                        Название номера <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Input
+                                        {...field}
+                                        id="title"
+                                        placeholder="Введите название"
+                                        className={cx.fields}
+                                        disabled={loading}
+                                    />
+                                    {error?.message && (
+                                        <p className="text-sm text-red-500">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                        <Controller
+                            name="room_features"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <FormMultipleSelector
+                                    label="Особенности номера"
+                                    placeholder="Выберите особенности номера"
+                                    options={INITIAL_ROOM_FEATURES.map((feature) => ({
+                                        value: feature.value,
+                                        label: feature.label,
+                                    }))}
+                                    value={
+                                        field.value?.map((feature) => ({
+                                            value: feature,
+                                            label:
+                                                INITIAL_ROOM_FEATURES.find(
+                                                    (opt) => opt.value === feature,
+                                                )?.label || feature,
+                                        })) || []
+                                    }
+                                    onChange={(options) => {
+                                        field.onChange(options.map((option) => option.value));
+                                    }}
+                                    disabled={loading}
+                                    error={error?.message}
+                                    className={cx.fields}
+                                />
+                            )}
+                        />
+                        <div className="grid grid-cols-3 gap-4">
+                            <div className="col-span-2">
+                                <Controller
+                                    name="price"
+                                    control={control}
+                                    render={({ field, fieldState: { error } }) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="price">
+                                                Стоимость номера{' '}
+                                                <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                {...field}
+                                                id="price"
+                                                type="number"
+                                                placeholder="Введите стоимость"
+                                                className={cx.fields}
+                                                disabled={loading}
+                                            />
+                                            {error?.message && (
+                                                <p className="text-sm text-red-500">
+                                                    {error.message}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                />
+                            </div>
+                            <div>
+                                <Controller
+                                    name="quantity"
+                                    control={control}
+                                    render={({ field, fieldState: { error } }) => (
+                                        <div className="space-y-2">
+                                            <Label htmlFor="quantity">
+                                                Кол-во <span className="text-red-500">*</span>
+                                            </Label>
+                                            <Input
+                                                {...field}
+                                                id="quantity"
+                                                type="number"
+                                                placeholder="Введите число"
+                                                value={String(field?.value)}
+                                                className={cx.fields}
+                                                disabled={loading}
+                                            />
+                                            {error?.message && (
+                                                <p className="text-sm text-red-500">
+                                                    {error.message}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+                                />
+                            </div>
+                        </div>{' '}
+                        <Controller
+                            name="comment"
+                            control={control}
+                            render={({ field }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="comment">Комментарии</Label>
+                                    <Textarea
+                                        {...field}
+                                        id="comment"
+                                        placeholder="Введите комментарий"
+                                        className={cn(cx.fields, cx.description)}
+                                        disabled={loading}
+                                        rows={3}
+                                    />
+                                </div>
+                            )}
+                        />
+                        <FormButtons
+                            className={cx.buttons}
+                            isLoading={loading}
+                            onAccept={handleSubmit(onAcceptForm, onError)}
+                            onClose={onClose}
+                            isEdit={isEdit}
+                            onDelete={() =>
+                                currentReserve?.room?.id && onDelete(currentReserve?.room?.id)
+                            }
+                            deleteText={'Удалить номер'}
+                        />
+                    </div>
+                </form>
+            </Form>
+        </>
+    );
+};

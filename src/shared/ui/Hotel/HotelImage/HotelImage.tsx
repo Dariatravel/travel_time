@@ -1,9 +1,8 @@
 'use client';
-import React from 'react';
-import styles from './style.module.scss';
 import cn from 'classnames';
 import Image from 'next/image';
-import { Tag } from '@consta/uikit/Tag';
+import React from 'react';
+import styles from './style.module.scss';
 
 export interface HotelImageProps {
     children?: React.ReactNode;
@@ -17,8 +16,13 @@ export interface HotelImageProps {
 export const HotelImage = ({ type, className, src, onClick, tagClassName }: HotelImageProps) => {
     return (
         <div className={cn(styles.container, className)} onClick={onClick}>
-            {type && <Tag className={cn(styles.tag, tagClassName)} label={type} size={'s'} mode={'info'} />}
-            <Image className={styles.hotelIcon} src={src} alt={'Изображение отеля'} layout={'fill'} objectFit={'cover'} />
+            <Image
+                className={styles.hotelIcon}
+                src={src}
+                alt={'Изображение отеля'}
+                layout={'fill'}
+                objectFit={'cover'}
+            />
         </div>
     );
 };

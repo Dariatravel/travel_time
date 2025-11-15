@@ -1,67 +1,87 @@
-import { TABLE_NAMES } from '@/shared/api/const'
-import { ReserveDTO, TravelOption } from '@/shared/api/reserve/reserve'
-import { Room, RoomDTO } from '@/shared/api/room/room'
-import { QUERY_KEYS } from '@/shared/config/reactQuery'
-import supabase from '@/shared/config/supabase'
-import { TravelFilterType } from '@/shared/models/hotels'
-import { showToast } from '@/shared/ui/Toast/Toast'
-import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query'
-import { RoomReserves } from './../room/room'
+import { TABLE_NAMES } from '@/shared/api/const';
+import { ReserveDTO, TravelOption, getReservesByHotels } from '@/shared/api/reserve/reserve';
+import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
+import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import supabase from '@/shared/config/supabase';
+import { TravelFilterType } from '@/shared/models/hotels';
+import { showToast } from '@/shared/ui/Toast/Toast';
+import {
+    keepPreviousData,
+    useInfiniteQuery,
+    useMutation,
+    useQuery,
+    useQueryClient,
+} from '@tanstack/react-query';
 
 // Тип Room
 export interface HotelImage {
-  id: string
-  file: File
+    id: string;
+    file: File;
 }
 
-export interface Hotel {
-  id: string
-  title: string
-  type: string
-  rating: number
-  address: string
-  phone: string
-  user_id: string
-  telegram_url?: string
-  description: string
-  image_id?: string
+export interface Hotel extends HotelFeatures {
+    id: string;
+    title: string;
+    type: string;
+    rating: number;
+    address: string;
+    phone: string;
+    user_id: string;
+    telegram_url?: string;
+    description: string;
+    image_id?: string;
 }
-
+export interface HotelFeatures {
+    /** Город */
+    city: string;
+    /** Особенности номера */
+    room_features: string[];
+    /** Особенности размещения */
+    features: string[];
+    /** Питание */
+    eat: string[];
+    /** Тип пляжа */
+    beach: string;
+    /** Расстояние до пляжа */
+    beach_distance: string;
+}
 export interface HotelDTO extends Hotel {
-  image_id?: string
+    image_id?: string;
 }
 
-export type HotelRoomsDTO = HotelDTO & { rooms: RoomDTO[] }
+export type HotelRoomsDTO = HotelDTO & { rooms: RoomDTO[] };
 
-export type HotelRoomsReservesDTO = HotelDTO & { rooms: RoomReserves[] }
+export type HotelRoomsReservesDTO = HotelDTO & { rooms: RoomReserves[] };
 
 //для создания отеля
 export interface CreateHotelDTO extends Omit<Hotel, 'id'> {
-  image_id?: string
+    image_id?: string;
 }
 
 //для формы
 export type RoomForm = Omit<Room, 'hotel_id' | 'price'> & {
-  hotel_id: TravelOption
-  price: string
-}
+    hotel_id: TravelOption;
+    price: string;
+};
 
 export interface FreeHotelsDTO {
-  free_room_count: number
-  hotel_id: string
-  hotel_title: string
-  rooms: {
-    room_id: string
-    room_price: number
-    room_title: string
-    reserves: ReserveDTO[]
-  }[]
+    free_room_count: number;
+    hotel_id: string;
+    hotel_title: string;
+    rooms: {
+        room_id: string;
+        room_price: number;
+        room_title: string;
+        reserves: ReserveDTO[];
+    }[];
 }
 
 //для формы Room и Reserve
-export type HotelForRoom = Pick<HotelDTO, 'id' | 'title'>
+export type HotelForRoom = Pick<HotelDTO, 'id' | 'title' | 'telegram_url' | 'phone' | 'address'> & {
+    rooms_count?: number;
+};
 
-export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] }
+export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
 
 /**
  * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
@@ -71,56 +91,148 @@ export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] }
  * @returns объект с массивом отелей и общим количеством
  */
 export async function getAllHotels(
-  filter?: TravelFilterType,
-  page: number = 0,
-  limit: number = 10
+    filter?: TravelFilterType,
+    page: number = 0,
+    limit: number = 10,
 ): Promise<{
-  data: HotelRoomsDTO[]
-  count: number
+    data: HotelRoomsReservesDTO[];
+    count: number;
 }> {
-  try {
-    const from = page * limit
-    const to = from + limit - 1
+    try {
+        // Если есть фильтры (start, end, type, quantity), используем оптимизированную функцию
+        // В этом случае расширенные фильтры уже применены через getHotelsWithFreeRooms
+        // и результат сохранен в freeHotels_id
+        if (
+            filter?.freeHotels_id &&
+            (filter?.start !== undefined ||
+                filter?.end !== undefined ||
+                filter?.type !== undefined ||
+                filter?.quantity !== undefined)
+        ) {
+            // Используем стандартный запрос, но фильтруем по freeHotels_id
+            const from = page * limit;
+            const to = from + limit - 1;
 
-    const query = supabase
-      .from('hotels_with_rooms_new')
-      .select('*, rooms(*)', { count: 'exact' })
+            let filteredHotelIds = filter.freeHotels_id;
 
-    if (filter?.freeHotels_id) {
-      if (filter?.hotels && filter?.hotels?.length > 0) {
-        const hotels = filter?.hotels.map(hotel => hotel.id)
-        const filteredByTitle = filter?.freeHotels_id?.filter(id =>
-          hotels.includes(id)
-        )
+            if (filter?.hotels && filter?.hotels?.length > 0) {
+                const hotels = filter?.hotels.map((hotel) => hotel.id);
+                filteredHotelIds = filter?.freeHotels_id?.filter((id) => hotels.includes(id));
+            }
 
-        query.in('id', filteredByTitle)
-      } else {
-        query.in('id', filter?.freeHotels_id)
-      }
+            const query = supabase
+                .from('hotels_with_rooms_new')
+                .select('*, rooms(*)', { count: 'exact' })
+                .in('id', filteredHotelIds)
+                .order('title', { ascending: true })
+                .range(from, to);
+
+            const response = await query;
+
+            // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+            // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+            const data: HotelRoomsReservesDTO[] =
+                response?.data?.map((hotel: any) => {
+                    let filteredRooms = hotel.rooms || [];
+
+                    // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                    if (filter?.freeHotels && hotel.id) {
+                        const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                        // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                        // Пустой массив означает, что в отеле нет свободных номеров
+                        filteredRooms = filteredRooms.filter((room: any) =>
+                            allowedRoomIds.includes(room.id),
+                        );
+                    }
+
+                    console.log(`${hotel.title}`, { rooms: hotel.rooms, filteredRooms });
+                    return {
+                        ...hotel,
+                        rooms:
+                            filteredRooms.map((room: any) => ({
+                                ...room,
+                                reserves: [],
+                            })) || [],
+                    };
+                }) || [];
+
+            console.log('getAllHotels', { data });
+            return {
+                data,
+                count: response.count || 0,
+            };
+        }
+
+        // Для случая без фильтров используем стандартный запрос
+        const from = page * limit;
+        const to = from + limit - 1;
+
+        const query = supabase
+            .from('hotels_with_rooms_new')
+            .select('*, rooms(*)', { count: 'exact' });
+
+        if (filter?.freeHotels_id) {
+            if (filter?.hotels && filter?.hotels?.length > 0) {
+                const hotels = filter?.hotels.map((hotel) => hotel.id);
+                const filteredByTitle = filter?.freeHotels_id?.filter((id) => hotels.includes(id));
+
+                query.in('id', filteredByTitle);
+            } else {
+                query.in('id', filter?.freeHotels_id);
+            }
+        }
+
+        if (!filter?.freeHotels_id && filter?.hotels && filter?.hotels?.length > 0) {
+            query.in(
+                'id',
+                filter?.hotels.map((hotel) => hotel.id),
+            );
+        }
+
+        query.order('title', { ascending: true }).range(from, to);
+        const response = await query;
+
+        // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+        // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+        const data: HotelRoomsReservesDTO[] =
+            response?.data?.map((hotel: any) => {
+                let filteredRooms = hotel.rooms || [];
+
+                // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                if (filter?.freeHotels && hotel.id) {
+                    const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                    // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                    // Пустой массив означает, что в отеле нет свободных номеров
+                    filteredRooms = filteredRooms.filter((room: any) =>
+                        allowedRoomIds.includes(room.id),
+                    );
+                }
+
+                // Сортируем номера по полю order перед маппингом
+                const sortedRooms = [...filteredRooms].sort((a: any, b: any) => {
+                    const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
+                });
+
+                return {
+                    ...hotel,
+                    rooms:
+                        sortedRooms.map((room: any) => ({
+                            ...room,
+                            reserves: [],
+                        })) || [],
+                };
+            }) || [];
+
+        return {
+            data,
+            count: response.count || 0,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении отелей:', error);
+        throw error;
     }
-
-    if (
-      !filter?.freeHotels_id &&
-      filter?.hotels &&
-      filter?.hotels?.length > 0
-    ) {
-      query.in(
-        'id',
-        filter?.hotels.map(hotel => hotel.id)
-      )
-    }
-
-    query.order('title', { ascending: true }).range(from, to)
-    const response = await query
-
-    return {
-      data: response?.data ?? [],
-      count: response.count || 0,
-    }
-  } catch (error) {
-    console.error('Ошибка при получении отелей:', error)
-    throw error
-  }
 }
 
 /**
@@ -131,276 +243,662 @@ export async function getAllHotels(
  * @returns объект с массивом отелей и общим количеством
  */
 export async function getAllHotelsWithEmptyRooms(
-  filter?: TravelFilterType,
-  page: number = 0,
-  limit: number = 10
+    filter?: TravelFilterType,
+    page: number = 0,
+    limit: number = 10,
 ): Promise<{
-  data: HotelRoomsDTO[]
-  count: number
+    data: HotelRoomsReservesDTO[];
+    count: number;
 }> {
-  try {
-    const from = page * limit
-    const to = from + limit - 1
+    try {
+        const from = page * limit;
+        const to = from + limit - 1;
 
-    const query = supabase
-      .from('hotels')
-      .select('*, rooms(*)', { count: 'exact' })
+        const query = supabase.from('hotels').select('*, rooms(*)', { count: 'exact' });
 
-    if (filter?.freeHotels_id) {
-      query.in('id', filter?.freeHotels_id)
+        if (filter?.freeHotels_id) {
+            query.in('id', filter?.freeHotels_id);
+        }
+
+        query.order('title', { ascending: true }).range(from, to);
+        const response = await query;
+
+        // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
+        // Если есть фильтр freeHotels (например, по цене), фильтруем номера
+        const data: HotelRoomsReservesDTO[] =
+            response?.data?.map((hotel: any) => {
+                let filteredRooms = hotel.rooms || [];
+
+                // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
+                if (filter?.freeHotels && hotel.id) {
+                    const allowedRoomIds = filter.freeHotels.get(hotel.id) || [];
+                    // ВАЖНО: фильтруем всегда, даже если allowedRoomIds пустой
+                    // Пустой массив означает, что в отеле нет свободных номеров
+                    filteredRooms = filteredRooms.filter((room: any) =>
+                        allowedRoomIds.includes(room.id),
+                    );
+                }
+
+                // Сортируем номера по полю order перед маппингом
+                const sortedRooms = [...filteredRooms].sort((a: any, b: any) => {
+                    const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
+                });
+
+                return {
+                    ...hotel,
+                    rooms:
+                        sortedRooms.map((room: any) => ({
+                            ...room,
+                            reserves: [],
+                        })) || [],
+                };
+            }) || [];
+
+        return {
+            data,
+            count: response.count || 0,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении отелей:', error);
+        throw error;
+    }
+}
+
+/**
+ * Получение всех отелей для экспорта (загружает все страницы)
+ * @param filter - фильтр для поиска
+ * @returns массив всех отелей
+ */
+export async function getAllHotelsForExport(
+    filter?: TravelFilterType,
+): Promise<HotelRoomsReservesDTO[]> {
+    const LIMIT = 100; // Размер страницы для загрузки
+    const allHotels: HotelRoomsReservesDTO[] = [];
+    let page = 0;
+    let hasMore = true;
+
+    while (hasMore) {
+        const result = await getAllHotels(filter, page, LIMIT);
+
+        if (result.data && result.data.length > 0) {
+            allHotels.push(...result.data);
+
+            // Проверяем, есть ли ещё страницы
+            if (result.data.length < LIMIT || allHotels.length >= (result.count || 0)) {
+                hasMore = false;
+            } else {
+                page++;
+            }
+        } else {
+            hasMore = false;
+        }
     }
 
-    query.order('title', { ascending: true }).range(from, to)
-    const response = await query
-
-    return {
-      data: response?.data ?? [],
-      count: response.count || 0,
-    }
-  } catch (error) {
-    console.error('Ошибка при получении отелей:', error)
-    throw error
-  }
+    return allHotels;
 }
 
 /**
  * Хук для бесконечной подгрузки отелей с поддержкой фильтрации
  * @param filter - фильтр для поиска
  * @param limit - количество элементов на странице (по умолчанию 5)
+ * @withEmptyRooms - нужно ли в результатах вернуть пустые номера
  */
 export const useInfiniteHotelsQuery = (
-  filter?: TravelFilterType,
-  limit: number = 5,
-  withEmptyRooms?: boolean
+    filter?: TravelFilterType,
+    limit: number = 5,
+    withEmptyRooms?: boolean,
 ) => {
-  return useInfiniteQuery({
-    queryKey: [QUERY_KEYS.hotels, filter],
-    queryFn: async ({ pageParam = 0 }) => {
-      const result = withEmptyRooms
-        ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
-        : await getAllHotels(filter, pageParam as number, limit)
-      return result // Возвращаем полный объект с data и count
-    },
-    initialPageParam: 0,
-    getNextPageParam: (
-      lastPage: { data: HotelRoomsDTO[]; count: number },
-      allPages: {
-        data: HotelRoomsDTO[]
-        count: number
-      }[]
-    ) => {
-      // Если последняя страница пустая или количество загруженных элементов равно общему количеству, то больше страниц нет
-      if (lastPage.data.length === 0 || lastPage.data.length < limit) {
-        return undefined
-      }
+    return useInfiniteQuery({
+        queryKey: QUERY_KEYS.hotels(filter),
+        queryFn: async ({ pageParam = 0 }) => {
+            const result = withEmptyRooms
+                ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
+                : await getAllHotels(filter, pageParam as number, limit);
 
-      // Возвращаем номер следующей страницы
-      return allPages.length
-    },
-  })
-}
+            console.log('useInfiniteHotelsQuery', { result, filter });
+
+            // Возвращаем отели с номерами БЕЗ броней
+            // Брони будут загружены в HotelCard через useHotelDetailQuery
+            const hotelsWithEmptyReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
+                // Сортируем номера по полю order
+                const sortedRooms = [...hotel.rooms].sort((a, b) => {
+                    const orderA = a.order ?? 999;
+                    const orderB = b.order ?? 999;
+                    return orderA - orderB;
+                });
+
+                return {
+                    ...hotel,
+                    rooms: sortedRooms.map((room) => ({
+                        ...room,
+                        reserves: [], // Пустой массив - брони загрузятся отдельно
+                    })),
+                };
+            });
+
+            console.log('useInfiniteHotelsQueryEND', { hotelsWithEmptyReserves });
+            return {
+                ...result,
+                data: hotelsWithEmptyReserves,
+            };
+        },
+        initialPageParam: 0,
+        getNextPageParam: (
+            lastPage: { data: HotelRoomsReservesDTO[]; count: number },
+            allPages: {
+                data: HotelRoomsReservesDTO[];
+                count: number;
+            }[],
+        ) => {
+            // Если последняя страница пустая или количество загруженных элементов равно общему количеству, то больше страниц нет
+            if (lastPage.data.length === 0 || lastPage.data.length < limit) {
+                return undefined;
+            }
+
+            // Возвращаем номер следующей страницы
+            return allPages.length;
+        },
+    });
+};
 
 export async function getAllHotelsForRoom(): Promise<HotelForRoom[]> {
-  const response = await supabase.from('hotels').select('id, title')
-  return response.data as HotelForRoom[] // Возвращаем массив отелей
+    const response = await supabase.from('hotels').select('id, title');
+    return response.data as HotelForRoom[]; // Возвращаем массив отелей
 }
 
 export async function getAllCounts() {
-  const { data, error } = await supabase.rpc('get_hotel_room_reserve_counts')
+    const { data, error } = await supabase.rpc('get_hotel_room_reserve_counts');
 
-  if (error) throw error
+    if (error) throw error;
 
-  return data as {
-    hotel_count: number
-    room_count: number
-    reserve_count: number
-  }[] // Возвращаем массив отелей
+    return data as {
+        hotel_count: number;
+        room_count: number;
+        reserve_count: number;
+    }[]; // Возвращаем массив отелей
 }
 
 export async function insertItem<Type>(
-  tableName: string,
-  data: Type,
-  options?: {
-    count?: 'exact' | 'planned' | 'estimated'
-  }
+    tableName: string,
+    data: Type,
+    options?: {
+        count?: 'exact' | 'planned' | 'estimated';
+    },
 ) {
-  try {
-    const { data: responseData, error } = await supabase
-      .from(tableName)
-      .insert(data, options)
-    return { responseData, error }
-  } catch (error) {
-    console.error('im here', error)
+    try {
+        const { data: responseData, error } = await supabase.from(tableName).insert(data, options);
+        return { responseData, error };
+    } catch (error) {
+        console.error('im here', error);
 
-    throw error
-  }
+        throw error;
+    }
 }
 
 export const getHotelById = async (id: string) => {
-  try {
-    const response = await supabase
-      .from('hotels')
-      .select('*, rooms(*)')
-      .eq('id', id)
-      .single()
+    try {
+        const response = await supabase.from('hotels').select('*, rooms(*)').eq('id', id).single();
 
-    return response?.data
-  } catch (e) {
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    throw new Error(e)
-  }
-}
+        return response?.data;
+    } catch (e) {
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        throw new Error(e);
+    }
+};
+
+/**
+ * Получение детальных данных конкретного отеля со всеми номерами и бронями
+ * Используется для отображения календаря конкретного отеля
+ * @param hotelId - ID отеля
+ * @param allowedRooms - Массив разрешённых ID номеров для фильтрации (опционально)
+ * @returns Отель с полными данными о номерах и бронях
+ */
+export const getHotelDetail = async (
+    hotelId: string,
+    allowedRooms?: string[],
+): Promise<HotelRoomsReservesDTO> => {
+    try {
+        // Загружаем базовую информацию об отеле и его номерах
+        const { data: hotelData, error: hotelError } = await supabase
+            .from('hotels_with_rooms_new')
+            .select('*, rooms(*)')
+            .eq('id', hotelId)
+            .single();
+
+        if (hotelError) throw hotelError;
+        if (!hotelData) throw new Error(`Hotel with id ${hotelId} not found`);
+
+        // Фильтруем номера по allowedRooms, если они переданы
+        let filteredRooms = hotelData.rooms || [];
+        if (allowedRooms && allowedRooms.length > 0) {
+            filteredRooms = filteredRooms.filter((room: any) => allowedRooms.includes(room.id));
+        } else if (allowedRooms && allowedRooms.length === 0) {
+            // Если allowedRooms пустой массив, значит нет доступных номеров
+            filteredRooms = [];
+        }
+
+        // Загружаем брони для номеров этого отеля
+        // Передаём allowedRooms через Map для фильтрации в getReservesByHotels
+        const allowedRoomsByHotel = allowedRooms
+            ? new Map<string, string[]>([[hotelId, allowedRooms]])
+            : undefined;
+        const reservesMap = await getReservesByHotels([hotelId], allowedRoomsByHotel);
+        const roomsReserves = reservesMap.get(hotelId) || [];
+
+        // Объединяем данные номеров с бронями
+        const rooms: RoomReserves[] = filteredRooms.map((room: any) => {
+            const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
+            return (
+                roomWithReserves || {
+                    ...room,
+                    reserves: [],
+                }
+            );
+        });
+
+        // Сортируем номера по полю order
+        const sortedRooms = [...rooms].sort((a, b) => {
+            const orderA = a.order ?? 999;
+            const orderB = b.order ?? 999;
+            return orderA - orderB;
+        });
+
+        return {
+            ...hotelData,
+            rooms: sortedRooms,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении детальных данных отеля:', error);
+        throw error;
+    }
+};
+
+/**
+ * Хук для получения детальных данных конкретного отеля
+ * Автоматически обновляется при изменении броней/номеров этого отеля
+ * @param hotelId - ID отеля
+ * @param allowedRooms - Массив разрешённых ID номеров для фильтрации (опционально)
+ * @param enabled - включен ли запрос (по умолчанию true если есть hotelId)
+ */
+export const useHotelDetailQuery = (
+    hotelId?: string,
+    allowedRooms?: string[],
+    enabled: boolean = true,
+) => {
+    return useQuery({
+        queryKey: hotelId
+            ? [
+                  ...QUERY_KEYS.hotelDetail(hotelId),
+                  allowedRooms ? allowedRooms.slice().sort().join(',') : 'all', // Сортируем для стабильности queryKey
+              ]
+            : ['hotels', 'detail', 'null'],
+        queryFn: () => {
+            if (!hotelId) throw new Error('Hotel ID is required');
+            return getHotelDetail(hotelId, allowedRooms);
+        },
+        enabled: enabled && !!hotelId,
+        placeholderData: keepPreviousData, // Сохраняем предыдущие данные во время загрузки
+    });
+};
 
 export const useHotelById = (id: string) => {
-  return useQuery({
-    queryKey: QUERY_KEYS.hotelById,
-    queryFn: () => getHotelById(id),
-  })
-}
+    return useQuery({
+        queryKey: QUERY_KEYS.hotelById,
+        queryFn: () => getHotelById(id),
+    });
+};
 
 export const useGetAllHotels = (
-  enabled?: boolean,
-  filter?: TravelFilterType,
-  select?: (hotels: HotelRoomsDTO[]) => HotelRoomsDTO[]
+    enabled?: boolean,
+    filter?: TravelFilterType,
+    select?: (hotels: HotelRoomsDTO[]) => HotelRoomsDTO[],
 ) => {
-  return useQuery({
-    queryKey: [QUERY_KEYS.hotels, filter],
-    queryFn: async () => {
-      const result = await getAllHotels(filter)
-      return result.data
-    },
-    enabled: enabled,
-    select: select,
-  })
-}
+    return useQuery({
+        queryKey: QUERY_KEYS.hotels(filter),
+        queryFn: async () => {
+            const result = await getAllHotels(filter);
+            return result.data;
+        },
+        enabled: enabled,
+        select: select,
+    });
+};
 
 export const useGetAllCounts = () => {
-  return useQuery({
-    queryKey: QUERY_KEYS.allCounts,
-    queryFn: getAllCounts,
-  })
-}
+    return useQuery({
+        queryKey: QUERY_KEYS.allCounts,
+        queryFn: getAllCounts,
+    });
+};
 export const useGetHotelsForRoom = () => {
-  return useQuery({
-    queryKey: QUERY_KEYS.hotelsForRoom,
-    queryFn: getAllHotelsForRoom,
-  })
-}
+    return useQuery({
+        queryKey: QUERY_KEYS.hotelsForRoom,
+        queryFn: getAllHotelsForRoom,
+    });
+};
 
-export async function getHotelsWithFreeRooms(filter: {
-  start?: number
-  end?: number
-  type?: string
-  quantity?: number
-}): Promise<FreeHotelsDTO[]> {
-  try {
-    const default_filter = {
-      start_time: filter?.start ?? null,
-      end_time: filter?.end ?? null,
-      hotel_type_filter: filter?.type ?? null,
-      min_quantity_filter: filter?.quantity ?? null,
+/**
+ * Получение отелей с доступностью через RPC функцию get_hotels_with_availability
+ * @param filter - базовые фильтры
+ * @param parsedAdvancedFilter - расширенные фильтры
+ * @param page - номер страницы (начиная с 0)
+ * @param limit - количество элементов на странице
+ * @returns объект с массивом отелей и общим количеством
+ */
+/**
+ * Преобразует массив строковых ценовых фильтров в числовые значения min и max
+ * @param priceFilters - массив строк типа ["up-to-3000", "over-10000"]
+ * @returns объект с min_price и max_price числами или null
+ */
+function parsePriceFilters(priceFilters: string[] | null): {
+    min_price: number | null;
+    max_price: number | null;
+} {
+    if (!priceFilters || priceFilters.length === 0) {
+        return { min_price: null, max_price: null };
     }
 
-    const { data, error } = await supabase.rpc(
-      'get_available_hotels',
-      default_filter
-    )
+    let minPrice: number | null = null;
+    let maxPrice: number | null = null;
 
-    return data ?? ([] as FreeHotelsDTO[])
-  } catch (error) {
-    console.error(
-      'Ошибка при получении отелей с свободными номерами:',
-      // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-      // @ts-expect-error
-      error?.message
-    )
-    throw error
-  }
+    priceFilters.forEach((filter) => {
+        // Обработка фильтров типа "up-to-XXXX" (максимальная цена)
+        if (filter.startsWith('up-to-')) {
+            const value = parseInt(filter.replace('up-to-', ''), 10);
+            if (!isNaN(value)) {
+                // Для max_price берём минимальное значение из всех "up-to"
+                if (maxPrice === null || value < maxPrice) {
+                    maxPrice = value;
+                }
+            }
+        }
+        // Обработка фильтров типа "over-XXXX" (минимальная цена)
+        else if (filter.startsWith('over-')) {
+            const value = parseInt(filter.replace('over-', ''), 10);
+            if (!isNaN(value)) {
+                // Для min_price берём максимальное значение из всех "over"
+                if (minPrice === null || value > minPrice) {
+                    minPrice = value;
+                }
+            }
+        }
+    });
+
+    return { min_price: minPrice, max_price: maxPrice };
+}
+
+export async function getHotelsWithAvailability(
+    filter: {
+        start?: number;
+        end?: number;
+        type?: string;
+        quantity?: number;
+    },
+    parsedAdvancedFilter?: Record<string, string[] | null>,
+    page: number = 0,
+    limit: number = 10,
+): Promise<{
+    data: HotelRoomsDTO[];
+    count: number;
+}> {
+    try {
+        const priceFilters = parsePriceFilters(parsedAdvancedFilter?.price ?? null);
+
+        const default_filter = {
+            start_time: filter?.start ?? null,
+            end_time: filter?.end ?? null,
+            hotel_type_filter: filter?.type ?? null,
+            min_quantity_filter: filter?.quantity ?? null,
+            city_filter: parsedAdvancedFilter?.city ?? null,
+            room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
+            features_filter: parsedAdvancedFilter?.features ?? null,
+            eat_filter: parsedAdvancedFilter?.eat ?? null,
+            beach_filter: parsedAdvancedFilter?.beach ?? null,
+            beach_distance_filter: parsedAdvancedFilter?.beachDistance ?? null,
+            min_price_filter: priceFilters.min_price,
+            max_price_filter: priceFilters.max_price,
+        };
+
+        const { data: rpcData, error: rpcError } = await supabase.rpc(
+            'get_hotels_with_availability',
+            default_filter,
+        );
+
+        if (rpcError) {
+            throw rpcError;
+        }
+
+        if (!rpcData || rpcData.length === 0) {
+            return { data: [], count: 0 };
+        }
+
+        // Применяем пагинацию к результатам
+        const from = page * limit;
+        const to = from + limit;
+        const paginatedData = rpcData.slice(from, to);
+
+        // Получаем все ID отелей из результатов
+        const hotelIds = paginatedData.map((hotelData: any) => hotelData.hotel_id);
+
+        if (hotelIds.length === 0) {
+            return { data: [], count: rpcData.length };
+        }
+
+        // Получаем все отели одним запросом
+        const { data: hotelsInfo, error: hotelsError } = await supabase
+            .from('hotels')
+            .select('*')
+            .in('id', hotelIds);
+
+        if (hotelsError) {
+            throw hotelsError;
+        }
+
+        // Создаем Map для быстрого доступа к информации об отелях
+        const hotelsMap = new Map(
+            (hotelsInfo || []).map((hotel: any) => [hotel.id, hotel as HotelDTO]),
+        );
+
+        // Преобразуем результат RPC в формат HotelRoomsDTO
+        const hotelsData: HotelRoomsDTO[] = paginatedData
+            .map((hotelData: any): HotelRoomsDTO | null => {
+                const hotelInfo = hotelsMap.get(hotelData.hotel_id);
+
+                if (!hotelInfo) {
+                    return null;
+                }
+
+                // Преобразуем номера из JSON формата
+                const rooms: RoomDTO[] = Array.isArray(hotelData.rooms)
+                    ? hotelData.rooms.map((room: any) => ({
+                          id: room.room_id || room.id,
+                          hotel_id: hotelData.hotel_id,
+                          title: room.room_title || room.title || '',
+                          price: room.room_price || room.price || 0,
+                          quantity: room.room_quantity || room.quantity || 0,
+                          image_title: room.image_title || '',
+                          image_path: room.image_path || '',
+                          comment: room.comment,
+                          room_features: room.room_features || [],
+                          order: room.order || 0,
+                      }))
+                    : [];
+
+                return {
+                    ...hotelInfo,
+                    rooms,
+                };
+            })
+            .filter((hotel: HotelRoomsDTO | null): hotel is HotelRoomsDTO => hotel !== null);
+
+        return {
+            data: hotelsData,
+            count: rpcData.length,
+        };
+    } catch (error) {
+        console.error('Ошибка при получении отелей с доступностью:', error);
+        throw error;
+    }
+}
+
+export async function getHotelsWithFreeRooms(
+    filter: {
+        start?: number;
+        end?: number;
+        type?: string;
+        quantity?: number;
+    },
+    parsedAdvancedFilter?: Record<string, string[] | null>,
+): Promise<FreeHotelsDTO[]> {
+    try {
+        const priceFilters = parsePriceFilters(parsedAdvancedFilter?.price ?? null);
+
+        const default_filter = {
+            start_time: filter?.start ?? null,
+            end_time: filter?.end ?? null,
+            hotel_type_filter: filter?.type ?? null,
+            min_quantity_filter: filter?.quantity ?? null,
+            city_filter: parsedAdvancedFilter?.city ?? null,
+            room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
+            features_filter: parsedAdvancedFilter?.features ?? null,
+            eat_filter: parsedAdvancedFilter?.eat ?? null,
+            beach_filter: parsedAdvancedFilter?.beach ?? null,
+            beach_distance_filter: parsedAdvancedFilter?.beachDistance ?? null,
+            min_price_filter: priceFilters.min_price,
+            max_price_filter: priceFilters.max_price,
+        };
+
+        const { data } = await supabase.rpc('get_available_hotels', default_filter);
+
+        return data ?? ([] as FreeHotelsDTO[]);
+    } catch (error) {
+        console.error(
+            'Ошибка при получении отелей с свободными номерами:',
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            error?.message,
+        );
+        throw error;
+    }
 }
 
 export const createHotelApi = async (hotel: Hotel) => {
-  try {
-    await insertItem<Hotel>(TABLE_NAMES.HOTELS, hotel)
-  } catch (error) {
-    console.error(error)
-    showToast(`Ошибка при обновлении брони ${error}`, 'error')
-  }
-}
+    try {
+        await insertItem<Hotel>(TABLE_NAMES.HOTELS, hotel);
+    } catch (error) {
+        console.error(error);
+        showToast(`Ошибка при обновлении брони ${error}`, 'error');
+    }
+};
 
 export const updateHotelApi = async ({ id, ...hotel }: HotelDTO) => {
-  try {
-    await supabase.from('hotels').update(hotel).eq('id', id)
-  } catch (error) {
-    console.error(error)
-    showToast(`Ошибка при обновлении брони ${error}`, 'error')
-  }
-}
+    try {
+        const { data, error } = await supabase.from('hotels').update(hotel).eq('id', id);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return data;
+    } catch (error) {
+        console.error(error);
+        showToast(`Ошибка при обновлении отеля ${error}`, 'error');
+        throw error;
+    }
+};
 
 export const deleteHotelApi = async (id: string) => {
-  try {
-    await supabase.from('hotels').delete().eq('id', id)
-  } catch (err) {
-    console.error('Error fetching posts:', err)
-    showToast(`Ошибка при обновлении брони ${err}`, 'error')
-  }
-}
+    try {
+        await supabase.from('hotels').delete().eq('id', id);
+    } catch (err) {
+        console.error('Error fetching posts:', err);
+        showToast(`Ошибка при обновлении брони ${err}`, 'error');
+    }
+};
 
-export const useCreateHotel = (
-  onSuccess: () => void,
-  onError?: (e: Error) => void
-) => {
-  return useMutation({
-    mutationFn: (hotel: Hotel) => {
-      return createHotelApi(hotel)
-    },
-    onSuccess,
-    onError,
-  })
-}
+export const useCreateHotel = (onSuccess: () => void, onError?: (e: Error) => void) => {
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: (hotel: Hotel) => {
+            return createHotelApi(hotel);
+        },
+        onSuccess: async () => {
+            // При создании отеля инвалидируем список отелей (нужно обновить список)
+            await queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
+            onSuccess();
+        },
+        onError,
+    });
+};
 
 export const useUpdateHotel = (
-  onSuccess?: () => void,
-  onError?: (e: Error) => void
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
 ) => {
-  return useMutation({
-    mutationFn: updateHotelApi,
-    onSuccess,
-    onError,
-  })
-}
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: updateHotelApi,
+        onSuccess: async (_data, variables) => {
+            // Точечная инвалидация: обновляем только конкретный отель
+            const id = hotelId || variables.id;
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+            }
+            onSuccess?.();
+        },
+        onError,
+    });
+};
 
 export const useDeleteHotel = (
-  onSuccess?: () => void,
-  onError?: (e: Error) => void
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
 ) => {
-  return useMutation({
-    mutationFn: deleteHotelApi,
-    onSuccess,
-    onError,
-  })
-}
+    const queryClient = useQueryClient();
+    return useMutation({
+        mutationFn: deleteHotelApi,
+        onSuccess: async () => {
+            // При удалении инвалидируем список отелей
+            await queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
+            // И удаляем детальные данные отеля из кэша
+            if (hotelId) {
+                queryClient.removeQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+            }
+            onSuccess?.();
+        },
+        onError,
+    });
+};
 
 export const createImageApi = async (fileName: string, file: File) => {
-  try {
-    const { data, error } = await supabase.storage
-      .from('images') // Замените на имя вашего bucket
-      .upload(fileName, file)
-  } catch (err) {
-    console.error('Error fetching posts:', err)
-    showToast(`Ошибка при обновлении брони ${err}`, 'error')
-  }
-}
-export const useCreateImage = (
-  onSuccess?: () => void,
-  onError?: (e: Error) => void
-) => {
-  return useMutation({
-    // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-    // @ts-expect-error
-    mutationFn: (fileName: string, file: File) =>
-      createImageApi(fileName, file),
-    onSuccess,
-    onError,
-  })
-}
+    try {
+        await supabase.storage
+            .from('images') // Замените на имя вашего bucket
+            .upload(fileName, file);
+    } catch (err) {
+        console.error('Error fetching posts:', err);
+        showToast(`Ошибка при обновлении брони ${err}`, 'error');
+    }
+};
+export const useCreateImage = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+    return useMutation({
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-expect-error
+        mutationFn: (fileName: string, file: File) => createImageApi(fileName, file),
+        onSuccess,
+        onError,
+    });
+};

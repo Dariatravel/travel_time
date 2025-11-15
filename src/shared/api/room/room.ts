@@ -16,6 +16,7 @@ export type RoomDTO = {
     image_title: string; // Название изображения
     image_path: string; // Путь к изображению
     comment?: string; // Комментарий к номеру
+    room_features?: string[]; // Особенности номера
     order?: number;
 };
 
@@ -28,6 +29,7 @@ export type RoomReserves = {
     image_title: string; // Название изображения
     image_path: string; // Путь к изображению
     comment?: string; // Комментарий к номеру
+    room_features?: string[]; // Особенности номера
     order?: number; // Порядок отображения
     reserves: ReserveDTO[]; // Список бронирований для этого номера
 };
@@ -62,6 +64,12 @@ export async function getRoomsWithReservesByHotel(
         query.in('id', allowedRooms);
     }
 
+    // Фильтрация по особенностям номера (room_features)
+    if (filter?.roomFeatures && filter.roomFeatures.length > 0) {
+        // Используем overlaps для проверки пересечения массивов
+        query.overlaps('room_features', filter.roomFeatures);
+    }
+
     query.order('order', { ascending: true, nullsFirst: false });
     const response = await query;
 
@@ -79,10 +87,17 @@ export const createRoomApi = async (room: Room) => {
 
 export const updateRoomApi = async ({ id, ...room }: RoomDTO) => {
     try {
-        await supabase.from('rooms').update(room).eq('id', id);
+        const { data, error } = await supabase.from('rooms').update(room).eq('id', id);
+
+        if (error) {
+            throw new Error(error.message);
+        }
+
+        return data;
     } catch (error) {
         console.error(error);
-        showToast(`Ошибка при обновлении брони ${error}`, 'error');
+        showToast(`Ошибка при обновлении номера ${error}`, 'error');
+        throw error;
     }
 };
 
@@ -124,13 +139,10 @@ export const useUpdateRoomOrder = (onSuccess?: () => void, onError?: (error: str
     return useMutation({
         mutationFn: ({ hotelId, rooms }: { hotelId: string; rooms: RoomDTO[] }) =>
             updateRoomOrder(hotelId, rooms),
-        onSuccess: (data, variables) => {
-            // Инвалидируем кеш для обновления данных
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, variables.hotelId],
-            });
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.roomsByHotel, variables.hotelId],
+        onSuccess: async (data, variables) => {
+            // Точечная инвалидация: обновляем только конкретный отель
+            await queryClient.invalidateQueries({
+                queryKey: QUERY_KEYS.hotelDetail(variables.hotelId),
             });
 
             onSuccess?.();
@@ -159,26 +171,73 @@ export const useGetRoomsWithReservesByHotel = (
         queryFn: () => getRoomsWithReservesByHotel(hotel_id, filter, withReserves),
     });
 };
-export const useCreateRoom = (onSuccess: () => void, onError?: (e: Error) => void) => {
+export const useCreateRoom = (
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: createRoomApi,
-        onSuccess,
+        onSuccess: async (data, variables) => {
+            // Точечная инвалидация: обновляем только конкретный отель
+            const id = hotelId || variables.hotel_id;
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+            }
+            onSuccess?.();
+        },
         onError,
     });
 };
 
-export const useUpdateRoom = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useUpdateRoom = (
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: updateRoomApi,
-        onSuccess,
+        onSuccess: async (data, variables) => {
+            console.log('onSuccess updateRoom', data, variables);
+            // Точечная инвалидация: обновляем только конкретный отель
+            const id = hotelId || variables.hotel_id;
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+            }
+            onSuccess?.();
+        },
         onError,
     });
 };
 
-export const useDeleteRoom = (onSuccess?: () => void, onError?: (e: Error) => void) => {
+export const useDeleteRoom = (
+    hotelId?: string,
+    onSuccess?: () => void,
+    onError?: (e: Error) => void,
+) => {
+    const queryClient = useQueryClient();
     return useMutation({
         mutationFn: deleteRoomApi,
-        onSuccess,
+        onSuccess: async (data, variables) => {
+            console.log('onSuccess deleteRoom', data, variables);
+            // Точечная инвалидация: обновляем только конкретный отель
+            const id = hotelId || variables;
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+            }
+            queryClient.invalidateQueries({
+                queryKey: [...QUERY_KEYS.hotelById],
+            });
+            onSuccess?.();
+        },
         onError,
     });
 };

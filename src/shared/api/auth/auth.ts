@@ -3,7 +3,6 @@ import { devError } from '@/shared/lib/logger';
 import { notifyError, notifySuccess, showToast } from '@/shared/ui/Toast/Toast';
 import { AuthSession, AuthUser } from '@supabase/supabase-js';
 import { useMutation, useQuery } from '@tanstack/react-query';
-import { redirect } from 'next/navigation';
 
 export interface AuthProps {
     email: string;
@@ -35,11 +34,11 @@ export const login = async ({ email, password }: { email: string; password: stri
     });
     if (error) {
         notifyError('Введены некорректные данные. Попробуйте ещё раз');
-        return error;
+        throw error;
     }
 
     notifySuccess('Успешный вход!');
-    redirect('/main');
+    return data;
 };
 
 export async function register({ email, password, surname, role, name }: RegisterProps) {
@@ -50,12 +49,11 @@ export async function register({ email, password, surname, role, name }: Registe
     });
     if (error) {
         notifyError(`Ошибка регистрации ${error.message}`);
-        return error;
+        throw error;
     }
 
     notifySuccess('Успешная регистрация!');
-
-    redirect('/main');
+    return data;
 }
 
 export const getUser = async () => {

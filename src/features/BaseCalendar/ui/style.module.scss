@@ -74,8 +74,8 @@
 .calendarHeader {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 8px;
+    // gap: 8px;
+    // padding: 8px;
     background-color: var(--color-bg-container);
     border-bottom: 1px solid var(--color-border);
 }
@@ -122,7 +122,8 @@
 }
 
 .calendarItem {
-    background-color: var(--color-primary);
+    width: 100%;
+    background-color: var(--primary);
     color: var(--color-text-light-solid);
     border-radius: 4px;
     padding: 4px 8px;
@@ -147,13 +148,15 @@
     justify-content: space-between;
     background-color: var(--color-bg-layout);
     border-bottom: 1px solid var(--color-border);
-    //border-radius: 4px 4px 0 0;
 }
 
 .groupTitle {
     font-weight: 500;
     color: var(--color-text);
     font-size: 14px;
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: thin;
 }
 
 .dragHandle {
@@ -161,9 +164,9 @@
     color: var(--color-text-secondary);
     display: flex;
     align-items: center;
-    // padding: 4px;
     border-radius: 4px;
     transition: all 0.2s ease;
+    flex-shrink: 0;
 }
 
 .dragIcon {

@@ -1,14 +1,22 @@
 'use client';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from '@/components/ui/select';
+import { PhoneInput } from '@/shared';
 import { RegisterProps, useRegister, UserRole } from '@/shared/api/auth/auth';
-import { FORM_SIZE } from '@/shared/lib/const';
+import { routes, PagesEnum } from '@/shared/config/routes';
 import { translateUserRole } from '@/shared/lib/translateUser';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
-import { Button } from '@consta/uikit/Button';
-import { Grid, GridItem } from '@consta/uikit/Grid';
-import { Select } from '@consta/uikit/Select';
-import { TextField } from '@consta/uikit/TextField';
+import { useRouter } from 'next/navigation';
 import React from 'react';
-import { Controller, useForm } from 'react-hook-form';
+import { Controller, FormProvider, useForm } from 'react-hook-form';
 import styles from './style.module.css';
 
 export interface LoginProps {
@@ -16,153 +24,248 @@ export interface LoginProps {
     className?: string;
 }
 
-export const Register = ({ className }: LoginProps) => {
+// Тип для формы регистрации (с объектом для роли)
+interface RegisterFormData extends Omit<RegisterProps, 'role'> {
+    role: { id: string; label: string };
+}
+
+// Компонент для отображения обязательного поля
+const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
+    <span>
+        {children} <span className="text-red-600">*</span>
+    </span>
+);
+
+// Правила валидации
+const validationRules = {
+    surname: {
+        required: 'Фамилия обязательна',
+        minLength: { value: 2, message: 'Фамилия должна содержать минимум 2 символа' },
+        pattern: {
+            value: /^[а-яА-ЯёЁa-zA-Z\s-]+$/,
+            message: 'Фамилия может содержать только буквы, пробелы и дефисы',
+        },
+    },
+    name: {
+        required: 'Имя обязательно',
+        minLength: { value: 2, message: 'Имя должно содержать минимум 2 символа' },
+    },
+    role: {
+        required: 'Роль обязательна для выбора',
+    },
+    phone: {
+        required: 'Номер телефона обязателен',
+        pattern: {
+            value: /^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/,
+            message: 'Введите корректный номер телефона',
+        },
+    },
+    email: {
+        required: 'Email обязателен',
+        pattern: {
+            value: /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/,
+            message: 'Введите корректный email адрес',
+        },
+    },
+    password: {
+        required: 'Пароль обязателен',
+        minLength: { value: 6, message: 'Пароль должен содержать минимум 6 символов' },
+        pattern: {
+            value: /^(?=.*[a-zA-Z])(?=.*\d).+$/,
+            message: 'Пароль должен содержать буквы и цифры',
+        },
+    },
+};
+
+export const Register = () => {
+    const router = useRouter();
     const { isPending, mutateAsync } = useRegister();
 
-    const {
-        control,
-        watch,
-        formState: { errors },
-    } = useForm<RegisterProps>();
+    const form = useForm<RegisterFormData>({
+        mode: 'onChange', // Валидация при изменении
+    });
 
-    const formData = watch();
+    const { control, handleSubmit } = form;
+
+    const onSubmit = async (data: RegisterFormData) => {
+        try {
+            await mutateAsync({ ...data, role: data.role.id });
+            // После успешной регистрации перенаправляем на главную страницу
+            router.push(routes[PagesEnum.MAIN]);
+        } catch (error) {
+            console.error('Ошибка регистрации:', error);
+        }
+    };
 
     return (
-        <>
+        <FormProvider {...form}>
             {isPending && <FullWidthLoader />}
-            <Grid cols={6} gap={FORM_SIZE}>
-                <GridItem col={6}>
-                    <Controller
-                        name="surname"
-                        control={control}
-                        rules={{ required: true }}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder={'Введите фамилию'}
-                                label={'Фамилия'}
-                                required
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
-                        )}
-                    />
-                </GridItem>
-                <GridItem col={6}>
-                    <Controller
-                        name="name"
-                        control={control}
-                        rules={{ required: true }}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder={'Введите имя'}
-                                label={'Имя'}
-                                required
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
-                        )}
-                    />
-                </GridItem>
-                <GridItem col={6}>
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="surname">
+                            <RequiredLabel>Фамилия</RequiredLabel>
+                        </Label>
+                        <Controller
+                            name="surname"
+                            control={control}
+                            rules={validationRules.surname}
+                            render={({ field, fieldState: { error } }) => (
+                                <div>
+                                    <Input
+                                        {...field}
+                                        id="surname"
+                                        placeholder="Введите фамилию"
+                                        className={styles.fields}
+                                        aria-invalid={!!error}
+                                    />
+                                    {error && (
+                                        <p className="text-sm text-red-600 mt-1">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="name">
+                            <RequiredLabel>Имя</RequiredLabel>
+                        </Label>
+                        <Controller
+                            name="name"
+                            control={control}
+                            rules={validationRules.name}
+                            render={({ field, fieldState: { error } }) => (
+                                <div>
+                                    <Input
+                                        {...field}
+                                        id="name"
+                                        placeholder="Введите имя"
+                                        className={styles.fields}
+                                        aria-invalid={!!error}
+                                    />
+                                    {error && (
+                                        <p className="text-sm text-red-600 mt-1">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="role">
+                        <RequiredLabel>Тип пользователя</RequiredLabel>
+                    </Label>
                     <Controller
                         name="role"
                         control={control}
-                        rules={{ required: true }}
-                        render={({ field }) => (
-                            <Select
-                                items={[
-                                    // {
-                                    //   label: translateUserRole(UserRole.ADMIN),
-                                    //   id: UserRole.ADMIN,
-                                    // },
-                                    {
-                                        label: translateUserRole(UserRole.OPERATOR),
-                                        id: UserRole.OPERATOR,
-                                    },
-                                    {
-                                        label: translateUserRole(UserRole.HOTEL),
-                                        id: UserRole.HOTEL,
-                                    },
-                                ]}
-                                {...field}
-                                placeholder={'Выберите роль'}
-                                label={'Тип'}
-                                required
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
+                        rules={validationRules.role}
+                        render={({ field, fieldState: { error } }) => (
+                            <div>
+                                <Select
+                                    onValueChange={(value) =>
+                                        field.onChange({
+                                            id: value,
+                                            label: translateUserRole(value as UserRole),
+                                        })
+                                    }
+                                    value={field.value?.id || ''}
+                                >
+                                    <SelectTrigger className={styles.fields} aria-invalid={!!error}>
+                                        <SelectValue placeholder="Выберите роль" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value={UserRole.OPERATOR}>
+                                            {translateUserRole(UserRole.OPERATOR)}
+                                        </SelectItem>
+                                        <SelectItem value={UserRole.HOTEL}>
+                                            {translateUserRole(UserRole.HOTEL)}
+                                        </SelectItem>
+                                    </SelectContent>
+                                </Select>
+                                {error && (
+                                    <p className="text-sm text-red-600 mt-1">{error.message}</p>
+                                )}
+                            </div>
                         )}
                     />
-                </GridItem>
-                <GridItem col={6}>
-                    <Controller
-                        name="phone"
-                        control={control}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder="Введите номер телефона"
-                                label="Телефон"
-                                type="phone"
-                                required
-                                min={1}
-                                max={5}
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
-                        )}
-                    />
-                </GridItem>
-                <GridItem col={6}>
-                    <Controller
-                        name="email"
-                        control={control}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder="Введите почту"
-                                label="Почта"
-                                type="email"
-                                required
-                                min={1}
-                                max={5}
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
-                        )}
-                    />
-                </GridItem>
-                <GridItem col={6}>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                        <PhoneInput
+                            control={control}
+                            name="phone"
+                            placeholder="+7 (___) ___-__-__"
+                            required
+                            label="Номер телефона"
+                            className={styles.fields}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <Label htmlFor="email">
+                            <RequiredLabel>Email</RequiredLabel>
+                        </Label>
+                        <Controller
+                            name="email"
+                            control={control}
+                            rules={validationRules.email}
+                            render={({ field, fieldState: { error } }) => (
+                                <div>
+                                    <Input
+                                        {...field}
+                                        id="email"
+                                        type="email"
+                                        placeholder="example@mail.ru"
+                                        className={styles.fields}
+                                        aria-invalid={!!error}
+                                    />
+                                    {error && (
+                                        <p className="text-sm text-red-600 mt-1">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                    </div>
+                </div>
+
+                <div className="space-y-2">
+                    <Label htmlFor="password">
+                        <RequiredLabel>Пароль</RequiredLabel>
+                    </Label>
                     <Controller
                         name="password"
                         control={control}
-                        rules={{ required: true }}
-                        render={({ field }) => (
-                            <TextField
-                                {...field}
-                                placeholder={'Введите пароль'}
-                                label={'Пароль'}
-                                type="password"
-                                required
-                                size={FORM_SIZE}
-                                className={styles.fields}
-                            />
+                        rules={validationRules.password}
+                        render={({ field, fieldState: { error } }) => (
+                            <div>
+                                <Input
+                                    {...field}
+                                    id="password"
+                                    type="password"
+                                    placeholder="Минимум 6 символов (буквы и цифры)"
+                                    className={styles.fields}
+                                    aria-invalid={!!error}
+                                />
+                                {error && (
+                                    <p className="text-sm text-red-600 mt-1">{error.message}</p>
+                                )}
+                            </div>
                         )}
                     />
-                </GridItem>
-                <GridItem col={3}>
-                    <Button
-                        label={'Зарегистрироваться'}
-                        onClick={async () => {
-                            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                            // @ts-expect-error
-                            mutateAsync({ ...formData, role: formData?.role?.id });
-                        }}
-                    />
-                </GridItem>
-            </Grid>
-        </>
+                </div>
+
+                <div className="pt-2">
+                    <p className="text-sm text-gray-600 mb-3">
+                        <span className="text-red-600">*</span> — обязательные поля
+                    </p>
+                    <Button type="submit" className="w-full" disabled={isPending}>
+                        {isPending ? 'Регистрация...' : 'Зарегистрироваться'}
+                    </Button>
+                </div>
+            </form>
+        </FormProvider>
     );
 };

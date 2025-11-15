@@ -1,50 +1,84 @@
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
-import { Modal as ModalConsta } from '@consta/uikit/Modal';
 import cn from 'classnames';
-import { ComponentProps, CSSProperties, FC, useEffect } from 'react';
+import { X } from 'lucide-react';
+import { CSSProperties, FC, ReactNode } from 'react';
 import st from './style.module.scss';
 
-export interface ModalProps extends ComponentProps<typeof ModalConsta> {
+export interface ModalProps {
+    /** Открыто ли модальное окно */
+    isOpen?: boolean;
+    /** Обработчик закрытия */
+    onClose?: () => void;
+    /** Заголовок модального окна */
+    title?: string;
+    /** Содержимое модального окна */
+    children?: ReactNode;
+    /** Дополнительные стили */
     style?: CSSProperties;
+    /** Состояние загрузки */
     loading?: boolean;
+    /** Дополнительный CSS класс */
+    className?: string;
+    /** Размер модального окна */
+    size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
 }
 
-export const Modal: FC<ModalProps> = ({ children, loading = false, ...props }) => {
-    const { isOpen } = props;
-
-    useEffect(() => {
-        if (isOpen) {
-            document.body.style.overflow = 'hidden';
-        }
-
-        return () => {
-            document.body.style.overflow = '';
-        };
-    }, [isOpen]);
+/**
+ * Компонент модального окна на базе Shadcn Dialog с совместимостью с Consta UI API
+ */
+export const Modal: FC<ModalProps> = ({
+    children,
+    loading = false,
+    isOpen = false,
+    onClose,
+    title,
+    className,
+    style,
+    size = 'md',
+    ...props
+}) => {
+    const sizeClasses = {
+        sm: 'max-w-sm',
+        md: 'max-w-md',
+        lg: 'max-w-lg',
+        xl: 'max-w-xl',
+        full: 'max-w-full h-full',
+    };
 
     return (
-        <ModalConsta
-            {...props}
-            rootClassName={cn(st.sidebarOverlay, { [st.rootLoading]: loading })}
-            className={cn(st.modal, {
-                [st.modalLoading]: loading,
-                [st.opened]: isOpen,
-            })}
-        >
-            <div className={st.close} onClick={props.onClose}>
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path
-                        d="M12 13.4142L19.7782 21.1924L21.1924 19.7782L13.4142 12L21.1924 4.22183L19.7782 2.80762L12 10.5858L4.22183 2.80762L2.80762 4.22183L10.5858 12L2.80762 19.7782L4.22183 21.1924L12 13.4142Z"
-                        fill="black"
-                    />
-                </svg>
-            </div>
-            {loading && (
-                // <div className={st.loading}>
-                <FullWidthLoader className={st.loader} />
-                // </div>
-            )}
-            {children}
-        </ModalConsta>
+        <Dialog open={isOpen} onOpenChange={(open) => !open && onClose?.()}>
+            <DialogContent
+                className={cn(sizeClasses[size], 'max-h-[90vh] overflow-y-auto', className)}
+                style={style}
+            >
+                {title && (
+                    <DialogHeader>
+                        <DialogTitle>{title}</DialogTitle>
+                    </DialogHeader>
+                )}
+
+                {/* Кнопка закрытия для совместимости */}
+                {onClose && (
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        className="absolute right-4 top-4 h-6 w-6 p-0 opacity-70 hover:opacity-100"
+                        onClick={onClose}
+                    >
+                        <X className="h-4 w-4" />
+                    </Button>
+                )}
+
+                {loading && (
+                    <div className="absolute inset-0 bg-background/80 flex items-center justify-center z-50">
+                        <FullWidthLoader className={st.loader} />
+                    </div>
+                )}
+
+                <div className={cn(loading && 'opacity-50 pointer-events-none')}>{children}</div>
+            </DialogContent>
+        </Dialog>
     );
 };

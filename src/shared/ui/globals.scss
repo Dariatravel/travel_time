@@ -1,40 +1,28 @@
 @import '../lib/consts.scss';
 
-html,
-body {
-  max-width: 100vw;
-  overflow-x: hidden;
+.rct-sidebar-row {
+    min-height: 44px !important;
+    max-height: 44px !important;
 }
 
-* {
-  box-sizing: border-box;
-  padding: 0;
-  margin: 0;
+.rct-horizontal-lines > div {
+    min-height: 44px !important;
+    max-height: 44px !important;
 }
-
-/*.rct-sidebar-row {*/
-/*    min-height: 44px !important;*/
-/*    !*max-height: 44px !important;*!*/
-/*}*/
-
-/*.rct-horizontal-lines > div {*/
-/*    min-height: 44px !important;*/
-/*    !*max-height: 44px !important;*!*/
-/*}*/
 .che--Layout {
-  height: 64px !important;
+    height: 64px !important;
 }
 
 .che--LayoutRow_height_s {
-  --header-height: 64px !important;
+    --header-height: 64px !important;
 }
 
 .che--LayoutRow {
-  border-bottom: none !important;
+    border-bottom: none !important;
 }
 
 .react-calendar-timeline .rct-header-root {
-  background-color: transparent !important;
+    background-color: transparent !important;
 }
 
 //.ant-select-selector {
