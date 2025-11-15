@@ -526,7 +526,9 @@ const MultipleSelector = React.forwardRef<MultipleSelectorRef, MultipleSelectorP
                     </div>
                     <Button
                         variant="ghost"
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
                             setSelected(selected.filter((s) => s.fixed));
                             onChange?.(selected.filter((s) => s.fixed));
                         }}

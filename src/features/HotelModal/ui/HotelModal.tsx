@@ -83,6 +83,7 @@ export const HotelModal: FC<HotelModalProps> = ({
                     isLoading={loading}
                 />
             }
+            descriptionClassName={'max-w-lg'}
         />
     );
 };

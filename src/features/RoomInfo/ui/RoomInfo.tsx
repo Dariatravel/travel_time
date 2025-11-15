@@ -148,11 +148,10 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         <>
             <Form {...form}>
                 <form
-                // onSubmit={(e) => {
-                //     e.preventDefault();
-                //     e.stopPropagation();
-                //     handleSubmit(onAcceptForm, onError)(e);
-                // }}
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                    }}
                 >
                     <div className="space-y-4">
                         <Controller
