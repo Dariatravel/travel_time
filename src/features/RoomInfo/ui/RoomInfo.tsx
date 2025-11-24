@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { INITIAL_ROOM_FEATURES } from '@/features/AdvancedFilters';
-import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
+import { ROOM_TYPES } from '@/features/AdvancedFilters/lib/constants';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components/FormMultipleSelector';
 import { FormButtons } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
@@ -94,7 +94,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                 ? {
                       id: currentReserve.room.type,
                       label:
-                          HOTEL_TYPES.find((t) => t.value === currentReserve.room?.type)?.label ||
+                          ROOM_TYPES.find((t) => t.value === currentReserve.room?.type)?.label ||
                           currentReserve.room.type,
                   }
                 : undefined,
@@ -223,7 +223,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                     <Select
                                         value={field.value?.id}
                                         onValueChange={(value) => {
-                                            const selectedType = HOTEL_TYPES.find(
+                                            const selectedType = ROOM_TYPES.find(
                                                 (type) => type.value === value,
                                             );
                                             if (selectedType) {
@@ -239,7 +239,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                             <SelectValue placeholder="Выберите тип номера" />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            {HOTEL_TYPES.map((type) => (
+                                            {ROOM_TYPES.map((type) => (
                                                 <SelectItem key={type.value} value={type.value}>
                                                     {type.label}
                                                 </SelectItem>

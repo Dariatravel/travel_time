@@ -3,12 +3,37 @@ import { AdvancedFiltersState } from './types';
 /**
  * Константы для расширенной фильтрации
  */
+export const ROOM_TYPES: { value: string; label: string }[] = [
+    {
+        label: 'Отели',
+        value: 'Отели',
+    },
+    {
+        label: 'Домики',
+        value: 'Домики',
+    },
+    {
+        label: 'Квартиры',
+        value: 'Квартиры',
+    },
+    {
+        label: 'Дом под ключ',
+        value: 'Дом под ключ',
+    },
+];
+
+/**
+ * Константы для расширенной фильтрации
+ */
 export const DEFAULT_CITIES = [
     { value: 'sukhumi', label: 'Сухум' },
-    { value: 'gagra', label: 'Гагра' },
-    { value: 'gali', label: 'Гали' },
-    { value: 'pitsunda', label: 'Пицунда' },
     { value: 'new-athon', label: 'Новый Афон' },
+    { value: 'gudauta', label: 'Гудаута' },
+    { value: 'ldzaa', label: 'Лдзаа' },
+    { value: 'pitsunda', label: 'Пицунда' },
+    { value: 'alahadzy', label: 'Алахадзы' },
+    { value: 'gagra', label: 'Гагра' },
+    { value: 'candripsh', label: 'Цандрипш' },
 ];
 
 export const DEFAULT_ROOM_FEATURES = [
@@ -83,71 +108,78 @@ export const getFeatureLabel = (value: string): string => {
     return feature?.label || value;
 };
 
+const CITY_MAP = DEFAULT_CITIES.reduce(
+    (acc, city) => {
+        acc[city.value] = city.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const ROOM_FEATURES_MAP = DEFAULT_ROOM_FEATURES.reduce(
+    (acc, roomFeature) => {
+        acc[roomFeature.value] = roomFeature.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const FEATURES_MAP = DEFAULT_FEATURES.reduce(
+    (acc, feature) => {
+        acc[feature.value] = feature.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const EAT_MAP = DEFAULT_EAT.reduce(
+    (acc, eat) => {
+        acc[eat.value] = eat.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const BEACH_MAP = DEFAULT_BEACH.reduce(
+    (acc, beach) => {
+        acc[beach.value] = beach.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const BEACH_DISTANCE_MAP = DEFAULT_BEACH_DISTANCE.reduce(
+    (acc, beachDistance) => {
+        acc[beachDistance.value] = beachDistance.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
+
+const PRICE_MAP = DEFAULT_PRICE.reduce(
+    (acc, price) => {
+        acc[price.value] = price.label;
+        return acc;
+    },
+    {} as Record<string, string>,
+);
 /**
  * Маппинг для быстрого поиска русских названий
  */
 export const VALUE_TO_LABEL_MAP = {
-    // Города
-    sukhumi: 'Сухум',
-    gagra: 'Гагра',
-    gali: 'Гали',
-    pitsunda: 'Пицунда',
-    'new-athon': 'Новый Афон',
+    ...CITY_MAP,
 
-    // Особенности номера
-    'sea-view': 'Вид на море',
-    balcony: 'Балкон',
-    pool: 'Бассейн',
-    'single-room': 'Однокомнатный',
-    'double-room': 'Двухкомнатный',
-    kitchen: 'Своя кухня',
-    'air-conditioning': 'Кондиционер',
-    // wifi: 'Wi-Fi',
-    // minibar: 'Мини-бар',
-    // tv: 'Телевизор',
-    // jacuzzi: 'Джакузи',
-    // kitchenette: 'Кухонный уголок',
-    // safe: 'Сейф',
-    // refrigerator: 'Холодильник',
-    // 'washing-machine': 'Стиральная машина',
-    // iron: 'Утюг',
-    // 'hair-dryer': 'Фен',
-    // towels: 'Полотенца',
-    // linen: 'Постельное белье',
+    ...ROOM_FEATURES_MAP,
 
-    // Особенности размещения
-    'children-allowed': 'Можно с детьми',
-    'pets-allowed': 'Можно с животными',
+    ...FEATURES_MAP,
 
-    // Питание
-    breakfast: 'Завтрак',
-    'half-board': 'Полупансион',
-    'full-board': 'Завтрак, обед, ужин',
-    cafe: 'Есть кафе/столовая',
-    'no-meals': 'Без питания',
+    ...EAT_MAP,
 
-    // Пляж
-    pebble: 'Галечный',
-    'pine-pebble': 'Сосново-галечный',
-    sand: 'Песчаный',
-    'pebble-sand': 'Галечно-песчаный',
+    ...BEACH_MAP,
 
-    // Расстояние до пляжа
-    'coastal-zone': 'Береговая зона',
-    '5-min': 'До 5 минут',
-    '10-min': 'До 10 минут',
-    'more-10-min': 'Более 10 минут',
+    ...BEACH_DISTANCE_MAP,
 
-    // Цена
-    'up-to-3000': 'До 3000 руб.',
-    'up-to-4000': 'До 4000 руб.',
-    'up-to-5000': 'До 5000 руб.',
-    'up-to-6000': 'До 6000 руб.',
-    'up-to-7000': 'До 7000 руб.',
-    'up-to-8000': 'До 8000 руб.',
-    'up-to-9000': 'До 9000 руб.',
-    'up-to-10000': 'До 10000 руб.',
-    'over-10000': 'Свыше 10000 руб.',
+    ...PRICE_MAP,
 } as const;
 
 /**
