@@ -496,7 +496,7 @@ export const getHotelDetail = async (
             const roomTmp = roomWithReserves || {
                 ...room,
                 reserves: [],
-            }
+            };
             return roomTmp;
         });
         console.log('hotelData', { hotelData, rooms, allowedRoomsByHotel, filteredRooms });
