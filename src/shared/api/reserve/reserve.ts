@@ -236,6 +236,7 @@ export async function getReservesByHotels(
                     room_features: room.room_features || [],
                     order: room.order || 0,
                     reserves: (room.reserves || []) as ReserveDTO[],
+                    ...room,
                 };
 
                 reservesMap.get(hotelId)!.push(roomReserves);

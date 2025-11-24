@@ -47,6 +47,7 @@ export default function Main() {
     // Массив cards заменен на новые InfoCard компоненты
 
     const onReserveCreate = useCallback((reserve: Reserve) => {
+        queryClient.invalidateQueries({ queryKey: QUERY_KEYS.allCounts });
         devLog('создаю Reserve', reserve);
         createReserve(reserve);
     }, []);

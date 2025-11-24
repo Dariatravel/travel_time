@@ -1,5 +1,4 @@
 'use client';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NoDataAvailable } from '@/components/ui/empty-state';
@@ -63,6 +62,9 @@ const HotelCard = ({
     // Используем детальные данные если они загружены, иначе базовые из списка
     const hotelData = hotelDetail || hotel;
 
+    console.log({ hotelDetail });
+    console.log({ hotel });
+    console.log({ hotelData });
     // Измеряем реальную высоту элемента после рендера и при изменении данных
     useEffect(() => {
         if (elementRef.current) {
@@ -100,17 +102,9 @@ const HotelCard = ({
                     <CardTitle>
                         <div className="space-y-2 p-3 sm:p-4">
                             <div className="space-y-1">
-                                {hotelData?.type && (
-                                    <Badge
-                                        variant="secondary"
-                                        onClick={() =>
-                                            onHotelClick ? onHotelClick(hotelData?.id) : undefined
-                                        }
-                                        className="cursor-pointer"
-                                    >
-                                        {hotelData?.type}
-                                    </Badge>
-                                )}{' '}
+                                {/* Ранее здесь отображался тип отеля (hotelData.type),
+                                    но тип перенесён на уровень номера (room.type),
+                                    поэтому бейдж типа для отеля убран. */}
                                 <div className="flex items-center gap-2">
                                     <HotelTitle
                                         size={isMobile ? 's' : 'xl'}
@@ -275,7 +269,9 @@ export default function Home() {
     };
 
     const onRoomClick = (room: RoomDTO, hotel: HotelRoomsReservesDTO) => {
+        console.log(room);
         setCurrentRoom(room);
+        console.log(hotel);
         setCurrentHotel(hotel);
         setIsRoomModalOpen(true);
     };

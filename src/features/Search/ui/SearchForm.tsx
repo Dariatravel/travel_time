@@ -462,7 +462,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                                 htmlFor="category"
                                                 className="text-sm font-medium"
                                             >
-                                                Категория отеля
+                                                Категория номера
                                             </Label>
                                             <ClearableSelect
                                                 value={field.value || ''}

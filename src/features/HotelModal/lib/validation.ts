@@ -11,13 +11,16 @@ export const hotelFormSchema = z.object({
         .string({ message: 'Название отеля обязательно' })
         .min(1, { message: 'Название отеля обязательно' })
         .nonempty({ message: 'Название отеля обязательно' }),
-    type: z.object(
-        {
-            id: z.string(),
-            label: z.string(),
-        },
-        { message: 'Тип отеля обязателен' },
-    ),
+    // Тип больше не задаётся на уровне отеля, он перенесён на уровень номера (room.type),
+    // чтобы тип применялся к конкретным номерам, а не ко всему отелю.
+    // Поле type оставлено закомментированным для истории и на случай отката:
+    // type: z.object(
+    //     {
+    //         id: z.string(),
+    //         label: z.string(),
+    //     },
+    //     { message: 'Тип отеля обязателен' },
+    // ),
     user_id: z.object(
         {
             id: z.string(),

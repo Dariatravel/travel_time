@@ -3,6 +3,7 @@ import { RoomInfo } from '@/features/RoomInfo/ui/RoomInfo';
 import { TravelDialog } from '@/shared';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, useCreateRoom, useDeleteRoom, useUpdateRoom } from '@/shared/api/room/room';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { devLog } from '@/shared/lib/logger';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC, useCallback } from 'react';
@@ -23,6 +24,7 @@ export const RoomModal: FC<RoomModalProps> = ({
     const { isPending: isRoomCreating, mutate: createRoom } = useCreateRoom(
         currentReserve?.hotel?.id,
         () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.allCounts });
             onClose();
             showToast('Номер успешно добавлен');
         },

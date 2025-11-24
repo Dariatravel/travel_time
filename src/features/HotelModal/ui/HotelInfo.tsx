@@ -2,7 +2,6 @@
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
-import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormButtons, PhoneInput } from '@/shared';
 import { TravelUser } from '@/shared/api/auth/auth';
 import { CreateHotelDTO, Hotel, HotelDTO } from '@/shared/api/hotel/hotel';
@@ -70,7 +69,9 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
         user_id: hotel?.user_id
             ? adaptToOption({ title: hotel?.user_id, id: hotel?.user_id })
             : undefined,
-        type: hotel?.type ? adaptToOption({ title: hotel?.type, id: hotel?.type }) : undefined,
+        // Тип больше не задаётся на уровне отеля, он перенесён на уровень номера (room.type),
+        // чтобы тип применялся к конкретным номерам, а не ко всему отелю.
+        // type: hotel?.type ? adaptToOption({ title: hotel?.type, id: hotel?.type }) : undefined,
         description: hotel?.description || '',
         image_id: hotel?.image_id ? { id: hotel.image_id, file: new File([], '') } : null,
         beach: hotel?.beach ? adaptToOption({ title: hotel?.beach, id: hotel?.beach }) : undefined,
@@ -94,7 +95,8 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
 const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
     const hotelData = {
         ...data,
-        type: data.type.label,
+        // Тип больше не сохраняется в отель, он перенесён на уровень номера (room.type).
+        // type: data.type.label,
         rating: +(data?.rating || '5'),
         user_id: data?.user_id?.id,
         description: data?.description || '',
@@ -169,7 +171,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
         <FormProvider {...form}>
             <form>
                 <div className="flex flex-col gap-1">
-                    <div className="grid sm:grid-cols-1 md:grid-cols-2 gap-1">
+                    <div className="grid sm:grid-cols-1 gap-1">
                         <Controller
                             name="title"
                             control={control}
@@ -187,7 +189,10 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                 />
                             )}
                         />
-
+                        {/* Поле выбора типа перенесено на уровень номера (RoomInfo),
+                            чтобы тип относился к конкретному номеру, а не ко всему отелю.
+                            Блок оставлен закомментированным для истории. */}
+                        {/*
                         <Controller
                             name="type"
                             control={control}
@@ -216,6 +221,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                 />
                             )}
                         />
+                        */}
                     </div>
                     <Controller
                         control={control}

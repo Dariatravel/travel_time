@@ -11,6 +11,9 @@ export type RoomDTO = {
     id: string; // Уникальный идентификатор номера
     hotel_id: string;
     title: string; // Название номера
+    // Тип номера (например, апартаменты, стандарт, студия).
+    // Ранее тип задавался на уровне отеля, теперь он перенесён на уровень номера.
+    type?: string;
     price: number; // Цена за ночь
     quantity: number; // Вместимость
     image_title: string; // Название изображения
@@ -24,6 +27,8 @@ export type RoomReserves = {
     id: string; // Уникальный идентификатор номера
     hotel_id: string;
     title: string; // Название номера
+    // Тип номера (например, апартаменты, стандарт, студия).
+    type?: string;
     price: number; // Цена за ночь
     quantity: number; // Количество номеров данного типа
     image_title: string; // Название изображения
@@ -208,6 +213,9 @@ export const useUpdateRoom = (
             if (id) {
                 await queryClient.invalidateQueries({
                     queryKey: QUERY_KEYS.hotelDetail(id),
+                });
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelById,
                 });
             }
             onSuccess?.();

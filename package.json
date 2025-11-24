@@ -12,7 +12,7 @@
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
         "clean": "powershell -Command \"Get-Process node -ErrorAction SilentlyContinue | Stop-Process -Force; if (Test-Path .next) { Remove-Item -Recurse -Force .next }\"",
         "supabase:login": "npx supabase login",
-        "supabase:update-types": "npx supabase gen types typescript --project-id \"dvmijscippdwxslgowmr\" --schema public > database.types.ts"
+        "supabase:update-types": "npx supabase gen types typescript --project-id \"olnyjjsvthqygmhsrgiy\" --schema public > database.types.ts"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

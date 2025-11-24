@@ -22,7 +22,9 @@ export interface HotelImage {
 export interface Hotel extends HotelFeatures {
     id: string;
     title: string;
-    type: string;
+    // Тип больше не используется на уровне отеля.
+    // Он перенесён на уровень номера (room.type), чтобы тип относился к конкретному номеру.
+    // type?: string;
     rating: number;
     address: string;
     phone: string;
@@ -491,14 +493,13 @@ export const getHotelDetail = async (
         // Объединяем данные номеров с бронями
         const rooms: RoomReserves[] = filteredRooms.map((room: any) => {
             const roomWithReserves = roomsReserves.find((r) => r.id === room.id);
-            return (
-                roomWithReserves || {
-                    ...room,
-                    reserves: [],
-                }
-            );
+            const roomTmp = roomWithReserves || {
+                ...room,
+                reserves: [],
+            };
+            return roomTmp;
         });
-
+        console.log('hotelData', { hotelData, rooms, allowedRoomsByHotel, filteredRooms });
         // Сортируем номера по полю order
         const sortedRooms = [...rooms].sort((a, b) => {
             const orderA = a.order ?? 999;
@@ -650,7 +651,9 @@ export async function getHotelsWithAvailability(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            hotel_type_filter: filter?.type ?? null,
+            // Фильтр типа теперь относится к типу номера (rooms.type),
+            // поэтому параметр функции называется room_type_filter.
+            room_type_filter: filter?.type ?? null,
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
@@ -719,6 +722,8 @@ export async function getHotelsWithAvailability(
                           title: room.room_title || room.title || '',
                           price: room.room_price || room.price || 0,
                           quantity: room.room_quantity || room.quantity || 0,
+                          // Тип номера приходит из функции get_available_hotels как r.type / room_type.
+                          type: room.room_type || room.type || null,
                           image_title: room.image_title || '',
                           image_path: room.image_path || '',
                           comment: room.comment,
@@ -759,7 +764,7 @@ export async function getHotelsWithFreeRooms(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            hotel_type_filter: filter?.type ?? null,
+            room_type_filter: filter?.type ?? null,
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
@@ -847,6 +852,9 @@ export const useUpdateHotel = (
         onSuccess: async (_data, variables) => {
             // Точечная инвалидация: обновляем только конкретный отель
             const id = hotelId || variables.id;
+            await queryClient.invalidateQueries({
+                queryKey: ['hotels', 'list'],
+            });
             if (id) {
                 await queryClient.invalidateQueries({
                     queryKey: QUERY_KEYS.hotelDetail(id),

@@ -9,6 +9,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { INITIAL_ROOM_FEATURES } from '@/features/AdvancedFilters';
+import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components/FormMultipleSelector';
 import { FormButtons } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
@@ -39,6 +40,14 @@ export const RoomFormSchema = z.object({
     hotel_id: z.string().min(1, 'Отель обязателен для выбора'),
 
     title: z.string().min(1, 'Название номера обязательно'),
+    // Тип номера: перенесён с уровня отеля, теперь обязателен для каждого номера.
+    type: z.object(
+        {
+            id: z.string(),
+            label: z.string(),
+        },
+        { message: 'Тип номера обязателен' },
+    ),
     price: z
         .string()
         .min(1, 'Стоимость обязательна для заполнения')
@@ -70,6 +79,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
 
     const loading = isLoading || isHotelsLoading;
 
+    console.log({ currentReserve });
     const form = useForm<RoomFormSchemaType>({
         resolver: zodResolver(RoomFormSchema),
         defaultValues: {
@@ -79,12 +89,21 @@ export const RoomInfo: FC<RoomInfoProps> = ({
             quantity: currentReserve?.room?.quantity ?? 3,
             price: String(currentReserve?.room?.price ?? ''),
             room_features: currentReserve?.room?.room_features ?? [],
+            // Тип номера: если уже задан у текущего номера, заполняем по умолчанию.
+            type: currentReserve?.room?.type
+                ? {
+                      id: currentReserve.room.type,
+                      label:
+                          HOTEL_TYPES.find((t) => t.value === currentReserve.room?.type)?.label ||
+                          currentReserve.room.type,
+                  }
+                : undefined,
         },
         mode: 'onBlur',
         reValidateMode: 'onBlur',
     });
 
-    const { control, handleSubmit, formState } = form;
+    const { control, handleSubmit } = form;
 
     const hotelOptions = useMemo(() => {
         const hotelsTmp = hotels?.map(adaptToOption);
@@ -99,6 +118,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
             comment: data.comment,
             room_features: data.room_features || [],
             hotel_id: data.hotel_id || '',
+            type: data.type.id,
             image_path: '',
             image_title: '',
             ...(currentReserve?.room?.id && { id: currentReserve.room.id }),
@@ -121,6 +141,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         const fieldNames: Record<string, string> = {
             hotel_id: 'Отель',
             title: 'Название номера',
+            type: 'Тип номера',
             price: 'Стоимость',
             quantity: 'Вместимость',
             room_features: 'Особенности номера',
@@ -181,6 +202,46 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                             {hotelOptions.map((hotel) => (
                                                 <SelectItem key={hotel.id} value={hotel.id}>
                                                     {hotel.label}
+                                                </SelectItem>
+                                            ))}
+                                        </SelectContent>
+                                    </Select>
+                                    {error?.message && (
+                                        <p className="text-sm text-red-500">{error.message}</p>
+                                    )}
+                                </div>
+                            )}
+                        />
+                        <Controller
+                            name="type"
+                            control={control}
+                            render={({ field, fieldState: { error } }) => (
+                                <div className="space-y-2">
+                                    <Label htmlFor="type">
+                                        Тип номера <span className="text-red-500">*</span>
+                                    </Label>
+                                    <Select
+                                        value={field.value?.id}
+                                        onValueChange={(value) => {
+                                            const selectedType = HOTEL_TYPES.find(
+                                                (type) => type.value === value,
+                                            );
+                                            if (selectedType) {
+                                                field.onChange({
+                                                    id: selectedType.value,
+                                                    label: selectedType.label,
+                                                });
+                                            }
+                                        }}
+                                        disabled={loading}
+                                    >
+                                        <SelectTrigger className={cx.fields}>
+                                            <SelectValue placeholder="Выберите тип номера" />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                            {HOTEL_TYPES.map((type) => (
+                                                <SelectItem key={type.value} value={type.value}>
+                                                    {type.label}
                                                 </SelectItem>
                                             ))}
                                         </SelectContent>
