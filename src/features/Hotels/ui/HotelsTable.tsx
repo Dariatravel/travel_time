@@ -120,9 +120,8 @@ const MobileHotelCard: React.FC<{
                     <div className="flex-1">
                         <CardTitle className="text-lg leading-tight">{hotel.title}</CardTitle>
                         <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="text-xs">
-                                {hotel.type}
-                            </Badge>
+                            {/* Тип больше не отображается на уровне отеля,
+                                он перенесён на уровень номера (room.type). */}
                             <span className="text-sm text-muted-foreground">
                                 {getValueLabel(hotel.city)}
                             </span>
@@ -175,11 +174,11 @@ const MobileHotelCard: React.FC<{
                     </div>
                     {/* Особенности */}
                     {hotel.features && hotel.features.length > 0 && (
-                        <div className="space-y-2">
+                        <div className="">
                             <span className="text-sm font-medium text-muted-foreground">
                                 Особенности:
                             </span>
-                            <div className="flex flex-wrap gap-1">
+                            <div className="flex flex-wrap gap-0.5">
                                 {hotel.features.map((feature, index) => (
                                     <Badge key={index} variant="outline" className="text-xs">
                                         {getValueLabel(feature)}
@@ -291,25 +290,27 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                 ),
                 cell: ({ row }) => <div>{getValueLabel(row.getValue('city'))}</div>,
             },
-            {
-                accessorKey: 'type',
-                size: 120,
-                minSize: 120,
-                maxSize: 120,
-                enableResizing: false,
-                header: ({ column }) => (
-                    <Button
-                        variant="ghost"
-                        onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
-                        className="h-auto p-0"
-                    >
-                        Тип
-                        {column.getIsSorted() === 'asc' && <span className="ml-1">↑</span>}
-                        {column.getIsSorted() === 'desc' && <span className="ml-1">↓</span>}
-                    </Button>
-                ),
-                cell: ({ row }) => <Badge variant="secondary">{row.getValue('type')}</Badge>,
-            },
+            // Колонка типа убрана, так как тип перенесён на уровень номера (room.type),
+            // а не всего отеля. Код оставлен закомментированным для истории.
+            // {
+            //     accessorKey: 'type',
+            //     size: 120,
+            //     minSize: 120,
+            //     maxSize: 120,
+            //     enableResizing: false,
+            //     header: ({ column }) => (
+            //         <Button
+            //             variant="ghost"
+            //             onClick={() => column.toggleSorting(column.getIsSorted() === 'asc')}
+            //             className="h-auto p-0"
+            //         >
+            //             Тип
+            //             {column.getIsSorted() === 'asc' && <span className="ml-1">↑</span>}
+            //             {column.getIsSorted() === 'desc' && <span className="ml-1">↓</span>}
+            //         </Button>
+            //     ),
+            //     cell: ({ row }) => <Badge variant="secondary">{row.getValue('type')}</Badge>,
+            // },
 
             {
                 accessorKey: 'address',
@@ -460,13 +461,14 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
             return (
                 hotel?.title?.toLowerCase().includes(searchValue) ||
                 hotel?.city?.toLowerCase().includes(searchValue) ||
-                hotel?.address?.toLowerCase().includes(searchValue) ||
-                hotel?.type?.toLowerCase().includes(searchValue)
+                hotel?.address?.toLowerCase().includes(searchValue)
+                // Тип больше не участвует в поиске по отелям, так как перенесён на уровень номера.
+                // || hotel?.type?.toLowerCase().includes(searchValue)
             );
         },
         initialState: {
             pagination: {
-                pageSize: 10,
+                pageSize: 20,
             },
         },
     });
@@ -516,7 +518,7 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
                     <Input
                         placeholder={
-                            isMobile ? 'Поиск...' : 'Поиск по названию, городу, адресу или типу...'
+                            isMobile ? 'Поиск...' : 'Поиск по названию, городу или адресу...'
                         }
                         value={globalFilter ?? ''}
                         onChange={(e) => setGlobalFilter(e.target.value)}

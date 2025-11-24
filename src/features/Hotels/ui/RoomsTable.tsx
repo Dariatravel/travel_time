@@ -63,8 +63,14 @@ const MobileRoomCard: React.FC<{
                 <div className="flex justify-between items-start">
                     <div className="flex-1">
                         <CardTitle className="text-lg leading-tight">{room.title}</CardTitle>
-                        <div className="flex items-center gap-2 mt-1">
-                            <Badge variant="secondary" className="text-xs">
+                        <div className="flex items-center gap-2 mt-1 flex-wrap">
+                            {room.type && (
+                                <Badge variant="secondary" className="text-xs">
+                                    {VALUE_TO_LABEL_MAP[room.type as keyof typeof VALUE_TO_LABEL_MAP] ||
+                                        room.type}
+                                </Badge>
+                            )}
+                            <Badge variant="outline" className="text-xs">
                                 {room.quantity} мест
                             </Badge>
                             <span className="text-sm text-muted-foreground">
@@ -162,6 +168,21 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
                             <span className="font-medium">{room.title}</span>
                         </div>
                     );
+                },
+            },
+            {
+                accessorKey: 'type',
+                header: 'Тип',
+                size: 140,
+                minSize: 120,
+                maxSize: 160,
+                cell: ({ row }) => {
+                    const type = row.getValue('type') as string | undefined;
+                    if (!type) return <span className="text-muted-foreground">—</span>;
+
+                    const label =
+                        VALUE_TO_LABEL_MAP[type as keyof typeof VALUE_TO_LABEL_MAP] || type;
+                    return <Badge variant="secondary">{label}</Badge>;
                 },
             },
             {
@@ -293,6 +314,7 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
             return (
                 room?.title?.toLowerCase().includes(searchValue) ||
                 room?.comment?.toLowerCase().includes(searchValue) ||
+                room?.type?.toLowerCase().includes(searchValue) ||
                 room?.room_features?.some((feature) =>
                     feature.toLowerCase().includes(searchValue),
                 ) ||

@@ -10,6 +10,7 @@ import {
     useUpdateHotel,
 } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { FC } from 'react';
 
@@ -29,6 +30,7 @@ export const HotelModal: FC<HotelModalProps> = ({
 }: HotelModalProps) => {
     const { isPending: isHotelLoading, mutateAsync: createHotel } = useCreateHotel(
         () => {
+            queryClient.invalidateQueries({ queryKey: QUERY_KEYS.allCounts });
             onClose();
             showToast('Отель добавлен');
         },

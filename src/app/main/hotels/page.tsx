@@ -4,6 +4,7 @@ import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { HotelsTable } from '@/features/Hotels/ui/HotelsTable';
 import { HotelDTO, useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
 import { Nullable } from '@/shared/api/reserve/reserve';
+import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { useRouter } from 'next/navigation';
@@ -23,12 +24,15 @@ export default function Hotels() {
     /**
      * Обработчик редактирования отеля
      */
-    const handleEditHotel = (hotel: HotelDTO) => {
+    const handleEditHotel = async (hotel: HotelDTO) => {
         // eslint-disable-next-line @typescript-eslint/ban-ts-comment
         // @ts-expect-error
         const { rooms, ...rest } = hotel;
         setIsCurrentHotel(rest);
         setIsHotelOpen(true);
+        await queryClient.invalidateQueries({
+            queryKey: QUERY_KEYS.hotels(),
+        });
     };
 
     /**
