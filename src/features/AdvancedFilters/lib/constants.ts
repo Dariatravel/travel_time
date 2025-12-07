@@ -189,17 +189,18 @@ export const getValueLabel = (value: string): string => {
     return VALUE_TO_LABEL_MAP[value as keyof typeof VALUE_TO_LABEL_MAP] || value;
 };
 
+const DEFAULT_FILTER_CITIES = DEFAULT_CITIES.map((city) => ({
+    id: city.value,
+    label: city.label,
+    value: city.value,
+    isActive: false,
+}));
+
 export const INITIAL_FILTERS: AdvancedFiltersState = {
     city: {
         id: 'city',
         title: 'Город',
-        options: [
-            { id: 'sukhumi', label: 'Сухум', value: 'sukhumi', isActive: false },
-            { id: 'gagra', label: 'Гагра', value: 'gagra', isActive: false },
-            { id: 'gali', label: 'Гали', value: 'gali', isActive: false },
-            { id: 'pitsunda', label: 'Пицунда', value: 'pitsunda', isActive: false },
-            { id: 'new-athon', label: 'Новый Афон', value: 'new-athon', isActive: false },
-        ],
+        options: DEFAULT_FILTER_CITIES,
         isExpanded: true,
     },
     roomFeatures: {

@@ -60,6 +60,7 @@ export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: Da
      * Обработчик очистки выбранной даты
      */
     const handleClear = (e: React.MouseEvent) => {
+        e.preventDefault();
         onSelect(undefined);
         e.stopPropagation();
     };
