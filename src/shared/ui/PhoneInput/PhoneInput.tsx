@@ -63,6 +63,65 @@ export const PhoneInput = <T extends FieldValues>({
     };
 
     /**
+     * Извлекает номер телефона из вставленного текста, убирая префиксы 8 или +7
+     * @param pastedText - вставленный текст
+     * @returns номер телефона без префикса (только цифры, максимум 10 цифр)
+     */
+    const extractPhoneNumber = (pastedText: string): string => {
+        // Убираем пробелы в начале и конце
+        const cleaned = pastedText.trim();
+
+        // Убираем все нецифровые символы, кроме + в начале
+        let numbers = cleaned.replace(/\D/g, '');
+
+        // Если начинается с +7, убираем +7 (остается 7 + 10 цифр)
+        if (cleaned.startsWith('+7') && numbers.startsWith('7')) {
+            numbers = numbers.slice(1); // Убираем первую 7
+        }
+        // Если начинается с 8, убираем 8
+        else if (cleaned.startsWith('8') && numbers.startsWith('8')) {
+            numbers = numbers.slice(1); // Убираем первую 8
+        }
+        // Если начинается с 7 и длина больше 10, убираем первую 7
+        else if (numbers.startsWith('7') && numbers.length > 10) {
+            numbers = numbers.slice(1); // Убираем первую 7
+        }
+
+        // Ограничиваем до 10 цифр (стандартный формат российского номера)
+        return numbers.slice(0, 10);
+    };
+
+    /**
+     * Обработчик события вставки (paste)
+     * @param event - событие вставки
+     * @param onChange - функция изменения значения из react-hook-form
+     * @param currentValue - текущее значение поля
+     */
+    const handlePhonePaste = (
+        event: React.ClipboardEvent<HTMLInputElement>,
+        onChange: (value: string) => void,
+        currentValue: string = '',
+    ) => {
+        event.preventDefault();
+
+        const pastedText = event.clipboardData.getData('text');
+        const extractedNumber = extractPhoneNumber(pastedText);
+
+        // Если извлеченный номер пустой, ничего не делаем
+        if (!extractedNumber) {
+            return;
+        }
+
+        // Формируем новое значение: начинаем с 7 + извлеченный номер
+        // Это позволит formatPhoneInput правильно отформатировать номер
+        const newValue = '7' + extractedNumber;
+
+        // Форматируем и применяем
+        const formattedValue = formatPhoneInput(newValue, currentValue);
+        onChange(formattedValue);
+    };
+
+    /**
      * Функция для форматирования телефона с автодобавлением +7
      * @param value - введенное значение
      * @param previousValue - предыдущее значение для определения операции удаления
@@ -168,6 +227,9 @@ export const PhoneInput = <T extends FieldValues>({
                                         field.onChange,
                                         field.value || '',
                                     )
+                                }
+                                onPaste={(event: React.ClipboardEvent<HTMLInputElement>) =>
+                                    handlePhonePaste(event, field.onChange, field.value || '')
                                 }
                                 onClick={() => handlePhoneClick(field)}
                             />
