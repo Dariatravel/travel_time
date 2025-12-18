@@ -160,7 +160,6 @@ export const Timeline = ({
         );
     };
 
-    console.log(isMobile);
     const getDefaultTime = () => {
         // На мобилке показываем неделю (дни), на десктопе - 2-3 месяца (месяцы)
         const mobileStartOffset = -6;
@@ -180,52 +179,43 @@ export const Timeline = ({
     const onZoomIn = (unit: ZoomUnit) => {
         const currentIndex = ZOOM_UNITS.indexOf(unit);
         const isDay = timelineRef.current?.getTimelineUnit() === 'day';
-
+        const UNIT = timelineRef.current?.getTimelineUnit() ?? 'month';
         if (isDay) return;
 
         if (currentIndex < ZOOM_UNITS.length - 1) {
-            setCurrentUnit(ZOOM_UNITS[currentIndex + 1]);
+            setCurrentUnit(UNIT);
         }
-        timelineRef.current?.changeZoom(-1, 0.5);
+        timelineRef.current?.changeZoom(-2, 0.5);
     };
 
     const onZoomOut = (unit: ZoomUnit) => {
         const currentIndex = ZOOM_UNITS.indexOf(unit);
         const timelineUnit = timelineRef.current?.getTimelineUnit();
         const isYear = timelineUnit === 'year';
+        const UNIT = timelineRef.current?.getTimelineUnit() ?? 'month';
 
         if (isYear) return;
 
-        timelineRef.current?.changeZoom(1.5, 2);
+        timelineRef.current?.changeZoom(2, 2);
         if (currentIndex > 0) {
-            setCurrentUnit(ZOOM_UNITS[currentIndex - 1]);
+            setCurrentUnit(UNIT);
         }
     };
 
     const getHeaderUnit = (
         currentUnit: ZoomUnit,
         isFirstHeader: boolean,
-    ): 'day' | 'month' | 'year' => {
-        // Маппинг наших единиц в единицы библиотеки
-        const mapToLibraryUnit = (unit: ZoomUnit): 'day' | 'month' | 'year' => {
-            if (unit === 'day') return 'day';
-            if (unit === 'month' || unit === 'months') return 'month';
-            if (unit === 'year') return 'year';
-            return 'day';
-        };
-
+    ): 'day' | 'month' | 'year' | 'months' => {
         const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
 
         if (isFirstHeader) {
             // Для первого заголовка берем следующий уровень
-            const nextUnit =
-                currentIndex < ZOOM_UNITS.length - 1
-                    ? ZOOM_UNITS[currentIndex + 1]
-                    : ZOOM_UNITS[currentIndex];
-            return mapToLibraryUnit(nextUnit);
+            return currentIndex < ZOOM_UNITS.length - 1
+                ? ZOOM_UNITS[currentIndex + 1]
+                : ZOOM_UNITS[currentIndex];
         } else {
             // Для второго заголовка используем текущий уровень
-            return mapToLibraryUnit(currentUnit);
+            return currentUnit;
         }
     };
 
@@ -465,7 +455,7 @@ export const Timeline = ({
                                 return (
                                     <div {...getRootProps()}>
                                         {intervals.map((interval) => {
-                                            const isMonth = unit === 'month';
+                                            const isMonth = unit === 'month' || unit === 'months';
                                             const isYear = unit === 'year';
 
                                             const dateText =
