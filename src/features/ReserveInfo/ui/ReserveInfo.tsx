@@ -366,6 +366,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                             }}
                                             label="Период бронирования"
                                             numberOfMonths={2}
+                                            defaultMonth={field.value?.[0] || new Date()}
                                         />
                                         <FormMessage message={error?.message} />
                                     </>

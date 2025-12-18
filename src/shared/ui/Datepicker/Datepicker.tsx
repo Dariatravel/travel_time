@@ -3,6 +3,7 @@
 import { ChevronDownIcon, XIcon } from 'lucide-react';
 import { type DateRange } from 'react-day-picker';
 import { ru } from 'react-day-picker/locale';
+import React, { useState, useEffect } from 'react';
 
 import { Button } from '@/components/ui/button';
 import { Calendar } from '@/components/ui/calendar';
@@ -53,9 +54,30 @@ export interface DatepickerProps {
     onSelect: (range: DateRange | undefined) => void;
     label: string;
     numberOfMonths?: number;
+    defaultMonth?: Date; // Месяц, на котором открывается календарь
 }
 
-export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: DatepickerProps) => {
+export const Datepicker = ({
+    selected,
+    onSelect,
+    label,
+    numberOfMonths = 1,
+    defaultMonth,
+}: DatepickerProps) => {
+    // Используем управляемый месяц для правильного отображения при открытии
+    const [month, setMonth] = useState<Date | undefined>(
+        defaultMonth || selected?.from || new Date(),
+    );
+
+    // Обновляем месяц при изменении selected или defaultMonth
+    useEffect(() => {
+        if (selected?.from) {
+            setMonth(selected.from);
+        } else if (defaultMonth) {
+            setMonth(defaultMonth);
+        }
+    }, [selected?.from, defaultMonth]);
+
     /**
      * Обработчик очистки выбранной даты
      */
@@ -105,6 +127,8 @@ export const Datepicker = ({ selected, onSelect, label, numberOfMonths = 1 }: Da
                         numberOfMonths={numberOfMonths}
                         selected={selected}
                         onSelect={onSelect}
+                        month={month}
+                        onMonthChange={setMonth}
                         formatters={{
                             formatMonthDropdown: (date) =>
                                 date.toLocaleString('ru', { month: 'short' }),
