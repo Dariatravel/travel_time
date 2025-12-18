@@ -15,5 +15,5 @@ export const zIndexes = {
     dateSelect: 99,
 };
 
-export const ZOOM_UNITS = ['day', 'month', 'year'] as const;
+export const ZOOM_UNITS = ['day', 'month', 'months', 'year'] as const;
 export type ZoomUnit = (typeof ZOOM_UNITS)[number];

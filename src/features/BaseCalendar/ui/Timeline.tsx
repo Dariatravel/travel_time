@@ -4,8 +4,7 @@ import { cn } from '@/lib/utils';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
-import { $isMobile } from '@/shared/models/mobile';
-import { useUnit } from 'effector-react/compat';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import moment from 'moment';
 import 'moment/locale/ru';
@@ -68,10 +67,39 @@ export const Timeline = ({
     timelineId,
     onGroupsReorder,
 }: TimelineProps) => {
-    const [isMobile] = useUnit([$isMobile]);
+    // const [isMobile] = useUnit([$isMobile]);
+    const { isMobile } = useScreenSize();
     const timelineRef = useRef<TimelineComponent>(null);
     const touchWrapperRef = useRef<HTMLDivElement | null>(null);
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isMobile ? 'month' : 'day');
+
+    // Функция для определения уровня зума на основе unit и видимого периода
+    // Возвращает: 'day' (Дни), 'month' (Месяц), 'months' (Месяцы), 'year' (Год)
+    const getZoomLevel = (
+        unit: string,
+        visibleTimeStart: number,
+        visibleTimeEnd: number,
+    ): ZoomUnit => {
+        const visibleDays = (visibleTimeEnd - visibleTimeStart) / DAY;
+
+        if (unit === 'day') {
+            return 'day'; // Дни
+        } else if (unit === 'month') {
+            // Если видно примерно 1 месяц (25-40 дней) -> Месяц
+            // Если видно больше месяца (40+ дней) -> Месяцы
+            if (visibleDays >= 25 && visibleDays <= 40) {
+                return 'month'; // Месяц (один месяц)
+            } else if (visibleDays > 40) {
+                return 'months'; // Месяцы (несколько месяцев)
+            } else {
+                return 'month'; // По умолчанию Месяц
+            }
+        } else if (unit === 'year') {
+            return 'year'; // Год
+        }
+
+        return 'day'; // По умолчанию
+    };
 
     const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 40 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
@@ -132,11 +160,13 @@ export const Timeline = ({
         );
     };
 
+    console.log(isMobile);
     const getDefaultTime = () => {
-        const mobileStartOffset = isMobile ? -20 : -15;
-        const mobileEndOffset = isMobile ? 40 : 15;
-        const desktopStartOffset = -15;
-        const desktopEndOffset = 15;
+        // На мобилке показываем неделю (дни), на десктопе - 2-3 месяца (месяцы)
+        const mobileStartOffset = -6;
+        const mobileEndOffset = 6;
+        const desktopStartOffset = -45; // ~1.5 месяца назад
+        const desktopEndOffset = 45; // ~1.5 месяца вперед
 
         const defaultTimeStart = moment().add(
             isMobile ? mobileStartOffset : desktopStartOffset,
@@ -161,7 +191,8 @@ export const Timeline = ({
 
     const onZoomOut = (unit: ZoomUnit) => {
         const currentIndex = ZOOM_UNITS.indexOf(unit);
-        const isYear = timelineRef.current?.getTimelineUnit() === 'year';
+        const timelineUnit = timelineRef.current?.getTimelineUnit();
+        const isYear = timelineUnit === 'year';
 
         if (isYear) return;
 
@@ -175,16 +206,26 @@ export const Timeline = ({
         currentUnit: ZoomUnit,
         isFirstHeader: boolean,
     ): 'day' | 'month' | 'year' => {
+        // Маппинг наших единиц в единицы библиотеки
+        const mapToLibraryUnit = (unit: ZoomUnit): 'day' | 'month' | 'year' => {
+            if (unit === 'day') return 'day';
+            if (unit === 'month' || unit === 'months') return 'month';
+            if (unit === 'year') return 'year';
+            return 'day';
+        };
+
         const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
 
         if (isFirstHeader) {
             // Для первого заголовка берем следующий уровень
-            return currentIndex < ZOOM_UNITS.length - 1
-                ? ZOOM_UNITS[currentIndex + 1]
-                : ZOOM_UNITS[currentIndex];
+            const nextUnit =
+                currentIndex < ZOOM_UNITS.length - 1
+                    ? ZOOM_UNITS[currentIndex + 1]
+                    : ZOOM_UNITS[currentIndex];
+            return mapToLibraryUnit(nextUnit);
         } else {
             // Для второго заголовка используем текущий уровень
-            return currentUnit;
+            return mapToLibraryUnit(currentUnit);
         }
     };
 
@@ -200,6 +241,30 @@ export const Timeline = ({
         const roomIds = newOrder.map((id) => id.replace(`${timelineId}-`, ''));
         onGroupsReorder?.(roomIds);
     };
+
+    // Устанавливаем дефолтный зум после монтирования компонента
+    // Зум определяется разницей между defaultTimeStart и defaultTimeEnd
+    // Маленький диапазон = большой зум (дни), большой диапазон = маленький зум (месяцы)
+    useEffect(() => {
+        if (!timelineRef.current) return;
+
+        // Небольшая задержка, чтобы компонент полностью инициализировался
+        const timeoutId = setTimeout(() => {
+            if (!timelineRef.current) return;
+
+            // На мобилке нужно приблизить (показать дни), на десктопе - отдалить (показать месяцы)
+            // changeZoom с отрицательным значением приближает, с положительным > 1 - отдаляет
+            if (isMobile) {
+                // Приближаем для показа дней
+                timelineRef.current.changeZoom(0.5, 0.5);
+            } else {
+                // Отдаляем для показа месяцев
+                timelineRef.current.changeZoom(3.5, 0.5);
+            }
+        }, 300);
+
+        return () => clearTimeout(timeoutId);
+    }, [isMobile]);
 
     useEffect(() => {
         if (!isMobile) return;
@@ -264,7 +329,15 @@ export const Timeline = ({
             >
                 <TimelineComponent
                     ref={timelineRef}
-                    onZoom={(context, unit) => setCurrentUnit(unit as ZoomUnit)}
+                    onZoom={(context, unit) => {
+                        // Определяем уровень зума на основе unit и видимого периода
+                        const zoomLevel = getZoomLevel(
+                            unit,
+                            context.visibleTimeStart,
+                            context.visibleTimeEnd,
+                        );
+                        setCurrentUnit(zoomLevel);
+                    }}
                     className={timelineClassName}
                     groups={hotelRooms}
                     items={hotelReserves}
