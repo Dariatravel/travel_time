@@ -183,6 +183,7 @@ export const Timeline = ({
         if (isDay) return;
 
         if (currentIndex < ZOOM_UNITS.length - 1) {
+            // @ts-expect-error - UNIT может быть типа "week", который не поддерживается setCurrentUnit
             setCurrentUnit(UNIT);
         }
         timelineRef.current?.changeZoom(-2, 0.5);
@@ -198,6 +199,7 @@ export const Timeline = ({
 
         timelineRef.current?.changeZoom(2, 2);
         if (currentIndex > 0) {
+            // @ts-expect-error - UNIT может быть типа "week", который не поддерживается setCurrentUnit
             setCurrentUnit(UNIT);
         }
     };
@@ -205,18 +207,23 @@ export const Timeline = ({
     const getHeaderUnit = (
         currentUnit: ZoomUnit,
         isFirstHeader: boolean,
-    ): 'day' | 'month' | 'year' | 'months' => {
+    ): 'day' | 'month' | 'year' => {
         const currentIndex = ZOOM_UNITS.indexOf(currentUnit);
+        let unit: ZoomUnit;
 
         if (isFirstHeader) {
             // Для первого заголовка берем следующий уровень
-            return currentIndex < ZOOM_UNITS.length - 1
-                ? ZOOM_UNITS[currentIndex + 1]
-                : ZOOM_UNITS[currentIndex];
+            unit =
+                currentIndex < ZOOM_UNITS.length - 1
+                    ? ZOOM_UNITS[currentIndex + 1]
+                    : ZOOM_UNITS[currentIndex];
         } else {
             // Для второго заголовка используем текущий уровень
-            return currentUnit;
+            unit = currentUnit;
         }
+
+        // Преобразуем 'months' в 'month' для совместимости с CustomHeader
+        return unit === 'months' ? 'month' : unit;
     };
 
     const { defaultTimeStart, defaultTimeEnd } = getDefaultTime();
@@ -455,7 +462,7 @@ export const Timeline = ({
                                 return (
                                     <div {...getRootProps()}>
                                         {intervals.map((interval) => {
-                                            const isMonth = unit === 'month' || unit === 'months';
+                                            const isMonth = unit === 'month';
                                             const isYear = unit === 'year';
 
                                             const dateText =
