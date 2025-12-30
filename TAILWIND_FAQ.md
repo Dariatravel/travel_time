@@ -53,7 +53,6 @@ flex flex-row                /* Горизонтальный flex */
 flex flex-wrap               /* С переносом */
 flex flex-nowrap             /* Без переноса */
 ```
-
 ### Выравнивание
 
 ```css
