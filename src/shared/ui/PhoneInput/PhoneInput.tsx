@@ -6,252 +6,235 @@ import { IoLogoWhatsapp } from 'react-icons/io';
 import { LinkIcon } from '../LinkIcon/LinkIcon';
 
 interface PhoneInputProps<T extends FieldValues> {
-    control: Control<T>;
-    name: Path<T>;
-    label?: string;
-    placeholder?: string;
-    disabled?: boolean;
-    className?: string;
-    error?: string;
-    required?: boolean;
-    showWhatsapp?: boolean;
-    showTelegram?: boolean;
-    size?: 'xs' | 's' | 'm' | 'l';
+  control: Control<T>;
+  name: Path<T>;
+  label?: string;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  required?: boolean;
+  showWhatsapp?: boolean;
+  showTelegram?: boolean;
+  size?: 'xs' | 's' | 'm' | 'l';
+  // В проекте уже передают этот проп в PhoneInput (ReserveInfo.tsx),
+  // поэтому оставляем для совместимости (можно не использовать внутри).
+  error?: string;
 }
 
+const digitsOnly = (s: string) => (s || '').replace(/\D/g, '');
+
+/**
+ * Формат РФ номера по маске +7(XXX)XXX-XX-XX
+ * На входе digits:
+ * - либо 11 цифр, где первая "7"
+ * - либо 10 цифр без страны (тогда будет добавлена "7")
+ */
+const formatRu = (digits: string): string => {
+  if (!digits) return '';
+
+  let d = digitsOnly(digits);
+
+  // 8XXXXXXXXXX -> 7XXXXXXXXXX
+  if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
+
+  // 10 цифр -> РФ, добавляем 7
+  if (d.length === 10) d = `7${d}`;
+
+  // Если не РФ - просто отдаем цифры как есть (на всякий случай)
+  if (!(d.length >= 1 && d.startsWith('7'))) return d;
+
+  // Ограничиваем 11 цифрами (7 + 10)
+  d = d.slice(0, 11);
+
+  if (d.length <= 1) return '+7';
+  if (d.length <= 4) return `+7(${d.slice(1)}`;
+  if (d.length <= 7) return `+7(${d.slice(1, 4)})${d.slice(4)}`;
+  if (d.length <= 9) return `+7(${d.slice(1, 4)})${d.slice(4, 7)}-${d.slice(7)}`;
+
+  return `+7(${d.slice(1, 4)})${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9)}`;
+};
+
+/**
+ * Нормализация международного номера (E.164-ish):
+ * - сохраняем + если он был
+ * - до 15 цифр
+ */
+const normalizeInternational = (raw: string): string => {
+  const trimmed = (raw || '').trim();
+  const hasPlus = trimmed.startsWith('+');
+  const d = digitsOnly(trimmed).slice(0, 15);
+  if (!d) return '';
+  return hasPlus ? `+${d}` : d;
+};
+
+/**
+ * Определяем, что ввод/вставка похожи на международный номер (не РФ):
+ * - есть + и не +7
+ * - либо просто много цифр (>11) и не начинается с 7/8
+ * - либо начинается с кода страны (например 375...) и длина > 10
+ */
+const shouldTreatAsInternational = (raw: string, d: string): boolean => {
+  const trimmed = (raw || '').trim();
+  if (trimmed.startsWith('+') && !trimmed.startsWith('+7')) return true;
+
+  // если цифр больше 11 и это не РФ
+  if (d.length > 11 && !d.startsWith('7') && !d.startsWith('8')) return true;
+
+  // если цифр больше 10 и это не похоже на РФ (например 375..., 380..., 49..., etc.)
+  if (d.length > 10 && !d.startsWith('7') && !d.startsWith('8')) return true;
+
+  return false;
+};
+
 export const PhoneInput = <T extends FieldValues>({
-    control,
-    name,
-    label = 'Номер телефона',
-    placeholder = '+7 (...)',
-    disabled,
-    className,
-    required,
-    showWhatsapp = false,
-    showTelegram = false,
-    size = 's',
+  control,
+  name,
+  label = 'Номер телефона',
+  placeholder = '+7 (...) или +375...',
+  disabled,
+  className,
+  required,
+  showWhatsapp = false,
+  showTelegram = false,
 }: PhoneInputProps<T>) => {
-    const createWhatsappLink = (phone: string, message: string) => {
-        const cleanPhone = phone.replace(/\D/g, '');
-        return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-    };
+  const createWhatsappLink = (phone: string, message: string) => {
+    const cleanPhone = digitsOnly(phone);
+    return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+  };
 
-    /**
-     * Функция для форматирования даты с автопроставлением точек
-     * @param value - введенное значение
-     * @returns отформатированная строка даты
-     */
-    const formatDateInput = (value: string): string => {
-        // Убираем все нецифровые символы
-        const numbers = value.replace(/\D/g, '');
+  const handleChange = (
+    raw: string,
+    onChange: (value: string) => void,
+    previousValue: string = '',
+  ) => {
+    // если удаляют - не мешаем
+    if (raw.length < (previousValue || '').length) {
+      const d = digitsOnly(raw);
+      if (!d) {
+        onChange('');
+        return;
+      }
+    }
 
-        // Ограничиваем длину до 8 цифр (ддммгггг)
-        const limitedNumbers = numbers.slice(0, 8);
+    const d = digitsOnly(raw);
 
-        // Добавляем точки автоматически
-        if (limitedNumbers.length <= 2) {
-            return limitedNumbers;
-        } else if (limitedNumbers.length <= 4) {
-            return `${limitedNumbers.slice(0, 2)}/${limitedNumbers.slice(2)}`;
-        } else {
-            return `${limitedNumbers.slice(0, 2)}/${limitedNumbers.slice(2, 4)}/${limitedNumbers.slice(4)}`;
-        }
-    };
-    const handleDateChange = (value: string, onChange: (value: string) => void) => {
-        const formattedValue = formatDateInput(value);
-        onChange(formattedValue);
-    };
+    if (!d) {
+      onChange('');
+      return;
+    }
 
-    /**
-     * Извлекает номер телефона из вставленного текста, убирая префиксы 8 или +7
-     * @param pastedText - вставленный текст
-     * @returns номер телефона без префикса (только цифры, максимум 10 цифр)
-     */
-    const extractPhoneNumber = (pastedText: string): string => {
-        // Убираем пробелы в начале и конце
-        const cleaned = pastedText.trim();
+    // Международные - не навязываем +7
+    if (shouldTreatAsInternational(raw, d)) {
+      onChange(normalizeInternational(raw));
+      return;
+    }
 
-        // Убираем все нецифровые символы, кроме + в начале
-        let numbers = cleaned.replace(/\D/g, '');
+    // РФ сценарии:
+    // - +7...
+    // - 7XXXXXXXXXX
+    // - 8XXXXXXXXXX
+    // - 10 цифр без страны
+    if (d.length === 10) {
+      onChange(formatRu(d));
+      return;
+    }
 
-        // Если начинается с +7, убираем +7 (остается 7 + 10 цифр)
-        if (cleaned.startsWith('+7') && numbers.startsWith('7')) {
-            numbers = numbers.slice(1); // Убираем первую 7
-        }
-        // Если начинается с 8, убираем 8
-        else if (cleaned.startsWith('8') && numbers.startsWith('8')) {
-            numbers = numbers.slice(1); // Убираем первую 8
-        }
-        // Если начинается с 7 и длина больше 10, убираем первую 7
-        else if (numbers.startsWith('7') && numbers.length > 10) {
-            numbers = numbers.slice(1); // Убираем первую 7
-        }
+    if (d.length >= 1 && (d.startsWith('7') || d.startsWith('8'))) {
+      onChange(formatRu(d));
+      return;
+    }
 
-        // Ограничиваем до 10 цифр (стандартный формат российского номера)
-        return numbers.slice(0, 10);
-    };
+    // На всякий случай
+    onChange(normalizeInternational(raw));
+  };
 
-    /**
-     * Обработчик события вставки (paste)
-     * @param event - событие вставки
-     * @param onChange - функция изменения значения из react-hook-form
-     * @param currentValue - текущее значение поля
-     */
-    const handlePhonePaste = (
-        event: React.ClipboardEvent<HTMLInputElement>,
-        onChange: (value: string) => void,
-        currentValue: string = '',
-    ) => {
-        event.preventDefault();
+  const handlePaste = (
+    event: React.ClipboardEvent<HTMLInputElement>,
+    onChange: (value: string) => void,
+  ) => {
+    event.preventDefault();
 
-        const pastedText = event.clipboardData.getData('text');
-        const extractedNumber = extractPhoneNumber(pastedText);
+    const pastedRaw = (event.clipboardData.getData('text') || '').trim();
+    const d = digitsOnly(pastedRaw);
 
-        // Если извлеченный номер пустой, ничего не делаем
-        if (!extractedNumber) {
-            return;
-        }
+    if (!d) return;
 
-        // Формируем новое значение: начинаем с 7 + извлеченный номер
-        // Это позволит formatPhoneInput правильно отформатировать номер
-        const newValue = '7' + extractedNumber;
+    const hasPlus = pastedRaw.startsWith('+');
 
-        // Форматируем и применяем
-        const formattedValue = formatPhoneInput(newValue, currentValue);
-        onChange(formattedValue);
-    };
+    // Если явно международный (+ и не +7) - сохраняем как международный
+    if (hasPlus && !pastedRaw.startsWith('+7')) {
+      onChange(`+${d.slice(0, 15)}`);
+      return;
+    }
 
-    /**
-     * Функция для форматирования телефона с автодобавлением +7
-     * @param value - введенное значение
-     * @param previousValue - предыдущее значение для определения операции удаления
-     * @returns отформатированная строка телефона
-     */
-    const formatPhoneInput = (value: string, previousValue: string = ''): string => {
-        // Проверяем, происходит ли удаление
-        const isDeleting = value.length < previousValue.length;
+    // РФ кейсы вставки:
+    // +7XXXXXXXXXX
+    // 8XXXXXXXXXX
+    // 7XXXXXXXXXX
+    // 10 цифр без страны
+    if (d.length === 11 && (d.startsWith('7') || d.startsWith('8'))) {
+      onChange(formatRu(d));
+      return;
+    }
 
-        // Если пользователь полностью очистил поле или удаляет и остался только "+7"
-        if (value === '' || value === '+' || value === '+7') {
-            return '';
-        }
+    if (d.length === 10) {
+      onChange(formatRu(d));
+      return;
+    }
 
-        // Убираем все нецифровые символы
-        let numbers = value.replace(/\D/g, '');
+    // Всё, что длиннее 10 и не РФ - считаем международным (Беларусь, и т.д.)
+    if (d.length > 10 && !d.startsWith('7') && !d.startsWith('8')) {
+      onChange(`+${d.slice(0, 15)}`);
+      return;
+    }
 
-        // Если нет цифр, возвращаем пустую строку
-        if (numbers.length === 0) {
-            return '';
-        }
+    // fallback
+    onChange(hasPlus ? `+${d.slice(0, 15)}` : d.slice(0, 15));
+  };
 
-        // Если пользователь начинает с 8, заменяем на 7
-        if (numbers.startsWith('8')) {
-            numbers = '7' + numbers.slice(1);
-        }
+  return (
+    <Controller
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <div>
+          <FormLabel>
+            {label} {required ? <span className="text-red-600">*</span> : null}
+          </FormLabel>
 
-        // Если не начинается с 7 и не происходит удаление, добавляем 7 в начало
-        if (!numbers.startsWith('7') && !isDeleting) {
-            numbers = '7' + numbers;
-        }
+          <div className="relative">
+            <Input
+              {...field}
+              value={field.value || ''}
+              placeholder={placeholder}
+              required={required}
+              type="tel"
+              disabled={disabled}
+              className={className}
+              onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
+                handleChange(event.target.value, field.onChange, field.value || '')
+              }
+              onPaste={(event: React.ClipboardEvent<HTMLInputElement>) =>
+                handlePaste(event, field.onChange)
+              }
+            />
 
-        // Если при удалении остается только "7", возвращаем пустую строку
-        if (isDeleting && numbers === '7') {
-            return '';
-        }
+            <div className="absolute top-1/2 -translate-y-1/2 right-2">
+              {showWhatsapp && field.value && (
+                <LinkIcon
+                  icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />}
+                  link={createWhatsappLink(field.value, 'Добрый день')}
+                />
+              )}
+              {showTelegram && field.value && (
+                <LinkIcon icon={<FaTelegram color="2AABEE" size={'24px'} />} link={field.value} />
+              )}
+            </div>
+          </div>
 
-        // Ограничиваем длину до 11 цифр (7 + 10 цифр номера)
-        numbers = numbers.slice(0, 11);
-
-        // Форматируем в +7(XXX)XXX-XX-XX (для соответствия валидации)
-        if (numbers.length <= 1) {
-            return numbers === '7' ? '+7' : '';
-        } else if (numbers.length <= 4) {
-            return `+7(${numbers.slice(1)}`;
-        } else if (numbers.length <= 7) {
-            return `+7(${numbers.slice(1, 4)})${numbers.slice(4)}`;
-        } else if (numbers.length <= 9) {
-            return `+7(${numbers.slice(1, 4)})${numbers.slice(4, 7)}-${numbers.slice(7)}`;
-        } else {
-            return `+7(${numbers.slice(1, 4)})${numbers.slice(4, 7)}-${numbers.slice(7, 9)}-${numbers.slice(9)}`;
-        }
-    };
-
-    /**
-     * Обработчик изменения поля телефона
-     * @param value - новое значение поля
-     * @param onChange - функция изменения значения из react-hook-form
-     * @param previousValue - предыдущее значение поля
-     */
-    const handlePhoneChange = (
-        value: string,
-        onChange: (value: string) => void,
-        previousValue: string = '',
-    ) => {
-        const formattedValue = formatPhoneInput(value, previousValue);
-        onChange(formattedValue);
-    };
-
-    /**
-     * Обработчик клика по полю телефона - автозаполнение "+7"
-     * @param field - поле из react-hook-form
-     */
-    const handlePhoneClick = (field: any) => {
-        // Если поле пустое, добавляем "+7"
-        if (!field.value || field.value === '') {
-            field.onChange('+7');
-        }
-    };
-
-    return (
-        <Controller
-            control={control}
-            name={name}
-            render={({ field, fieldState: { error } }) => {
-                return (
-                    <div>
-                        <FormLabel>
-                            {label} <span className="text-red-600">*</span>
-                        </FormLabel>
-                        <div className="relative">
-                            <Input
-                                {...field}
-                                value={field.value || ''}
-                                placeholder={placeholder}
-                                required={required}
-                                type="tel"
-                                disabled={disabled}
-                                className={className}
-                                onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                                    handlePhoneChange(
-                                        event.target.value,
-                                        field.onChange,
-                                        field.value || '',
-                                    )
-                                }
-                                onPaste={(event: React.ClipboardEvent<HTMLInputElement>) =>
-                                    handlePhonePaste(event, field.onChange, field.value || '')
-                                }
-                                onClick={() => handlePhoneClick(field)}
-                            />
-                            <div className="absolute top-1/2 -translate-y-1/2 right-2">
-                                {showWhatsapp && field.value && (
-                                    <LinkIcon
-                                        icon={<IoLogoWhatsapp color="#5BD066" size={'24px'} />}
-                                        link={createWhatsappLink(field.value, 'Добрый день')}
-                                    />
-                                )}
-                                {showTelegram && field.value && (
-                                    <LinkIcon
-                                        icon={<FaTelegram color="2AABEE" size={'24px'} />}
-                                        link={field.value}
-                                    />
-                                )}
-                            </div>
-                        </div>
-                        <FormMessage />
-                    </div>
-                );
-            }}
-        />
-    );
+          <FormMessage />
+        </div>
+      )}
+    />
+  );
 };
