@@ -87,7 +87,7 @@ const reserveFormSchema = z.object({
     phone: z
         .string({ message: 'Номер телефона обязателен' })
         .min(1, 'Номер телефона обязателен')
-        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
+       .regex(/^(?:\+7\(\d{3}\)\d{3}-\d{2}-\d{2}|\+\d{10,15})$/, 'Введите корректный номер телефона')
     comment: z.string().optional(),
     prepayment: z.coerce.number().optional(),
     created_by: z.string().optional(),
