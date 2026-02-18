@@ -42,6 +42,9 @@ export interface TimelineProps {
     hotel: HotelDTO;
     hotelRooms: any[];
     hotelReserves: any[];
+    /** Период поиска: начало и конец в unix (секунды). Если заданы — календарь покажет этот интервал вместо текущей даты. */
+    visibleTimeStart?: number;
+    visibleTimeEnd?: number;
     timelineClassName?: string;
     sidebarWidth?: number;
     onReserveAdd: (groupId: Id, time: number, e: React.SyntheticEvent) => void;
@@ -57,6 +60,8 @@ export const Timeline = ({
     hotel,
     hotelRooms,
     hotelReserves,
+    visibleTimeStart,
+    visibleTimeEnd,
     timelineClassName = 'hotelTimeline',
     sidebarWidth,
     onReserveAdd,
@@ -161,7 +166,19 @@ export const Timeline = ({
     };
 
     const getDefaultTime = () => {
-        // На мобилке показываем неделю (дни), на десктопе - 2-3 месяца (месяцы)
+        // Если задан период поиска — показываем его (с небольшим отступом)
+        if (
+            visibleTimeStart != null &&
+            visibleTimeEnd != null &&
+            visibleTimeStart < visibleTimeEnd
+        ) {
+            const paddingDays = isMobile ? 2 : 7;
+            const defaultTimeStart = moment.unix(visibleTimeStart).add(-paddingDays, 'day');
+            const defaultTimeEnd = moment.unix(visibleTimeEnd).add(paddingDays, 'day');
+            return { defaultTimeStart, defaultTimeEnd };
+        }
+
+        // Иначе — период вокруг текущей даты
         const mobileStartOffset = -6;
         const mobileEndOffset = 6;
         const desktopStartOffset = -45; // ~1.5 месяца назад
@@ -325,6 +342,7 @@ export const Timeline = ({
                 timelineId={timelineId}
             >
                 <TimelineComponent
+                    key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}`}
                     ref={timelineRef}
                     onZoom={(context, unit) => {
                         // Определяем уровень зума на основе unit и видимого периода

@@ -29,12 +29,22 @@ import cx from './style.module.scss';
 
 export interface CalendarProps {
     hotel: HotelRoomsReservesDTO;
+    /** Период поиска (unix, сек). Если задан — календарь покажет этот интервал. */
+    visibleTimeStart?: number;
+    visibleTimeEnd?: number;
     onHotelClick?: (hotel_id: string) => void;
     onRoomClick?: (room: RoomDTO) => void;
     isLoading?: boolean;
 }
 
-export const Calendar = ({ hotel, onHotelClick, onRoomClick, isLoading }: CalendarProps) => {
+export const Calendar = ({
+    hotel,
+    visibleTimeStart,
+    visibleTimeEnd,
+    onHotelClick,
+    onRoomClick,
+    isLoading,
+}: CalendarProps) => {
     const { isMobile } = useScreenSize();
     const queryClient = useQueryClient();
 
@@ -278,6 +288,8 @@ export const Calendar = ({ hotel, onHotelClick, onRoomClick, isLoading }: Calend
                             hotel={hotel}
                             hotelRooms={hotelRooms}
                             hotelReserves={hotelReserves}
+                            visibleTimeStart={visibleTimeStart}
+                            visibleTimeEnd={visibleTimeEnd}
                             timelineClassName="travel-timeline"
                             sidebarWidth={sidebarWidth}
                             onReserveAdd={onReserveAdd}
