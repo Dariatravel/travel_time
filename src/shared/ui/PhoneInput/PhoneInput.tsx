@@ -24,11 +24,17 @@ interface PhoneInputProps<T extends FieldValues> {
 
 const digitsOnly = (s: string) => (s || '').replace(/\D/g, '');
 
+// Префиксы, которые не являются российскими (375 Беларусь, 380 Украина и т.д.)
+const NON_RU_PREFIXES = ['370', '371', '372', '373', '374', '375', '376', '377', '378', '379', '380', '381', '382', '383', '385', '386', '387', '389'];
+
+const looksLikeInternational = (d: string): boolean =>
+  NON_RU_PREFIXES.some((p) => d.startsWith(p));
+
 /**
  * Формат РФ номера по маске +7(XXX)XXX-XX-XX
  * На входе digits:
  * - либо 11 цифр, где первая "7"
- * - либо 10 цифр без страны (тогда будет добавлена "7")
+ * - либо 10 цифр без страны (тогда будет добавлена "7"), если не похоже на международный код
  */
 const formatRu = (digits: string): string => {
   if (!digits) return '';
@@ -38,8 +44,8 @@ const formatRu = (digits: string): string => {
   // 8XXXXXXXXXX -> 7XXXXXXXXXX
   if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
 
-  // 10 цифр -> РФ, добавляем 7
-  if (d.length === 10) d = `7${d}`;
+  // 10 цифр -> РФ только если это не международный префикс (375, 380 и т.д.)
+  if (d.length === 10 && !looksLikeInternational(d)) d = `7${d}`;
 
   // Если не РФ - просто отдаем цифры как есть (на всякий случай)
   if (!(d.length >= 1 && d.startsWith('7'))) return d;
@@ -130,11 +136,17 @@ export const PhoneInput = <T extends FieldValues>({
       return;
     }
 
+    // 10 цифр — если международный префикс (375, 380…), добавляем + и не форматируем как РФ
+    if (d.length === 10 && looksLikeInternational(d)) {
+      onChange(`+${d}`);
+      return;
+    }
+
     // РФ сценарии:
     // - +7...
     // - 7XXXXXXXXXX
     // - 8XXXXXXXXXX
-    // - 10 цифр без страны
+    // - 10 цифр без страны (начинаются с 9, 3xx не 375/380, 4, 5, 8)
     if (d.length === 10) {
       onChange(formatRu(d));
       return;
@@ -172,9 +184,14 @@ export const PhoneInput = <T extends FieldValues>({
     // +7XXXXXXXXXX
     // 8XXXXXXXXXX
     // 7XXXXXXXXXX
-    // 10 цифр без страны
     if (d.length === 11 && (d.startsWith('7') || d.startsWith('8'))) {
       onChange(formatRu(d));
+      return;
+    }
+
+    // 10 цифр — если международный префикс, добавляем +
+    if (d.length === 10 && looksLikeInternational(d)) {
+      onChange(`+${d}`);
       return;
     }
 
