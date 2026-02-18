@@ -40,6 +40,8 @@ const HotelCard = ({
     onRoomClick,
     measureElement,
     allowedRooms,
+    visibleTimeStart,
+    visibleTimeEnd,
 }: {
     virtualItem: { index: number; start: number; size: number };
     hotel: HotelRoomsReservesDTO;
@@ -49,6 +51,8 @@ const HotelCard = ({
     onRoomClick?: (room: RoomDTO, hotel: HotelRoomsReservesDTO) => void;
     measureElement: (element: Element | null) => void;
     allowedRooms?: string[];
+    visibleTimeStart?: number;
+    visibleTimeEnd?: number;
 }) => {
     const elementRef = useRef<HTMLDivElement>(null);
 
@@ -148,6 +152,8 @@ const HotelCard = ({
                     <Calendar
                         isLoading={isHotelDetailLoading}
                         hotel={hotelData}
+                        visibleTimeStart={visibleTimeStart}
+                        visibleTimeEnd={visibleTimeEnd}
                         onHotelClick={onHotelClick}
                         onRoomClick={(room) => {
                             // Вызываем обработчик из родительского компонента
@@ -377,6 +383,8 @@ export default function Home() {
                                 onHotelInfoClick={onHotelInfoClick}
                                 onRoomClick={onRoomClick}
                                 allowedRooms={allowedRooms}
+                                visibleTimeStart={filter?.start}
+                                visibleTimeEnd={filter?.end}
                             />
                         );
                     })}
