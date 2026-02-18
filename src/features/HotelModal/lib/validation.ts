@@ -42,7 +42,10 @@ export const hotelFormSchema = z.object({
     phone: z
         .string({ message: 'Номер телефона обязателен для заполнения' })
         .min(1, 'Номер телефона обязателен для заполнения')
-        .regex(/^\+7\(\d{3}\)\d{3}-\d{2}-\d{2}$/, 'Введите корректный номер телефона'),
+        .regex(
+            /^(\+7\(\d{3}\)\d{3}-\d{2}-\d{2}|\+\d{7,15})$/,
+            'Введите корректный номер телефона',
+        ),
     telegram_url: z.string().optional(),
     description: z.string().optional(),
     image_id: imageSchema.nullable().optional(),
