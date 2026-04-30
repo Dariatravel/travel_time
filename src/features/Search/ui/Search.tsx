@@ -119,13 +119,20 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
             const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
 
             const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
-                const getUniqueRooms = (rooms: string[]) => {
-                    return Array.from(new Set(rooms));
-                };
+                const map = new Map<string, Set<string>>();
+
+                hotels.forEach((hotel) => {
+                    const existingRooms = map.get(hotel.hotel_id) ?? new Set<string>();
+                    hotel.rooms.forEach((room) => {
+                        existingRooms.add(room.room_id);
+                    });
+                    map.set(hotel.hotel_id, existingRooms);
+                });
+
                 return new Map(
-                    hotels.map((hotel) => [
-                        hotel.hotel_id,
-                        getUniqueRooms(hotel.rooms.map((room) => room.room_id)),
+                    Array.from(map.entries()).map(([hotelId, roomIds]) => [
+                        hotelId,
+                        Array.from(roomIds),
                     ]),
                 );
             };
