@@ -121,6 +121,49 @@
     // Стили для календаря
 }
 
+.mobileTimelineWrapper {
+    overflow: hidden;
+    overscroll-behavior: contain;
+    touch-action: pan-x pan-y;
+
+    :global(.rct-outer) {
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        touch-action: pan-x pan-y;
+    }
+}
+
+.mobileTimelineControls {
+    padding: 0.5rem 0.25rem;
+}
+
+.mobileRangeLabel {
+    margin-bottom: 0.375rem;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--color-typo-primary);
+}
+
+.mobileTimelineNav {
+    display: flex;
+    gap: 0.375rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    button {
+        flex: 1 0 auto;
+        min-height: 36px;
+        font-size: 12px;
+    }
+}
+
+.mobileHeaderButton {
+    min-width: 32px !important;
+    min-height: 32px !important;
+    padding: 0 !important;
+}
+
 .calendarItem {
     width: 100%;
     background-color: var(--primary);
@@ -181,7 +224,15 @@
 }
 
 .groupContent {
-    // padding: 8px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+
+    @media (max-width: 767px) {
+        font-size: 11px;
+        line-height: 1.2;
+    }
 }
 
 .dragOverlay {

@@ -45,7 +45,7 @@ export const Calendar = ({
     onRoomClick,
     isLoading,
 }: CalendarProps) => {
-    const { isMobile } = useScreenSize();
+    const { isMobile, isPhone } = useScreenSize();
     const queryClient = useQueryClient();
 
     console.log(`${hotel.id} hotel`, { hotel });
@@ -242,7 +242,7 @@ export const Calendar = ({
         setIsRoomOpen(true);
     };
 
-    const sidebarWidth = useMemo(() => (isMobile ? 100 : 190), [isMobile]);
+    const sidebarWidth = useMemo(() => (isPhone ? 72 : isMobile ? 100 : 190), [isMobile, isPhone]);
 
     console.log('sidebarWidth', sidebarWidth);
     const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;

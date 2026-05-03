@@ -1,14 +1,16 @@
 import { useLayoutEffect, useState } from 'react';
 
 export const useScreenSize = () => {
-    const [screenSize, setScreenSize] = useState<'s' | 'm'>('s');
+    const [screenSize, setScreenSize] = useState<'phone' | 'tablet' | 'desktop'>('phone');
 
     useLayoutEffect(() => {
         const handleResize = () => {
-            if (window.innerWidth <= 1365) {
-                setScreenSize('s');
+            if (window.innerWidth <= 767) {
+                setScreenSize('phone');
+            } else if (window.innerWidth <= 1365) {
+                setScreenSize('tablet');
             } else {
-                setScreenSize('m');
+                setScreenSize('desktop');
             }
         };
 
@@ -18,5 +20,11 @@ export const useScreenSize = () => {
         return () => window.removeEventListener('resize', handleResize);
     }, []);
 
-    return { screenSize, isMobile: screenSize === 's' };
+    return {
+        screenSize,
+        isPhone: screenSize === 'phone',
+        isTablet: screenSize === 'tablet',
+        isDesktop: screenSize === 'desktop',
+        isMobile: screenSize !== 'desktop',
+    };
 };
