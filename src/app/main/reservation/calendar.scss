@@ -43,8 +43,11 @@
         }
 
         @media (max-width: 767px) {
-            max-height: 70dvh !important;
-            overflow-y: auto !important;
+            /* В списке отелей карточка виртуализирована: ограничение по высоте + внутренний скролл даёт
+               обрезку и конфликт с замером высоты. На телефоне растягиваем таймлайн по числу строк —
+               вертикальная прокрутка страницы (window / layout). */
+            max-height: none !important;
+            overflow-y: visible !important;
 
             .rct-header-root {
                 position: sticky !important;
@@ -86,9 +89,9 @@
         }
 
         @media (max-width: 767px) {
-            max-height: 70dvh !important;
+            max-height: none !important;
             min-height: auto !important;
-            overflow-y: auto !important;
+            overflow-y: visible !important;
 
             .rct-header-root {
                 position: sticky !important;

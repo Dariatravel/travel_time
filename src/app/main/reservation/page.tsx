@@ -69,20 +69,25 @@ const HotelCard = ({
     console.log({ hotelDetail });
     console.log({ hotel });
     console.log({ hotelData });
-    // Измеряем реальную высоту элемента после рендера и при изменении данных
+    // Измеряем реальную высоту элемента после рендера (таймлайн инициализируется с задержкой)
     useEffect(() => {
-        if (elementRef.current) {
-            // Используем небольшой таймаут для того, чтобы календарь успел отрендериться
-            const timeoutId = setTimeout(() => {
-                if (elementRef.current) {
-                    measureElement(elementRef.current);
-                }
-            }, 0);
+        if (!elementRef.current) return;
 
-            return () => clearTimeout(timeoutId);
-        }
+        const measure = () => {
+            if (elementRef.current) measureElement(elementRef.current);
+        };
+
+        const t0 = requestAnimationFrame(measure);
+        const t1 = setTimeout(measure, 0);
+        const t2 = setTimeout(measure, 400);
+
+        return () => {
+            cancelAnimationFrame(t0);
+            clearTimeout(t1);
+            clearTimeout(t2);
+        };
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hotelData.rooms?.length]); // Измеряем при изменении количества номеров
+    }, [hotelData.rooms?.length, isHotelDetailLoading, hotel.id]);
 
     const getHotelCity = (city: string) => {
         return VALUE_TO_LABEL_MAP[city as keyof typeof VALUE_TO_LABEL_MAP];
@@ -168,7 +173,7 @@ const HotelCard = ({
 
 export default function Home() {
     const router = useRouter();
-    const { isMobile } = useScreenSize();
+    const { isMobile, isPhone } = useScreenSize();
 
     const [isHotelModalOpen, setIsHotelModalOpen] = useState(false);
     const [currentHotel, setCurrentHotel] = useState<HotelRoomsReservesDTO | null>(null);
@@ -193,21 +198,29 @@ export default function Home() {
     const virtualizer = useWindowVirtualizer({
         count: hotelsWithRooms.length,
         estimateSize: (index) => {
-            // Вычисляем примерную высоту на основе количества номеров в отеле
             const hotel = hotelsWithRooms[index];
-            if (!hotel) return 400;
+            if (!hotel) return isPhone ? 520 : 400;
 
-            // Базовая высота: заголовок карточки (~80px) + padding/margin (~20px)
+            const roomsCount = hotel.rooms?.length || 1;
+            const roomHeight = isMobile ? 42 : 45;
+            const gap = 12;
+
+            /* Телефон: таймлайн без max-height растёт по числу номеров + блок кнопок над сеткой */
+            if (isPhone) {
+                const headerBlock = 200;
+                const mobileControls = 96;
+                const timelineChrome = 72;
+                const calendarBody =
+                    mobileControls + timelineChrome + roomsCount * roomHeight + 24;
+                return headerBlock + calendarBody + gap;
+            }
+
             const headerHeight = 80;
             const paddingMargin = 20;
-            const gap = 12; // небольшой отступ между карточками
-
-            // Высота календаря зависит от количества номеров
-            // Каждая группа (номер) занимает примерно 40-50px
-            // Но календарь имеет max-height: 250px, поэтому минимальная высота = 250px
-            const roomsCount = hotel.rooms?.length || 1;
-            const roomHeight = 45; // Примерная высота одной строки номера
-            const calendarHeight = Math.min(250, Math.max(150, roomsCount * roomHeight + 60)); // min 150px, max 250px
+            const calendarHeight = Math.min(
+                250,
+                Math.max(150, roomsCount * roomHeight + 60),
+            );
 
             return headerHeight + paddingMargin + calendarHeight + gap;
         },

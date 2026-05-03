@@ -122,13 +122,12 @@
 }
 
 .mobileTimelineWrapper {
-    overflow: hidden;
-    overscroll-behavior: contain;
+    /* overflow: hidden обрезал таймлайн и ломал цепочку прокрутки на телефонах */
+    overflow: visible;
     touch-action: pan-x pan-y;
 
     :global(.rct-outer) {
         -webkit-overflow-scrolling: touch;
-        overscroll-behavior: contain;
         touch-action: pan-x pan-y;
     }
 }
