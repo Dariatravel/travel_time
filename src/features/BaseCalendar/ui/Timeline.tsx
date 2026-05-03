@@ -109,7 +109,7 @@ export const Timeline = ({
         return 'day'; // По умолчанию
     };
 
-    const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 72 : isMobile ? 100 : 225);
+    const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 104 : isMobile ? 100 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({
@@ -440,52 +440,52 @@ export const Timeline = ({
                     groupRenderer={groupRenderer}
                 >
                     <TimelineHeaders className={styles.calendarHeader}>
-                        <SidebarHeader>
-                            {({ getRootProps }) => {
-                                const IconSize = isPhone ? 16 : isMobile ? 12 : 24;
-                                const headerButtonClassName = isPhone
-                                    ? styles.mobileHeaderButton
-                                    : '!p-1';
-                                return (
-                                    <div
-                                        {...getRootProps()}
-                                        className={cn(
-                                            styles.calendarTitle,
-                                            'pl-2 flex gap-1 flex-col items-start bg-transparent!',
-                                        )}
-                                    >
-                                        <div className="flex gap-1 items-center">
-                                            {onCreateRoom && (
+                        {!isPhone && (
+                            <SidebarHeader>
+                                {({ getRootProps }) => {
+                                    const IconSize = isMobile ? 12 : 24;
+                                    const headerButtonClassName = '!p-1';
+                                    return (
+                                        <div
+                                            {...getRootProps()}
+                                            className={cn(
+                                                styles.calendarTitle,
+                                                'pl-2 flex gap-1 flex-col items-start bg-transparent!',
+                                            )}
+                                        >
+                                            <div className="flex gap-1 items-center">
+                                                {onCreateRoom && (
+                                                    <Button
+                                                        className={headerButtonClassName}
+                                                        variant="link"
+                                                        aria-label="Добавить номер"
+                                                        onClick={onCreateRoom}
+                                                    >
+                                                        <Plus size={IconSize} />
+                                                    </Button>
+                                                )}
                                                 <Button
                                                     className={headerButtonClassName}
                                                     variant="link"
-                                                    aria-label="Добавить номер"
-                                                    onClick={onCreateRoom}
+                                                    aria-label="Приблизить календарь"
+                                                    onClick={() => onZoomIn(currentUnit)}
                                                 >
-                                                    <Plus size={IconSize} />
+                                                    <ZoomIn size={IconSize} />
                                                 </Button>
-                                            )}
-                                            <Button
-                                                className={headerButtonClassName}
-                                                variant="link"
-                                                aria-label="Приблизить календарь"
-                                                onClick={() => onZoomIn(currentUnit)}
-                                            >
-                                                <ZoomIn size={IconSize} />
-                                            </Button>
-                                            <Button
-                                                className={headerButtonClassName}
-                                                variant="link"
-                                                aria-label="Отдалить календарь"
-                                                onClick={() => onZoomOut(currentUnit)}
-                                            >
-                                                <ZoomOut size={IconSize} />
-                                            </Button>
+                                                <Button
+                                                    className={headerButtonClassName}
+                                                    variant="link"
+                                                    aria-label="Отдалить календарь"
+                                                    onClick={() => onZoomOut(currentUnit)}
+                                                >
+                                                    <ZoomOut size={IconSize} />
+                                                </Button>
+                                            </div>
                                         </div>
-                                    </div>
-                                );
-                            }}
-                        </SidebarHeader>
+                                    );
+                                }}
+                            </SidebarHeader>
+                        )}
                         <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
                             {({
                                 headerContext: { intervals, unit },
