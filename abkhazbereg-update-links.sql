@@ -1,0 +1,5 @@
+-- Сгенерировано scripts/reconcile-abkhazbereg.cjs
+-- Только MATCH_ID и MATCH_CHANNEL (MATCH_FUZZY — в abkhazbereg-update-links-fuzzy.sql)
+-- telegram_url в приложении: полные URL с https://
+--
+-- Заполнится после: node scripts/reconcile-abkhazbereg.cjs (нужен SUPABASE_SERVICE_ROLE_KEY или --input).
