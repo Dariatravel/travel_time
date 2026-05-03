@@ -11,6 +11,9 @@
  * Формат hotels-export.json: [{ "id": "...", "title": "...", "telegram_url": "..." }, ...]
  *
  * Выход: ../abkhazbereg-full-reconciliation.txt и ../abkhazbereg-update-links.sql
+ *
+ * Учитывается совпадение латинизации названия с первым словом slug на сайте (например Абаза ↔ abaza-otel-…),
+ * т.к. ID поста в t.me/abhazbooking/N не совпадает с числом в URL карточки на сайте.
  */
 
 const fs = require('fs');
@@ -220,6 +223,39 @@ function matchByTelegramUsername(telegramUrl, title, allParsed) {
     return null;
 }
 
+/** Латиница названия без пробелов — для сопоставления с первым токеном slug (Абаза ↔ abaza-otel-…). */
+function latinTitleCompact(title) {
+    const nt = normalizeTitle(title || '');
+    return latinizeRuLoose(nt).replace(/\s+/g, '');
+}
+
+/**
+ * Пост Telegram abhazbooking/N не совпадает с ID в URL на сайте (...-3614).
+ * Короткие названия дают низкий fuzzy-score (деление на число слов в длинном slug).
+ */
+function matchByFirstSlugToken(title, allParsed) {
+    const lat = latinTitleCompact(title);
+    if (lat.length < 3) return null;
+    const candidates = allParsed.filter((e) => {
+        const tokens = slugTokens(e.slug);
+        return tokens.length > 0 && tokens[0] === lat;
+    });
+    if (candidates.length === 0) return null;
+    if (candidates.length === 1) {
+        return {
+            status: 'MATCH_ID',
+            path: candidates[0].path,
+            note: 'Совпадение по латинизации названия и первому слову slug на сайте',
+        };
+    }
+    const picked = pickByTitle(title, candidates);
+    return {
+        status: 'MATCH_FUZZY',
+        path: picked.path,
+        note: `Несколько карточек с префиксом «${lat}» в slug, выбрано по заголовку`,
+    };
+}
+
 function matchHotel(row, byId, allParsed) {
     const title = row.title || '';
     const tnorm = normalizeTitle(title);
@@ -257,6 +293,9 @@ function matchHotel(row, byId, allParsed) {
 
     const byUser = matchByTelegramUsername(rawUrl, title, allParsed);
     if (byUser) return byUser;
+
+    const bySlugHead = matchByFirstSlugToken(title, allParsed);
+    if (bySlugHead) return bySlugHead;
 
     let best = null;
     let bestScore = 0;

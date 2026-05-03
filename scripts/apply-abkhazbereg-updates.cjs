@@ -1,8 +1,11 @@
 /**
- * Применяет UPDATE из abkhazbereg-update-links.sql к таблице hotels (нужен service_role).
+ * Применяет UPDATE из SQL-файла к таблице hotels (нужен service_role).
  *
- *   SUPABASE_SERVICE_ROLE_KEY="..." NEXT_PUBLIC_SUPABASE_URL="https://....supabase.co" \
- *     node scripts/apply-abkhazbereg-updates.cjs
+ * По умолчанию: abkhazbereg-update-links.sql (строки WHERE id = '…').
+ * Поддерживаются строки WHERE title = '…' (точное совпадение названия).
+ *
+ * Другой файл:
+ *   node scripts/apply-abkhazbereg-updates.cjs path/to/updates.sql
  */
 
 const fs = require('fs');
@@ -29,21 +32,32 @@ async function main() {
         process.exit(1);
     }
 
-    const sqlPath = path.join(__dirname, '..', 'abkhazbereg-update-links.sql');
+    const sqlPath = process.argv[2]
+        ? path.resolve(process.argv[2])
+        : path.join(__dirname, '..', 'abkhazbereg-update-links.sql');
     const sql = fs.readFileSync(sqlPath, 'utf8');
-    const re =
-        /UPDATE hotels SET telegram_url = '((?:[^']|'')*)' WHERE id = '([0-9a-f-]{36})'/gi;
+    const unesc = (s) => s.replace(/''/g, "'");
+    const reId =
+        /UPDATE hotels SET telegram_url = '((?:[^']|'')*)' WHERE id = '([0-9a-f-]{36})'\s*;?/gi;
+    const reTitle =
+        /UPDATE hotels SET telegram_url = '((?:[^']|'')*)' WHERE title = '((?:[^']|'')*)'\s*;?/gi;
     const updates = [];
     let m;
-    while ((m = re.exec(sql)) !== null) {
+    while ((m = reId.exec(sql)) !== null) {
         updates.push({
-            telegram_url: m[1].replace(/''/g, "'"),
+            telegram_url: unesc(m[1]),
             id: m[2],
+        });
+    }
+    while ((m = reTitle.exec(sql)) !== null) {
+        updates.push({
+            telegram_url: unesc(m[1]),
+            title: unesc(m[2]),
         });
     }
 
     if (updates.length === 0) {
-        console.error('Не найдено ни одной строки UPDATE в', sqlPath);
+        console.error('Не найдено ни одной строки UPDATE (id или title) в', sqlPath);
         process.exit(1);
     }
 
@@ -52,11 +66,12 @@ async function main() {
     const errors = [];
 
     for (const u of updates) {
-        const { error } = await supabase
-            .from('hotels')
-            .update({ telegram_url: u.telegram_url })
-            .eq('id', u.id);
-        if (error) errors.push({ id: u.id, message: error.message });
+        let q = supabase.from('hotels').update({ telegram_url: u.telegram_url });
+        if (u.id) q = q.eq('id', u.id);
+        else if (u.title) q = q.eq('title', u.title);
+        const { error } = await q;
+        const label = u.id || u.title;
+        if (error) errors.push({ target: label, message: error.message });
         else ok++;
     }
 
