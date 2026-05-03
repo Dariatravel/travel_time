@@ -194,7 +194,8 @@ export default function Home() {
     const isFilterLoading = filter?.isLoading ?? false;
 
     const scrollContainerRef = useRef<HTMLDivElement>(null); // оставляем для совместимости измерений, но не используем как скролл-элемент
-    const PAGE_SIZE = 2;
+    /** Страницы API: слишком мелкий размер даёт много запросов; «два отеля и стоп» бывает, если нет скролла и не вызывается fetchNextPage. */
+    const PAGE_SIZE = 12;
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE);
@@ -237,12 +238,12 @@ export default function Home() {
         overscan: 1,
     });
 
-    // Подгрузка страниц при прокрутке того же контейнера, что и виртуализатор
+    // Подгрузка при прокрутке: на десктопе скроллится окно — вешаемся на window; на планшете/телефоне — на .content из layout.
     useEffect(() => {
         if (hotelsWithRooms.length === 0) return;
 
-        const scrollParent = getScrollElement();
-        if (!scrollParent) return;
+        const scrollTarget: EventTarget =
+            isMobile && mainScrollEl ? mainScrollEl : window;
 
         let lastCheckTime = 0;
         const THROTTLE_MS = 200; // Throttle для проверки конца списка
@@ -251,6 +252,8 @@ export default function Home() {
             const now = Date.now();
             if (now - lastCheckTime < THROTTLE_MS) return;
             lastCheckTime = now;
+
+            if (!hasNextPage || isFetchingNextPage) return;
 
             const virtualItems = virtualizer.getVirtualItems();
             if (virtualItems.length === 0) return;
@@ -261,8 +264,8 @@ export default function Home() {
             // Проверяем, дошли ли до конца видимых элементов
             const isNearEnd = lastItem.index >= hotelsWithRooms.length - 2;
 
-            if (isNearEnd && hasNextPage && !isFetchingNextPage) {
-                fetchNextPage();
+            if (isNearEnd) {
+                void fetchNextPage();
             }
         };
 
@@ -276,20 +279,43 @@ export default function Home() {
             }
         };
 
-        scrollParent.addEventListener('scroll', handleScroll, { passive: true });
+        scrollTarget.addEventListener('scroll', handleScroll, { passive: true });
         return () => {
-            scrollParent.removeEventListener('scroll', handleScroll);
+            scrollTarget.removeEventListener('scroll', handleScroll);
             if (rafId !== null) {
                 window.cancelAnimationFrame(rafId);
             }
         };
     }, [
-        getScrollElement,
+        isMobile,
+        mainScrollEl,
         hotelsWithRooms.length,
         hasNextPage,
         isFetchingNextPage,
         fetchNextPage,
         virtualizer,
+    ]);
+
+    /**
+     * Если первые страницы помещаются во вьюпорт, событие scroll не возникает — догружаем, пока появится скролл или закончится hasNextPage.
+     */
+    useEffect(() => {
+        if (!hasNextPage || isFetchingNextPage || hotelsWithRooms.length === 0) return;
+
+        const scrollEl = getScrollElement();
+        if (!scrollEl) return;
+
+        const lacksVerticalScroll = scrollEl.scrollHeight <= scrollEl.clientHeight + 8;
+        if (!lacksVerticalScroll) return;
+
+        void fetchNextPage();
+    }, [
+        hasNextPage,
+        isFetchingNextPage,
+        hotelsWithRooms.length,
+        getScrollElement,
+        fetchNextPage,
+        data?.pages.length,
     ]);
 
     useEffect(() => {
