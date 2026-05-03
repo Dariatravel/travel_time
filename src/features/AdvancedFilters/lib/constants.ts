@@ -39,6 +39,7 @@ export const DEFAULT_CITIES = [
 export const DEFAULT_ROOM_FEATURES = [
     { value: 'sea-view', label: 'Вид на море' },
     { value: 'balcony', label: 'Балкон' },
+    { value: 'veranda', label: 'Веранда' },
     { value: 'double-room', label: 'Двухкомнатный' },
     { value: 'kitchen', label: 'Своя кухня' },
 ];
@@ -225,6 +226,7 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
         options: [
             { id: 'sea-view', label: 'Вид на море', value: 'sea-view', isActive: false },
             { id: 'balcony', label: 'Балкон', value: 'balcony', isActive: false },
+            { id: 'veranda', label: 'Веранда', value: 'veranda', isActive: false },
             { id: 'double-room', label: 'Двухкомнатный', value: 'double-room', isActive: false },
             { id: 'kitchen', label: 'Своя кухня', value: 'kitchen', isActive: false },
         ],
