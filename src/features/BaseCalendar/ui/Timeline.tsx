@@ -348,22 +348,35 @@ export const Timeline = ({
         setMobileVisibleOffsetDays((currentOffset) => currentOffset + days);
     };
 
+    const capitalizeMonthToken = (formatted: string) => {
+        // ru locale returns lowercase month abbreviations (e.g. «июля»); capitalize for scanability
+        return formatted.replace(/\b([а-яёa-z]{3,})\b/gi, (word) => {
+            return word.charAt(0).toUpperCase() + word.slice(1);
+        });
+    };
+
     const mobileRangeLabel = (() => {
         const start = defaultTimeStart;
         const end = defaultTimeEnd;
+        let raw: string;
         if (start.isSame(end, 'day')) {
-            return start.format('D MMM');
+            raw = start.format('D MMM');
+        } else if (start.isSame(end, 'month')) {
+            raw = `${start.format('D')}–${end.format('D MMM')}`;
+        } else if (start.isSame(end, 'year')) {
+            raw = `${start.format('D MMM')} – ${end.format('D MMM')}`;
+        } else {
+            raw = `${start.format('D MMM YYYY')} – ${end.format('D MMM YYYY')}`;
         }
-        if (start.isSame(end, 'month')) {
-            return `${start.format('D')}–${end.format('D MMM')}`;
-        }
-        if (start.isSame(end, 'year')) {
-            return `${start.format('D MMM')} – ${end.format('D MMM')}`;
-        }
-        return `${start.format('D MMM YYYY')} – ${end.format('D MMM YYYY')}`;
+        return capitalizeMonthToken(raw);
     })();
     const mobileResetLabel =
         visibleTimeStart != null && visibleTimeEnd != null ? 'К периоду' : 'Сегодня';
+
+    const upperHeaderUnit = getHeaderUnit(currentUnit, true);
+    const lowerHeaderUnit = getHeaderUnit(currentUnit, false);
+    /** На телефоне скрываем подписи верхнего ряда только когда оба ряда на одном масштабе (дубль). */
+    const hideUpperIntervalTextOnPhone = isPhone && upperHeaderUnit === lowerHeaderUnit;
 
     return (
         <div
@@ -499,62 +512,54 @@ export const Timeline = ({
                                 }}
                             </SidebarHeader>
                         )}
-                        {!isPhone && (
-                            <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
-                                {({
-                                    headerContext: { intervals, unit },
-                                    getRootProps,
-                                    getIntervalProps,
-                                    showPeriod,
-                                }) => {
-                                    const isYear = unit === 'year';
-                                    return (
-                                        <div {...getRootProps()}>
-                                            {intervals.map((interval) => {
-                                                // Используем дату интервала для стабильного цвета
-                                                const intervalDate = moment(
-                                                    interval.startTime.toDate(),
-                                                );
-                                                let colorIndex;
+                        <CustomHeader unit={getHeaderUnit(currentUnit, true)}>
+                            {({
+                                headerContext: { intervals, unit },
+                                getRootProps,
+                                getIntervalProps,
+                                showPeriod,
+                            }) => {
+                                const isYear = unit === 'year';
+                                return (
+                                    <div {...getRootProps()}>
+                                        {intervals.map((interval) => {
+                                            // Используем дату интервала для стабильного цвета
+                                            const intervalDate = moment(interval.startTime.toDate());
+                                            let colorIndex;
 
-                                                if (isYear) {
-                                                    // Для годов используем год
-                                                    colorIndex = intervalDate.year() % 3;
-                                                } else {
-                                                    // Для месяцев используем месяц
-                                                    colorIndex = intervalDate.month() % 3;
-                                                }
+                                            if (isYear) {
+                                                colorIndex = intervalDate.year() % 3;
+                                            } else {
+                                                colorIndex = intervalDate.month() % 3;
+                                            }
 
-                                                const backgroundColor = monthColors[colorIndex];
-                                                const dateText = isYear
-                                                    ? moment(interval.startTime.toDate()).format(
-                                                          'YYYY',
-                                                      )
-                                                    : moment(interval.startTime.toDate()).format(
-                                                          'MMM',
-                                                      );
+                                            const backgroundColor = monthColors[colorIndex];
+                                            const dateText = hideUpperIntervalTextOnPhone
+                                                ? ''
+                                                : isYear
+                                                  ? intervalDate.format('YYYY')
+                                                  : intervalDate.format('MMM');
 
-                                                return (
-                                                    <Interval
-                                                        key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
-                                                        interval={interval}
-                                                        unit={unit}
-                                                        getIntervalProps={getIntervalProps}
-                                                        getRootProps={getRootProps}
-                                                        dateText={dateText}
-                                                        showPeriod={showPeriod}
-                                                        intervalStyles={{
-                                                            backgroundColor: backgroundColor,
-                                                            color: '#fff',
-                                                        }}
-                                                    />
-                                                );
-                                            })}
-                                        </div>
-                                    );
-                                }}
-                            </CustomHeader>
-                        )}
+                                            return (
+                                                <Interval
+                                                    key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
+                                                    interval={interval}
+                                                    unit={unit}
+                                                    getIntervalProps={getIntervalProps}
+                                                    getRootProps={getRootProps}
+                                                    dateText={dateText}
+                                                    showPeriod={showPeriod}
+                                                    intervalStyles={{
+                                                        backgroundColor: backgroundColor,
+                                                        color: '#fff',
+                                                    }}
+                                                />
+                                            );
+                                        })}
+                                    </div>
+                                );
+                            }}
+                        </CustomHeader>
                         <CustomHeader unit={getHeaderUnit(currentUnit, false)}>
                             {({
                                 headerContext: { intervals, unit },
