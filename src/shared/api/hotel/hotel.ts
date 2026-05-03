@@ -791,11 +791,11 @@ export async function getHotelsWithFreeRooms(
 }
 
 /**
- * Совместимая версия фильтрации по бассейну:
- * - новый путь: pool в hotel.features
+ * Совместимая версия фильтрации по бассейнам:
+ * - новый путь: frame-pool/capital-pool в hotel.features
  * - legacy путь: pool в room_features
  *
- * При активном pool в features выполняет оба запроса и объединяет комнаты,
+ * При активном бассейне в features выполняет оба запроса и объединяет комнаты,
  * чтобы не ломать поиск во время миграции данных.
  */
 export async function getHotelsWithFreeRoomsCompatible(
@@ -807,13 +807,17 @@ export async function getHotelsWithFreeRoomsCompatible(
     },
     parsedAdvancedFilter?: Record<string, string[] | null>,
 ): Promise<FreeHotelsDTO[]> {
-    const poolInHotelFeatures = parsedAdvancedFilter?.features?.includes('pool') ?? false;
+    const selectedFeatures = parsedAdvancedFilter?.features ?? [];
+    const poolFeatureValues = ['pool', 'frame-pool', 'capital-pool'];
+    const poolInHotelFeatures = selectedFeatures.some((feature) =>
+        poolFeatureValues.includes(feature),
+    );
 
     if (!poolInHotelFeatures) {
         return getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
     }
 
-    const legacyFeatures = (parsedAdvancedFilter?.features ?? []).filter((feature) => feature !== 'pool');
+    const legacyFeatures = selectedFeatures.filter((feature) => !poolFeatureValues.includes(feature));
     const legacyRoomFeatures = Array.from(
         new Set([...(parsedAdvancedFilter?.roomFeatures ?? []), 'pool']),
     );
