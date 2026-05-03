@@ -24,6 +24,12 @@ const SITEMAP_URL = 'https://xn--80aacbklan7f0b.xn--p1ai/sitemap.xml';
 const DOMAIN_DISPLAY = 'абхазберег.рф';
 const SKIP_TITLE_SUBSTRINGS = ['шерамин', 'sheramin'];
 
+/** Когда несколько карточек с одним префиксом slug — верный путь на абхазберег.рф (проверено вручную). */
+const MANUAL_PATH_BY_TITLE_NORM = {
+    ривьера: 'hotels/rivera-gostinitsa-vidovaya-2706/',
+    тис: 'hotels/tis-mini-otel-u-zapovednika-3381/',
+};
+
 function readEnvLocal() {
     const p = path.join(__dirname, '..', '.env.local');
     if (!fs.existsSync(p)) return {};
@@ -262,6 +268,18 @@ function matchHotel(row, byId, allParsed) {
     for (const s of SKIP_TITLE_SUBSTRINGS) {
         if (tnorm.includes(s)) {
             return { status: 'SKIP', note: 'Исключено (нет карточки на сайте / по договорённости)', path: null };
+        }
+    }
+
+    const manualRel = MANUAL_PATH_BY_TITLE_NORM[tnorm];
+    if (manualRel) {
+        const hit = allParsed.find((e) => e.path === manualRel);
+        if (hit) {
+            return {
+                status: 'MATCH_ID',
+                path: hit.path,
+                note: 'Путь на сайте зафиксирован вручную (несколько карточек с тем же префиксом в slug)',
+            };
         }
     }
 
