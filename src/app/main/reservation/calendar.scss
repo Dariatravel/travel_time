@@ -19,6 +19,15 @@
     background-color: var(--primary) !important;
 }
 
+/* По умолчанию в react-calendar-timeline у .rct-scroll стоит touch-action: none — вертикальный свайп
+   не доходит до прокрутки родителя .rct-outer на телефонах. */
+@media (max-width: 767px) {
+    .react-calendar-timeline .rct-scroll {
+        touch-action: pan-x pan-y !important;
+        -ms-touch-action: pan-x pan-y !important;
+    }
+}
+
 .travel-timeline {
     .rct-outer {
         max-height: 250px !important;
