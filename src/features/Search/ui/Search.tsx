@@ -23,7 +23,10 @@ import {
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
+import {
+    adaptToMultipleSelectorOption,
+    sortHotelOptionsByLabel,
+} from '@/shared/lib/adaptHotel';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import cn from 'classnames';
@@ -165,7 +168,9 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
         }
     };
 
-    const hotelOptions = hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [];
+    const hotelOptions = sortHotelOptionsByLabel(
+        hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [],
+    );
 
     const { control } = useForm<SearchFormSchema>({
         defaultValues: {
