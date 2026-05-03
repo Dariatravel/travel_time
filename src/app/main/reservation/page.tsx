@@ -21,12 +21,13 @@ import { $hotelsFilter } from '@/shared/models/hotels';
 import { HotelTelegram } from '@/shared/ui/Hotel/HotelTelegram';
 import { HotelTitle } from '@/shared/ui/Hotel/HotelTitle';
 import { getHotelUrl } from '@/utils/getHotelUrl';
-import { useWindowVirtualizer } from '@tanstack/react-virtual';
+import { useVirtualizer } from '@tanstack/react-virtual';
 import { useUnit } from 'effector-react/compat';
 import { MapPin } from 'lucide-react';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useMainScrollElement } from '../MainScrollContext';
 import './calendar.scss';
 import cx from './page.module.css';
 
@@ -174,6 +175,14 @@ const HotelCard = ({
 export default function Home() {
     const router = useRouter();
     const { isMobile, isPhone } = useScreenSize();
+    const mainScrollEl = useMainScrollElement();
+
+    /** На мобилке/планшете скролл в MainLayout — div.content; на десктопе — documentElement. */
+    const getScrollElement = useCallback(() => {
+        if (typeof document === 'undefined') return null;
+        if (isMobile && mainScrollEl) return mainScrollEl;
+        return document.documentElement;
+    }, [isMobile, mainScrollEl]);
 
     const [isHotelModalOpen, setIsHotelModalOpen] = useState(false);
     const [currentHotel, setCurrentHotel] = useState<HotelRoomsReservesDTO | null>(null);
@@ -194,9 +203,10 @@ export default function Home() {
     const hotelsWithRooms = hotels?.filter((hotel) => hotel?.rooms?.length > 0);
 
     console.log({ data, hotels, hotelsWithRooms });
-    // Виртуализатор для списка календарей с динамической высотой
-    const virtualizer = useWindowVirtualizer({
+    // Виртуализатор: scroll element = .content на узком layout, иначе window (documentElement)
+    const virtualizer = useVirtualizer({
         count: hotelsWithRooms.length,
+        getScrollElement,
         estimateSize: (index) => {
             const hotel = hotelsWithRooms[index];
             if (!hotel) return isPhone ? 520 : 400;
@@ -227,9 +237,12 @@ export default function Home() {
         overscan: 1,
     });
 
-    // Обработчик скролла для подгрузки новых данных - используем IntersectionObserver для производительности
+    // Подгрузка страниц при прокрутке того же контейнера, что и виртуализатор
     useEffect(() => {
         if (hotelsWithRooms.length === 0) return;
+
+        const scrollParent = getScrollElement();
+        if (!scrollParent) return;
 
         let lastCheckTime = 0;
         const THROTTLE_MS = 200; // Throttle для проверки конца списка
@@ -253,7 +266,6 @@ export default function Home() {
             }
         };
 
-        // Используем requestAnimationFrame для плавного скролла
         let rafId: number | null = null;
         const handleScroll = () => {
             if (rafId === null) {
@@ -264,15 +276,21 @@ export default function Home() {
             }
         };
 
-        window.addEventListener('scroll', handleScroll, { passive: true });
+        scrollParent.addEventListener('scroll', handleScroll, { passive: true });
         return () => {
-            window.removeEventListener('scroll', handleScroll);
+            scrollParent.removeEventListener('scroll', handleScroll);
             if (rafId !== null) {
                 window.cancelAnimationFrame(rafId);
             }
         };
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hotelsWithRooms.length, hasNextPage, isFetchingNextPage, fetchNextPage]);
+    }, [
+        getScrollElement,
+        hotelsWithRooms.length,
+        hasNextPage,
+        isFetchingNextPage,
+        fetchNextPage,
+        virtualizer,
+    ]);
 
     useEffect(() => {
         refetch();

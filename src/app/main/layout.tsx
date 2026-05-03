@@ -8,13 +8,9 @@ import { useUnit } from 'effector-react';
 import { Building2, Calendar, HomeIcon } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
-import React from 'react';
+import React, { useState } from 'react';
+import { MainScrollProvider } from './MainScrollContext';
 import styles from './layout.module.scss';
-
-export interface LayoutProps {
-    children?: React.ReactNode;
-    className?: string;
-}
 
 moment.locale('ru');
 
@@ -24,7 +20,8 @@ const navLink: NavbarNavItem[] = [
     { href: routes[PagesEnum.RESERVATION], label: 'Бронирование', icon: Calendar },
 ];
 
-export default function MainLayout({ children }: LayoutProps) {
+export default function MainLayout({ children }: { children: React.ReactNode }) {
+    const [mainScrollEl, setMainScrollEl] = useState<HTMLDivElement | null>(null);
     useAuth();
     const currentDate = moment().locale('ru').format('dddd, D MMMM YYYY');
 
@@ -54,8 +51,10 @@ export default function MainLayout({ children }: LayoutProps) {
             </div>
             <div>
                 <div className={styles.contentContainer}>
-                    <div className={`${styles.content} bg-transparent`}>
-                        <div className={styles.childrenContainer}>{children}</div>
+                    <div ref={setMainScrollEl} className={`${styles.content} bg-transparent`}>
+                        <MainScrollProvider scrollElement={mainScrollEl}>
+                            <div className={styles.childrenContainer}>{children}</div>
+                        </MainScrollProvider>
                     </div>
                 </div>
             </div>
