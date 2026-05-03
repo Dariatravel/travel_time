@@ -394,12 +394,24 @@ export const useInfiniteHotelsQuery = (
                 count: number;
             }[],
         ) => {
-            // Если последняя страница пустая или количество загруженных элементов равно общему количеству, то больше страниц нет
-            if (lastPage.data.length === 0 || lastPage.data.length < limit) {
+            if (lastPage.data.length === 0) {
                 return undefined;
             }
 
-            // Возвращаем номер следующей страницы
+            const loadedSoFar = allPages.reduce((sum, p) => sum + p.data.length, 0);
+            const totalRows = lastPage.count ?? 0;
+
+            // Опираемся на exact count от PostgREST: ответ может быть короче limit (напр. лимит API),
+            // при этом следующая страница всё ещё нужна.
+            if (totalRows > 0 && loadedSoFar >= totalRows) {
+                return undefined;
+            }
+
+            // Если count недоступен, сохраняем прежнюю эвристику по размеру последней страницы.
+            if (totalRows <= 0 && lastPage.data.length < limit) {
+                return undefined;
+            }
+
             return allPages.length;
         },
     });

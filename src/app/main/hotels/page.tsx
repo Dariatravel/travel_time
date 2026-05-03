@@ -8,7 +8,7 @@ import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
 import { TravelButton } from '@/shared/ui/Button/Button';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
 export default function Hotels() {
     const router = useRouter();
@@ -17,9 +17,16 @@ export default function Hotels() {
 
     // Используем бесконечный запрос для получения всех отелей
     const PAGE_SIZE = 100; // Увеличиваем размер для получения всех отелей сразу
-    const { data, isLoading, error } = useInfiniteHotelsQuery(undefined, PAGE_SIZE, true);
+    const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+        useInfiniteHotelsQuery(undefined, PAGE_SIZE, true);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
+
+    /** Бесконечный запрос по умолчанию грузит только первую страницу; подтягиваем остальные для полного списка. */
+    useEffect(() => {
+        if (!hasNextPage || isFetchingNextPage) return;
+        void fetchNextPage();
+    }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
     /**
      * Обработчик редактирования отеля
