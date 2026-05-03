@@ -790,6 +790,81 @@ export async function getHotelsWithFreeRooms(
     }
 }
 
+/**
+ * Совместимая версия фильтрации по бассейну:
+ * - новый путь: pool в hotel.features
+ * - legacy путь: pool в room_features
+ *
+ * При активном pool в features выполняет оба запроса и объединяет комнаты,
+ * чтобы не ломать поиск во время миграции данных.
+ */
+export async function getHotelsWithFreeRoomsCompatible(
+    filter: {
+        start?: number;
+        end?: number;
+        type?: string;
+        quantity?: number;
+    },
+    parsedAdvancedFilter?: Record<string, string[] | null>,
+): Promise<FreeHotelsDTO[]> {
+    const poolInHotelFeatures = parsedAdvancedFilter?.features?.includes('pool') ?? false;
+
+    if (!poolInHotelFeatures) {
+        return getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
+    }
+
+    const legacyFeatures = (parsedAdvancedFilter?.features ?? []).filter((feature) => feature !== 'pool');
+    const legacyRoomFeatures = Array.from(
+        new Set([...(parsedAdvancedFilter?.roomFeatures ?? []), 'pool']),
+    );
+
+    const legacyFilter: Record<string, string[] | null> = {
+        ...(parsedAdvancedFilter ?? {}),
+        features: legacyFeatures.length > 0 ? legacyFeatures : null,
+        roomFeatures: legacyRoomFeatures,
+    };
+
+    const [legacyResult, modernResult] = await Promise.all([
+        getHotelsWithFreeRooms(filter, legacyFilter),
+        getHotelsWithFreeRooms(filter, parsedAdvancedFilter),
+    ]);
+
+    const byHotel = new Map<
+        string,
+        {
+            hotel_id: string;
+            hotel_title: string;
+            rooms: Map<string, FreeHotelsDTO['rooms'][number]>;
+        }
+    >();
+
+    const appendHotels = (hotels: FreeHotelsDTO[]) => {
+        hotels.forEach((hotel) => {
+            const current = byHotel.get(hotel.hotel_id) ?? {
+                hotel_id: hotel.hotel_id,
+                hotel_title: hotel.hotel_title,
+                rooms: new Map<string, FreeHotelsDTO['rooms'][number]>(),
+            };
+
+            hotel.rooms.forEach((room) => {
+                current.rooms.set(room.room_id, room);
+            });
+
+            byHotel.set(hotel.hotel_id, current);
+        });
+    };
+
+    appendHotels(legacyResult);
+    appendHotels(modernResult);
+
+    return Array.from(byHotel.values()).map((hotel) => ({
+        hotel_id: hotel.hotel_id,
+        hotel_title: hotel.hotel_title,
+        rooms: Array.from(hotel.rooms.values()),
+        free_room_count: hotel.rooms.size,
+    }));
+}
+
 export const createHotelApi = async (hotel: Hotel) => {
     try {
         await insertItem<Hotel>(TABLE_NAMES.HOTELS, hotel);

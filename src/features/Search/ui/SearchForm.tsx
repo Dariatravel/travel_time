@@ -14,7 +14,7 @@ import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import { ClearableSelect } from '@/shared';
 import {
     FreeHotelsDTO,
-    getHotelsWithFreeRooms,
+    getHotelsWithFreeRoomsCompatible,
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
@@ -298,7 +298,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                     parsedAdvancedFilter,
                 });
 
-                const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
+                const result = await getHotelsWithFreeRoomsCompatible(filter, parsedAdvancedFilter);
 
                 const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
                     const map = new Map<string, Set<string>>();
