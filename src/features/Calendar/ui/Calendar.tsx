@@ -242,9 +242,8 @@ export const Calendar = ({
         setIsRoomOpen(true);
     };
 
-    const sidebarWidth = useMemo(() => (isPhone ? 72 : isMobile ? 100 : 190), [isMobile, isPhone]);
+    const sidebarWidth = useMemo(() => (isPhone ? 104 : isMobile ? 100 : 190), [isMobile, isPhone]);
 
-    console.log('sidebarWidth', sidebarWidth);
     const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;
     const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
 
