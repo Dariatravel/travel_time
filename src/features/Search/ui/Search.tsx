@@ -19,7 +19,7 @@ import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import {
     FreeHotelsDTO,
-    getHotelsWithFreeRooms,
+    getHotelsWithFreeRoomsCompatible,
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
@@ -116,7 +116,7 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
         if (!isAllValuesUndefined(filter)) {
             const parsedAdvancedFilter = parseFilter(advancedFilters);
 
-            const result = await getHotelsWithFreeRooms(filter, parsedAdvancedFilter);
+            const result = await getHotelsWithFreeRoomsCompatible(filter, parsedAdvancedFilter);
 
             const getHotelsMap = (hotels: FreeHotelsDTO[]) => {
                 const map = new Map<string, Set<string>>();

@@ -60,6 +60,17 @@ export const parseFiltersFromSearchParams = (
         section.options.forEach((opt) => {
             opt.isActive = values.includes(opt.value);
         });
+
+        // Backward compatibility:
+        // historically "pool" was stored in roomFeatures query param.
+        // During migration we mirror it to hotel features so old links remain valid.
+        if (rawKey === QueryStringFilterEnum.ROOM_FEATURES && values.includes('pool')) {
+            const featuresSection = next.features;
+            const poolOption = featuresSection.options.find((opt) => opt.value === 'pool');
+            if (poolOption) {
+                poolOption.isActive = true;
+            }
+        }
     }
 
     return next;
