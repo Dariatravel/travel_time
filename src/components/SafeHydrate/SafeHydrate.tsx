@@ -1,9 +1,13 @@
-import {ReactNode} from "react";
+'use client';
 
-export function SafeHydrate({children}: { children: ReactNode }) {
-    return (
-        <div suppressHydrationWarning>
-            {typeof window === 'undefined' ? null : children}
-        </div>
-    )
+import { ReactNode, useEffect, useState } from 'react';
+
+export function SafeHydrate({ children }: { children: ReactNode }) {
+    const [isMounted, setIsMounted] = useState(false);
+
+    useEffect(() => {
+        setIsMounted(true);
+    }, []);
+
+    return <div suppressHydrationWarning>{isMounted ? children : null}</div>;
 }

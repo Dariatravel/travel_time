@@ -73,10 +73,13 @@ export const Timeline = ({
     onGroupsReorder,
 }: TimelineProps) => {
     // const [isMobile] = useUnit([$isMobile]);
-    const { isMobile } = useScreenSize();
+    const { isMobile, isPhone } = useScreenSize();
     const timelineRef = useRef<TimelineComponent>(null);
     const touchWrapperRef = useRef<HTMLDivElement | null>(null);
+    const touchStartRef = useRef({ x: 0, y: 0 });
+    const hasTouchMovedRef = useRef(false);
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isMobile ? 'month' : 'day');
+    const [mobileVisibleOffsetDays, setMobileVisibleOffsetDays] = useState(0);
 
     // Функция для определения уровня зума на основе unit и видимого периода
     // Возвращает: 'day' (Дни), 'month' (Месяц), 'months' (Месяцы), 'year' (Год)
@@ -106,7 +109,7 @@ export const Timeline = ({
         return 'day'; // По умолчанию
     };
 
-    const defaultSidebarWidth = sidebarWidth ?? (isMobile ? 40 : 225);
+    const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 72 : isMobile ? 100 : 225);
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({
@@ -131,7 +134,23 @@ export const Timeline = ({
                 onDoubleClick={() => {
                     onItemClick(item, hotel);
                 }}
+                onTouchStart={(event) => {
+                    const touch = event.touches[0];
+                    if (!touch) return;
+                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                    hasTouchMovedRef.current = false;
+                }}
+                onTouchMove={(event) => {
+                    const touch = event.touches[0];
+                    if (!touch) return;
+                    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+                    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+                    if (deltaX > 10 || deltaY > 10) {
+                        hasTouchMovedRef.current = true;
+                    }
+                }}
                 onTouchEnd={() => {
+                    if (hasTouchMovedRef.current) return;
                     onItemClick(item, hotel);
                 }}
             >
@@ -173,8 +192,12 @@ export const Timeline = ({
             visibleTimeStart < visibleTimeEnd
         ) {
             const paddingDays = isMobile ? 2 : 7;
-            const defaultTimeStart = moment.unix(visibleTimeStart).add(-paddingDays, 'day');
-            const defaultTimeEnd = moment.unix(visibleTimeEnd).add(paddingDays, 'day');
+            const defaultTimeStart = moment
+                .unix(visibleTimeStart)
+                .add(-paddingDays + mobileVisibleOffsetDays, 'day');
+            const defaultTimeEnd = moment
+                .unix(visibleTimeEnd)
+                .add(paddingDays + mobileVisibleOffsetDays, 'day');
             return { defaultTimeStart, defaultTimeEnd };
         }
 
@@ -185,10 +208,13 @@ export const Timeline = ({
         const desktopEndOffset = 45; // ~1.5 месяца вперед
 
         const defaultTimeStart = moment().add(
-            isMobile ? mobileStartOffset : desktopStartOffset,
+            (isMobile ? mobileStartOffset : desktopStartOffset) + mobileVisibleOffsetDays,
             'day',
         );
-        const defaultTimeEnd = moment().add(isMobile ? mobileEndOffset : desktopEndOffset, 'day');
+        const defaultTimeEnd = moment().add(
+            (isMobile ? mobileEndOffset : desktopEndOffset) + mobileVisibleOffsetDays,
+            'day',
+        );
 
         return { defaultTimeStart, defaultTimeEnd };
     };
@@ -281,68 +307,101 @@ export const Timeline = ({
     }, [isMobile]);
 
     useEffect(() => {
-        if (!isMobile) return;
-        const wrapper = touchWrapperRef.current;
-        if (!wrapper) return;
-        const scrollContainer = wrapper.querySelector('.rct-outer') as HTMLDivElement | null;
-        if (!scrollContainer) return;
+        setMobileVisibleOffsetDays(0);
+    }, [visibleTimeStart, visibleTimeEnd]);
 
-        let startX = 0;
-        let startY = 0;
-        let detectedDirection: 'horizontal' | 'vertical' | null = null;
+    const handleWrapperTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        hasTouchMovedRef.current = false;
+    };
 
-        const resetLock = () => {
-            detectedDirection = null;
-            scrollContainer.style.touchAction = '';
-            scrollContainer.style.overflowY = '';
-        };
+    const handleWrapperTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+        const touch = event.touches[0];
+        if (!touch) return;
+        const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
 
-        const handleTouchStart = (event: TouchEvent) => {
-            if (event.touches.length !== 1) return;
-            startX = event.touches[0].clientX;
-            startY = event.touches[0].clientY;
-            resetLock();
-        };
+        if (deltaX > 10 || deltaY > 10) {
+            hasTouchMovedRef.current = true;
+        }
+    };
 
-        const handleTouchMove = (event: TouchEvent) => {
-            if (event.touches.length !== 1 || detectedDirection) return;
-            const currentTouch = event.touches[0];
-            const deltaX = Math.abs(currentTouch.clientX - startX);
-            const deltaY = Math.abs(currentTouch.clientY - startY);
+    const handleWrapperTouchEnd = () => {
+        window.setTimeout(() => {
+            hasTouchMovedRef.current = false;
+        }, 250);
+    };
 
-            if (deltaX < 8 && deltaY < 8) return;
+    const formatIntervalDate = (date: Date, unit: string) => {
+        const intervalDate = moment(date);
 
-            if (deltaX > deltaY) {
-                detectedDirection = 'horizontal';
-                scrollContainer.style.touchAction = 'pan-x';
-                scrollContainer.style.overflowY = 'hidden';
-            } else {
-                detectedDirection = 'vertical';
-            }
-        };
+        if (unit === 'day') {
+            return intervalDate.format(isPhone ? 'DD dd' : 'DD');
+        }
 
-        scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: true });
-        scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: true });
-        scrollContainer.addEventListener('touchend', resetLock);
-        scrollContainer.addEventListener('touchcancel', resetLock);
+        return intervalDate.format('MMM');
+    };
 
-        return () => {
-            scrollContainer.removeEventListener('touchstart', handleTouchStart);
-            scrollContainer.removeEventListener('touchmove', handleTouchMove);
-            scrollContainer.removeEventListener('touchend', resetLock);
-            scrollContainer.removeEventListener('touchcancel', resetLock);
-        };
-    }, [isMobile, hotelRooms.length, timelineId]);
+    const shiftMobileTimeline = (days: number) => {
+        setMobileVisibleOffsetDays((currentOffset) => currentOffset + days);
+    };
+
+    const mobileRangeLabel = `${defaultTimeStart.format('D MMM')} - ${defaultTimeEnd.format('D MMM')}`;
+    const mobileResetLabel =
+        visibleTimeStart != null && visibleTimeEnd != null ? 'К периоду' : 'Сегодня';
 
     return (
-        <div ref={touchWrapperRef}>
+        <div
+            ref={touchWrapperRef}
+            className={cn(isPhone && styles.mobileTimelineWrapper)}
+            onTouchStart={handleWrapperTouchStart}
+            onTouchMove={handleWrapperTouchMove}
+            onTouchEnd={handleWrapperTouchEnd}
+            onTouchCancel={handleWrapperTouchEnd}
+        >
+            {isPhone && (
+                <div className={styles.mobileTimelineControls}>
+                    <div className={styles.mobileRangeLabel}>{mobileRangeLabel}</div>
+                    <div className={styles.mobileTimelineNav}>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label="Показать предыдущую неделю"
+                            onClick={() => shiftMobileTimeline(-7)}
+                        >
+                            -7 дней
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            aria-label="Вернуться к исходному периоду"
+                            onClick={() => setMobileVisibleOffsetDays(0)}
+                        >
+                            {mobileResetLabel}
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label="Показать следующую неделю"
+                            onClick={() => shiftMobileTimeline(7)}
+                        >
+                            +7 дней
+                        </Button>
+                    </div>
+                </div>
+            )}
             <DndTimelineWrapper
                 groups={groupsForDnd}
                 onGroupsReorder={handleGroupsReorder}
                 timelineId={timelineId}
             >
                 <TimelineComponent
-                    key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}`}
+                    key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}-${mobileVisibleOffsetDays}`}
                     ref={timelineRef}
                     onZoom={(context, unit) => {
                         // Определяем уровень зума на основе unit и видимого периода
@@ -372,6 +431,7 @@ export const Timeline = ({
                         // @typescript-eslint/ban-ts-comment
                         // @ts-expect-error - Событие touch не определено в типах Timeline
                         if (e?.nativeEvent?.pointerType === 'touch') {
+                            if (hasTouchMovedRef.current) return;
                             onReserveAdd(groupId, time, e);
                         }
                     }}
@@ -382,7 +442,10 @@ export const Timeline = ({
                     <TimelineHeaders className={styles.calendarHeader}>
                         <SidebarHeader>
                             {({ getRootProps }) => {
-                                const IconSize = isMobile ? 8 : 24;
+                                const IconSize = isPhone ? 16 : isMobile ? 12 : 24;
+                                const headerButtonClassName = isPhone
+                                    ? styles.mobileHeaderButton
+                                    : '!p-1';
                                 return (
                                     <div
                                         {...getRootProps()}
@@ -394,23 +457,26 @@ export const Timeline = ({
                                         <div className="flex gap-1 items-center">
                                             {onCreateRoom && (
                                                 <Button
-                                                    className={'!p-1'}
+                                                    className={headerButtonClassName}
                                                     variant="link"
+                                                    aria-label="Добавить номер"
                                                     onClick={onCreateRoom}
                                                 >
                                                     <Plus size={IconSize} />
                                                 </Button>
                                             )}
                                             <Button
-                                                className={'!p-1'}
+                                                className={headerButtonClassName}
                                                 variant="link"
+                                                aria-label="Приблизить календарь"
                                                 onClick={() => onZoomIn(currentUnit)}
                                             >
                                                 <ZoomIn size={IconSize} />
                                             </Button>
                                             <Button
-                                                className={'!p-1'}
+                                                className={headerButtonClassName}
                                                 variant="link"
+                                                aria-label="Отдалить календарь"
                                                 onClick={() => onZoomOut(currentUnit)}
                                             >
                                                 <ZoomOut size={IconSize} />
@@ -488,7 +554,10 @@ export const Timeline = ({
                                                     ? moment(interval.startTime.toDate()).format(
                                                           'MMM',
                                                       )
-                                                    : interval.startTime.format('DD');
+                                                    : formatIntervalDate(
+                                                          interval.startTime.toDate(),
+                                                          unit,
+                                                      );
 
                                             return (
                                                 <Interval
