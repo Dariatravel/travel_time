@@ -16,3 +16,9 @@ export const adaptToMultipleSelectorOption = (item: {
   value: item.id,
   label: item.title,
 })
+
+/** Алфавитная сортировка подписей для выпадающих списков отелей (locale ru). */
+export const sortHotelOptionsByLabel = <T extends { label: string }>(options: T[]): T[] =>
+  [...options].sort((a, b) =>
+    a.label.localeCompare(b.label, 'ru', { sensitivity: 'base', numeric: true }),
+  )

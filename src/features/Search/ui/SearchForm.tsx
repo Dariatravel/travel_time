@@ -18,7 +18,10 @@ import {
     useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
-import { adaptToMultipleSelectorOption } from '@/shared/lib/adaptHotel';
+import {
+    adaptToMultipleSelectorOption,
+    sortHotelOptionsByLabel,
+} from '@/shared/lib/adaptHotel';
 import { useDeviceDetection } from '@/shared/lib/useDeviceDetection';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
 import {
@@ -445,7 +448,9 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         }
     };
 
-    const hotelOptions = hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [];
+    const hotelOptions = sortHotelOptionsByLabel(
+        hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [],
+    );
 
     return (
         <FormProvider {...methods}>
