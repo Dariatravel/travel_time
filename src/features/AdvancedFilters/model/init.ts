@@ -61,15 +61,24 @@ export const parseFiltersFromSearchParams = (
             opt.isActive = values.includes(opt.value);
         });
 
-        // Backward compatibility:
-        // historically "pool" was stored in roomFeatures query param.
-        // During migration we mirror it to hotel features so old links remain valid.
+        // Backward compatibility: historically "pool" was stored in roomFeatures/features.
+        // During migration we mirror it to both new pool types so old links remain usable.
         if (rawKey === QueryStringFilterEnum.ROOM_FEATURES && values.includes('pool')) {
             const featuresSection = next.features;
-            const poolOption = featuresSection.options.find((opt) => opt.value === 'pool');
-            if (poolOption) {
-                poolOption.isActive = true;
-            }
+            featuresSection.options.forEach((opt) => {
+                if (opt.value === 'frame-pool' || opt.value === 'capital-pool') {
+                    opt.isActive = true;
+                }
+            });
+        }
+
+        if (rawKey === QueryStringFilterEnum.FEATURES && values.includes('pool')) {
+            const featuresSection = next.features;
+            featuresSection.options.forEach((opt) => {
+                if (opt.value === 'frame-pool' || opt.value === 'capital-pool') {
+                    opt.isActive = true;
+                }
+            });
         }
     }
 

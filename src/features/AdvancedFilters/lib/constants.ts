@@ -39,14 +39,20 @@ export const DEFAULT_CITIES = [
 export const DEFAULT_ROOM_FEATURES = [
     { value: 'sea-view', label: 'Вид на море' },
     { value: 'balcony', label: 'Балкон' },
-    { value: 'single-room', label: 'Однокомнатный' },
     { value: 'double-room', label: 'Двухкомнатный' },
+    { value: 'kitchen', label: 'Своя кухня' },
 ];
 
 export const DEFAULT_FEATURES = [
-    { value: 'pool', label: 'Бассейн' },
-    { value: 'children-allowed', label: 'Можно с детьми' },
+    { value: 'parking', label: 'Парковка' },
+    { value: 'generator', label: 'Генератор' },
+    { value: 'frame-pool', label: 'Каркасный бассейн' },
+    { value: 'capital-pool', label: 'Капитальный бассейн' },
+    { value: 'playground', label: 'Детская площадка' },
+    { value: 'cleaning', label: 'Уборка' },
+    { value: 'baby-cot', label: 'Детская кроватка' },
     { value: 'pets-allowed', label: 'Можно с животными' },
+    { value: 'no-children', label: 'Без детей' },
 ];
 
 export const DEFAULT_EAT = [
@@ -163,6 +169,14 @@ const PRICE_MAP = DEFAULT_PRICE.reduce(
     },
     {} as Record<string, string>,
 );
+
+const LEGACY_FEATURES_MAP = {
+    pool: 'Бассейн',
+    'single-room': 'Однокомнатный',
+    'air-conditioning': 'Кондиционер',
+    'children-allowed': 'Можно с детьми',
+} as const;
+
 /**
  * Маппинг для быстрого поиска русских названий
  */
@@ -180,6 +194,8 @@ export const VALUE_TO_LABEL_MAP = {
     ...BEACH_DISTANCE_MAP,
 
     ...PRICE_MAP,
+
+    ...LEGACY_FEATURES_MAP,
 } as const;
 
 /**
@@ -209,15 +225,8 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
         options: [
             { id: 'sea-view', label: 'Вид на море', value: 'sea-view', isActive: false },
             { id: 'balcony', label: 'Балкон', value: 'balcony', isActive: false },
-            { id: 'single-room', label: 'Однокомнатный', value: 'single-room', isActive: false },
             { id: 'double-room', label: 'Двухкомнатный', value: 'double-room', isActive: false },
             { id: 'kitchen', label: 'Своя кухня', value: 'kitchen', isActive: false },
-            {
-                id: 'air-conditioning',
-                label: 'Кондиционер',
-                value: 'air-conditioning',
-                isActive: false,
-            },
         ],
         isExpanded: true,
     },
@@ -225,19 +234,25 @@ export const INITIAL_FILTERS: AdvancedFiltersState = {
         id: 'features',
         title: 'Особенности размещения',
         options: [
-            { id: 'pool', label: 'Бассейн', value: 'pool', isActive: false },
+            { id: 'parking', label: 'Парковка', value: 'parking', isActive: false },
+            { id: 'generator', label: 'Генератор', value: 'generator', isActive: false },
+            { id: 'frame-pool', label: 'Каркасный бассейн', value: 'frame-pool', isActive: false },
             {
-                id: 'children-allowed',
-                label: 'Можно с детьми',
-                value: 'children-allowed',
+                id: 'capital-pool',
+                label: 'Капитальный бассейн',
+                value: 'capital-pool',
                 isActive: false,
             },
+            { id: 'playground', label: 'Детская площадка', value: 'playground', isActive: false },
+            { id: 'cleaning', label: 'Уборка', value: 'cleaning', isActive: false },
+            { id: 'baby-cot', label: 'Детская кроватка', value: 'baby-cot', isActive: false },
             {
                 id: 'pets-allowed',
                 label: 'Можно с животными',
                 value: 'pets-allowed',
                 isActive: false,
             },
+            { id: 'no-children', label: 'Без детей', value: 'no-children', isActive: false },
         ],
         isExpanded: true,
     },
