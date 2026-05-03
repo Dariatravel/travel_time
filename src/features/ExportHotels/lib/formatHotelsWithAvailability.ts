@@ -1,4 +1,5 @@
 import { FreeHotelsDTO, HotelForRoom } from '@/shared/api/hotel/hotel';
+import { urlPlainForExport } from './formatHotels';
 
 /**
  * Форматирует список отелей с информацией о свободных номерах
@@ -26,11 +27,10 @@ export const formatHotelsWithAvailability = (
         .map((hotel, index) => {
             const number = `${index + 1}.`;
             const title = hotel.title || 'Без названия';
-            const telegramLink = hotel.telegram_url || 'Нет ссылки';
+            const telegramLink = urlPlainForExport(hotel.telegram_url);
 
-            let hotelText = `${number} ${title}\n   Telegram: ${telegramLink}`;
+            let hotelText = `${number} ${title}\n   ${telegramLink}`;
 
-            console.log('freeHotelInfo', hotel);
             hotelText += `\n   ✅ Свободных номеров: ${hotel?.rooms_count}`;
 
             return hotelText;

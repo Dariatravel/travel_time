@@ -1,5 +1,12 @@
 import { HotelForRoom } from '@/shared/api/hotel/hotel';
 
+/** Домен и путь без `https://` для текста выгрузки. */
+export const urlPlainForExport = (url: string | null | undefined): string => {
+    const s = url?.trim();
+    if (!s) return 'Нет ссылки';
+    return s.replace(/^https?:\/\//i, '');
+};
+
 /**
  * Форматирует список отелей для копирования в Telegram/WhatsApp
  * @param hotels - массив отелей
@@ -16,9 +23,7 @@ export const formatHotelsForMessenger = (hotels: HotelForRoom[]): string => {
         .map((hotel, index) => {
             const number = `${index + 1}.`;
             const title = hotel.title || 'Без названия';
-            const telegramLink = hotel.telegram_url
-                ? `[Telegram](${hotel.telegram_url})`
-                : 'Нет ссылки';
+            const telegramLink = urlPlainForExport(hotel.telegram_url);
 
             return `${number} *${title}*\n   ${telegramLink}`;
         })
@@ -43,9 +48,9 @@ export const formatHotelsAsPlainText = (hotels: HotelForRoom[]): string => {
         .map((hotel, index) => {
             const number = `${index + 1}.`;
             const title = hotel.title || 'Без названия';
-            const telegramLink = hotel.telegram_url || 'Нет ссылки';
+            const telegramLink = urlPlainForExport(hotel.telegram_url);
 
-            return `${number} ${title}\n   Telegram: ${telegramLink}`;
+            return `${number} ${title}\n   ${telegramLink}`;
         })
         .join('\n\n');
 
