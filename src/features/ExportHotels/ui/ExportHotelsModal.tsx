@@ -99,7 +99,7 @@ export const ExportHotelsModal: FC<ExportHotelsModalProps> = ({
                                             Название отеля
                                         </th>
                                         <th className="text-left py-2 px-3 text-sm font-semibold text-gray-700">
-                                            Telegram
+                                            Ссылка
                                         </th>
                                         <th className="text-left py-2 px-3 text-sm font-semibold text-gray-700">
                                             Свободных номеров
