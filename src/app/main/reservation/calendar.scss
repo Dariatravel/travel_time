@@ -58,8 +58,11 @@
 
             .rct-sidebar-row,
             .rct-horizontal-lines > div {
+                box-sizing: border-box !important;
+                height: 40px !important;
                 min-height: 40px !important;
                 max-height: 40px !important;
+                overflow: hidden !important;
             }
         }
     }
@@ -102,8 +105,11 @@
 
             .rct-sidebar-row,
             .rct-horizontal-lines > div {
+                box-sizing: border-box !important;
+                height: 40px !important;
                 min-height: 40px !important;
                 max-height: 40px !important;
+                overflow: hidden !important;
             }
         }
     }
