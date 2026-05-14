@@ -1,4 +1,8 @@
 import { Button } from '@/components/ui/button';
+import {
+    TIMELINE_ITEM_HEIGHT_RATIO,
+    TIMELINE_ROW_HEIGHT,
+} from '@/features/BaseCalendar/lib/timelineLayout';
 import { Interval } from '@/features/Calendar/ui/Intervals';
 import { cn } from '@/lib/utils';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
@@ -110,6 +114,11 @@ export const Timeline = ({
     };
 
     const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 104 : isMobile ? 100 : 225);
+    const rowHeight = isPhone
+        ? TIMELINE_ROW_HEIGHT.phone
+        : isMobile
+          ? TIMELINE_ROW_HEIGHT.tablet
+          : TIMELINE_ROW_HEIGHT.desktop;
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
     // @ts-nocheck
     const itemRenderer = ({
@@ -168,6 +177,22 @@ export const Timeline = ({
     };
 
     const groupRenderer = ({ group }: { group: any }) => {
+        if (isPhone) {
+            return (
+                <div
+                    className={styles.mobileGroupLabel}
+                    onClick={() => {
+                        if (onGroupClick) {
+                            onGroupClick(group);
+                        }
+                    }}
+                    style={{ cursor: onGroupClick ? 'pointer' : 'default' }}
+                >
+                    {group.title}
+                </div>
+            );
+        }
+
         return (
             <DraggableGroup
                 id={`${timelineId}-${group.id}`}
@@ -425,6 +450,7 @@ export const Timeline = ({
                 groups={groupsForDnd}
                 onGroupsReorder={handleGroupsReorder}
                 timelineId={timelineId}
+                enableTouchSensor={!isPhone}
             >
                 <TimelineComponent
                     key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}-${mobileVisibleOffsetDays}`}
@@ -448,7 +474,8 @@ export const Timeline = ({
                     canSelect
                     itemTouchSendsClick={true}
                     stackItems={false}
-                    itemHeightRatio={0.75}
+                    lineHeight={rowHeight}
+                    itemHeightRatio={TIMELINE_ITEM_HEIGHT_RATIO}
                     defaultTimeStart={defaultTimeStart as unknown as number}
                     defaultTimeEnd={defaultTimeEnd as unknown as number}
                     minZoom={WEEK}

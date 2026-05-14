@@ -30,6 +30,7 @@ export interface DndTimelineWrapperProps {
     groups: Array<{ id: string; title: string }>;
     onGroupsReorder?: (newOrder: string[]) => void;
     timelineId: string;
+    enableTouchSensor?: boolean;
 }
 
 const TimelineDroppable: React.FC<{ id: string; children: React.ReactNode }> = ({
@@ -45,19 +46,19 @@ export const DndTimelineWrapper = ({
     groups,
     onGroupsReorder,
     timelineId,
+    enableTouchSensor = true,
 }: DndTimelineWrapperProps) => {
     const activeId = useUnit($activeId);
     const insertPosition = useUnit($insertPosition);
 
-    const sensors = useSensors(
-        useSensor(MouseSensor, { activationConstraint: { distance: 3 } }),
-        useSensor(TouchSensor, {
-            activationConstraint: {
-                distance: 20,
-                tolerance: 10,
-            },
-        }),
-    );
+    const mouseSensor = useSensor(MouseSensor, { activationConstraint: { distance: 3 } });
+    const touchSensor = useSensor(TouchSensor, {
+        activationConstraint: {
+            distance: 20,
+            tolerance: 10,
+        },
+    });
+    const sensors = useSensors(mouseSensor, ...(enableTouchSensor ? [touchSensor] : []));
 
     const getIsBefore = (over: Over, active: Active): boolean => {
         const overRect = over.rect;
