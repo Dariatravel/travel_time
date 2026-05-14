@@ -3,6 +3,11 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NoDataAvailable } from '@/components/ui/empty-state';
 import { VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
+import {
+    TIMELINE_HEADER_ROWS_ESTIMATE,
+    TIMELINE_MOBILE_CONTROLS_ESTIMATE,
+    TIMELINE_ROW_HEIGHT,
+} from '@/features/BaseCalendar/lib/timelineLayout';
 import { Calendar } from '@/features/Calendar';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
@@ -70,22 +75,22 @@ const HotelCard = ({
     console.log({ hotelDetail });
     console.log({ hotel });
     console.log({ hotelData });
-    // Измеряем реальную высоту элемента после рендера (таймлайн инициализируется с задержкой)
+    // Измеряем реальную высоту элемента: таймлайн и данные номеров могут менять высоту после первого рендера.
     useEffect(() => {
         if (!elementRef.current) return;
 
+        const element = elementRef.current;
         const measure = () => {
-            if (elementRef.current) measureElement(elementRef.current);
+            measureElement(element);
         };
 
         const t0 = requestAnimationFrame(measure);
-        const t1 = setTimeout(measure, 0);
-        const t2 = setTimeout(measure, 400);
+        const resizeObserver = new ResizeObserver(measure);
+        resizeObserver.observe(element);
 
         return () => {
             cancelAnimationFrame(t0);
-            clearTimeout(t1);
-            clearTimeout(t2);
+            resizeObserver.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hotelData.rooms?.length, isHotelDetailLoading, hotel.id]);
@@ -213,16 +218,21 @@ export default function Home() {
             if (!hotel) return isPhone ? 520 : 400;
 
             const roomsCount = hotel.rooms?.length || 1;
-            const roomHeight = isMobile ? 42 : 45;
+            const rowHeight = isPhone
+                ? TIMELINE_ROW_HEIGHT.phone
+                : isMobile
+                  ? TIMELINE_ROW_HEIGHT.tablet
+                  : TIMELINE_ROW_HEIGHT.desktop;
             const gap = 12;
 
-            /* Телефон: таймлайн без max-height растёт по числу номеров + блок кнопок над сеткой */
+            /* Телефон: таймлайн растёт по числу номеров, поэтому оценка использует тот же rowHeight, что и Timeline.lineHeight. */
             if (isPhone) {
                 const headerBlock = 200;
-                const mobileControls = 96;
-                const timelineChrome = 72;
                 const calendarBody =
-                    mobileControls + timelineChrome + roomsCount * roomHeight + 24;
+                    TIMELINE_MOBILE_CONTROLS_ESTIMATE +
+                    TIMELINE_HEADER_ROWS_ESTIMATE +
+                    roomsCount * rowHeight +
+                    24;
                 return headerBlock + calendarBody + gap;
             }
 
@@ -230,7 +240,7 @@ export default function Home() {
             const paddingMargin = 20;
             const calendarHeight = Math.min(
                 250,
-                Math.max(150, roomsCount * roomHeight + 60),
+                Math.max(150, roomsCount * rowHeight + 60),
             );
 
             return headerHeight + paddingMargin + calendarHeight + gap;
