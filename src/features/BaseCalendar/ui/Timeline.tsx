@@ -369,6 +369,11 @@ export const Timeline = ({
         return intervalDate.format('MMM');
     };
 
+    const formatMonthWithYear = (date: Date) => {
+        const intervalDate = moment(date);
+        return `${intervalDate.format('MMM')} '${intervalDate.format('YY')}`;
+    };
+
     const shiftMobileTimeline = (days: number) => {
         setMobileVisibleOffsetDays((currentOffset) => currentOffset + days);
     };
@@ -565,7 +570,9 @@ export const Timeline = ({
                                                 ? ''
                                                 : isYear
                                                   ? intervalDate.format('YYYY')
-                                                  : intervalDate.format('MMM');
+                                                  : formatMonthWithYear(
+                                                        interval.startTime.toDate(),
+                                                    );
 
                                             return (
                                                 <Interval
@@ -600,15 +607,16 @@ export const Timeline = ({
                                             const isMonth = unit === 'month';
                                             const isYear = unit === 'year';
 
-                                            const dateText =
-                                                isMonth || isYear
-                                                    ? moment(interval.startTime.toDate()).format(
-                                                          'MMM',
-                                                      )
-                                                    : formatIntervalDate(
-                                                          interval.startTime.toDate(),
-                                                          unit,
-                                                      );
+                                            const dateText = isYear
+                                                ? moment(interval.startTime.toDate()).format('YYYY')
+                                                : isMonth
+                                                  ? formatMonthWithYear(
+                                                        interval.startTime.toDate(),
+                                                    )
+                                                  : formatIntervalDate(
+                                                        interval.startTime.toDate(),
+                                                        unit,
+                                                    );
 
                                             return (
                                                 <Interval
