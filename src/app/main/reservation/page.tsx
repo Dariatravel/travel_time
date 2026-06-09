@@ -72,9 +72,6 @@ const HotelCard = ({
     // Используем детальные данные если они загружены, иначе базовые из списка
     const hotelData = hotelDetail || hotel;
 
-    console.log({ hotelDetail });
-    console.log({ hotel });
-    console.log({ hotelData });
     // Измеряем реальную высоту элемента: таймлайн и данные номеров могут менять высоту после первого рендера.
     useEffect(() => {
         if (!elementRef.current) return;
@@ -208,7 +205,6 @@ export default function Home() {
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
     const hotelsWithRooms = hotels?.filter((hotel) => hotel?.rooms?.length > 0);
 
-    console.log({ data, hotels, hotelsWithRooms });
     // Виртуализатор: scroll element = .content на узком layout, иначе window (documentElement)
     const virtualizer = useVirtualizer({
         count: hotelsWithRooms.length,
@@ -342,9 +338,7 @@ export default function Home() {
     };
 
     const onRoomClick = (room: RoomDTO, hotel: HotelRoomsReservesDTO) => {
-        console.log(room);
         setCurrentRoom(room);
-        console.log(hotel);
         setCurrentHotel(hotel);
         setIsRoomModalOpen(true);
     };

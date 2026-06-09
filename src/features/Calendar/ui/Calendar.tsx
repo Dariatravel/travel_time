@@ -48,7 +48,6 @@ export const Calendar = ({
     const { isMobile, isPhone } = useScreenSize();
     const queryClient = useQueryClient();
 
-    console.log(`${hotel.id} hotel`, { hotel });
     // Используем данные из пропсов вместо отдельного запроса
     // Мемоизируем для оптимизации производительности
     // Сортируем номера по полю order
@@ -62,8 +61,6 @@ export const Calendar = ({
     };
     const data = getData();
 
-    console.log(`${hotel.id} rooms`, { rooms: hotel.rooms });
-    console.log(`${hotel.id} calendar`, { data });
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
@@ -175,7 +172,6 @@ export const Calendar = ({
         setCurrentReserve(null);
     };
 
-    console.log(`${hotel.id} hotelRooms`, { hotelRooms: data });
     const hotelRooms = useMemo(() => {
         const rooms =
             data?.map(({ reserves, id, title, ...room }) => ({

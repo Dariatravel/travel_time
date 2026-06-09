@@ -19,7 +19,6 @@ import {
     Timeline as TimelineComponent,
     TimelineHeaders,
 } from 'my-react-calendar-timeline';
-import { nanoid } from 'nanoid';
 import React, { useEffect, useRef, useState } from 'react';
 import { DndTimelineWrapper } from './DndTimelineWrapper';
 import { DraggableGroup } from './DraggableGroup';
@@ -139,7 +138,7 @@ export const Timeline = ({
         return (
             <div
                 {...getItemProps(item.itemProps)}
-                key={nanoid()}
+                key={item.id}
                 onDoubleClick={() => {
                     onItemClick(item, hotel);
                 }}
@@ -626,7 +625,7 @@ export const Timeline = ({
                                                     getRootProps={getRootProps}
                                                     dateText={dateText}
                                                     showPeriod={showPeriod}
-                                                    key={nanoid()}
+                                                    key={`${unit}-${interval.startTime.format('YYYY-MM-DD')}`}
                                                 />
                                             );
                                         })}
