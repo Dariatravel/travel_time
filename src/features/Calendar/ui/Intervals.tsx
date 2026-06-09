@@ -3,7 +3,6 @@ import cx from '@/features/Calendar/ui/style.module.scss'
 import { devLog } from '@/shared/lib/logger'
 import { Dayjs } from 'dayjs'
 import { IntervalContext } from 'my-react-calendar-timeline'
-import { nanoid } from 'nanoid'
 import React, { CSSProperties, HTMLAttributes, HTMLProps } from 'react'
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-expect-error
@@ -53,7 +52,6 @@ export const Interval = ({
         interval,
         style: intervalStyles ?? undefined,
       })}
-      key={nanoid()}
     >
       <div
         className="sticky"
