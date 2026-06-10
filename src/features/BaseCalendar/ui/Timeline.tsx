@@ -19,7 +19,7 @@ import {
     Timeline as TimelineComponent,
     TimelineHeaders,
 } from 'my-react-calendar-timeline';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { DndTimelineWrapper } from './DndTimelineWrapper';
 import { DraggableGroup } from './DraggableGroup';
 import styles from './style.module.scss';
@@ -83,6 +83,7 @@ export const Timeline = ({
     const hasTouchMovedRef = useRef(false);
     const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isMobile ? 'month' : 'day');
     const [mobileVisibleOffsetDays, setMobileVisibleOffsetDays] = useState(0);
+    const initialZoomAppliedRef = useRef(false);
 
     // Функция для определения уровня зума на основе unit и видимого периода
     // Возвращает: 'day' (Дни), 'month' (Месяц), 'months' (Месяцы), 'year' (Год)
@@ -119,94 +120,6 @@ export const Timeline = ({
           ? TIMELINE_ROW_HEIGHT.tablet
           : TIMELINE_ROW_HEIGHT.desktop;
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
-    // @ts-nocheck
-    const itemRenderer = ({
-        item,
-        itemContext,
-        getItemProps,
-        getResizeProps,
-    }: {
-        item: any;
-        itemContext: any;
-        getItemProps: (item: any) => any;
-        getResizeProps: (item: any) => any;
-    }) => {
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
-
-        return (
-            <div
-                {...getItemProps(item.itemProps)}
-                key={item.id}
-                onDoubleClick={() => {
-                    onItemClick(item, hotel);
-                }}
-                onTouchStart={(event) => {
-                    const touch = event.touches[0];
-                    if (!touch) return;
-                    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-                    hasTouchMovedRef.current = false;
-                }}
-                onTouchMove={(event) => {
-                    const touch = event.touches[0];
-                    if (!touch) return;
-                    const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
-                    const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
-                    if (deltaX > 10 || deltaY > 10) {
-                        hasTouchMovedRef.current = true;
-                    }
-                }}
-                onTouchEnd={() => {
-                    if (hasTouchMovedRef.current) return;
-                    onItemClick(item, hotel);
-                }}
-            >
-                {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
-                <div
-                    className={`${calendarItemClassName || styles.calendarItem} rct-item-content`}
-                    style={{ maxHeight: `${itemContext.dimensions.height}` }}
-                >
-                    {item?.guest} {item?.phone}
-                </div>
-
-                {itemContext.useResizeHandle ? <div {...rightResizeProps} /> : ''}
-            </div>
-        );
-    };
-
-    const groupRenderer = ({ group }: { group: any }) => {
-        if (isPhone) {
-            return (
-                <div
-                    className={styles.mobileGroupLabel}
-                    onClick={() => {
-                        if (onGroupClick) {
-                            onGroupClick(group);
-                        }
-                    }}
-                    style={{ cursor: onGroupClick ? 'pointer' : 'default' }}
-                >
-                    {group.title}
-                </div>
-            );
-        }
-
-        return (
-            <DraggableGroup
-                id={`${timelineId}-${group.id}`}
-                title={group.title}
-                className={styles.timelineGroup}
-                onClick={() => {
-                    if (onGroupClick) {
-                        onGroupClick(group);
-                    }
-                }}
-            >
-                <div className={styles.groupContent}>{group.title}</div>
-            </DraggableGroup>
-        );
-    };
 
     const getDefaultTime = () => {
         // Если задан период поиска — показываем его (с небольшим отступом)
@@ -242,6 +155,119 @@ export const Timeline = ({
 
         return { defaultTimeStart, defaultTimeEnd };
     };
+
+    const { defaultTimeStart, defaultTimeEnd } = useMemo(
+        () => getDefaultTime(),
+        [visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays, isMobile],
+    );
+
+    const itemRenderer = useCallback(
+        ({
+            item,
+            itemContext,
+            getItemProps,
+            getResizeProps,
+        }: {
+            item: any;
+            itemContext: any;
+            getItemProps: (item: any) => any;
+            getResizeProps: (item: any) => any;
+        }) => {
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
+
+            return (
+                <div
+                    {...getItemProps(item.itemProps)}
+                    onDoubleClick={() => {
+                        onItemClick(item, hotel);
+                    }}
+                    onTouchStart={(event) => {
+                        const touch = event.touches[0];
+                        if (!touch) return;
+                        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                        hasTouchMovedRef.current = false;
+                    }}
+                    onTouchMove={(event) => {
+                        const touch = event.touches[0];
+                        if (!touch) return;
+                        const deltaX = Math.abs(touch.clientX - touchStartRef.current.x);
+                        const deltaY = Math.abs(touch.clientY - touchStartRef.current.y);
+                        if (deltaX > 10 || deltaY > 10) {
+                            hasTouchMovedRef.current = true;
+                        }
+                    }}
+                    onTouchEnd={() => {
+                        if (hasTouchMovedRef.current) return;
+                        onItemClick(item, hotel);
+                    }}
+                >
+                    {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
+                    <div
+                        className={`${calendarItemClassName || styles.calendarItem} rct-item-content`}
+                        style={{ maxHeight: `${itemContext.dimensions.height}` }}
+                    >
+                        {item?.guest} {item?.phone}
+                    </div>
+
+                    {itemContext.useResizeHandle ? <div {...rightResizeProps} /> : ''}
+                </div>
+            );
+        },
+        [calendarItemClassName, hotel, onItemClick],
+    );
+
+    const groupRenderer = useCallback(
+        ({ group }: { group: any }) => {
+            if (isPhone) {
+                return (
+                    <div
+                        className={styles.mobileGroupLabel}
+                        onClick={() => {
+                            if (onGroupClick) {
+                                onGroupClick(group);
+                            }
+                        }}
+                        style={{ cursor: onGroupClick ? 'pointer' : 'default' }}
+                    >
+                        {group.title}
+                    </div>
+                );
+            }
+
+            return (
+                <DraggableGroup
+                    id={`${timelineId}-${group.id}`}
+                    title={group.title}
+                    className={styles.timelineGroup}
+                    onClick={() => {
+                        if (onGroupClick) {
+                            onGroupClick(group);
+                        }
+                    }}
+                >
+                    <div className={styles.groupContent}>{group.title}</div>
+                </DraggableGroup>
+            );
+        },
+        [isPhone, onGroupClick, timelineId],
+    );
+
+    const handleTimelineZoom = useCallback(
+        (
+            context: { visibleTimeStart: number; visibleTimeEnd: number },
+            unit: string,
+        ) => {
+            const zoomLevel = getZoomLevel(
+                unit,
+                context.visibleTimeStart,
+                context.visibleTimeEnd,
+            );
+            setCurrentUnit((prev) => (prev === zoomLevel ? prev : zoomLevel));
+        },
+        [],
+    );
 
     const onZoomIn = (unit: ZoomUnit) => {
         const currentIndex = ZOOM_UNITS.indexOf(unit);
@@ -293,12 +319,14 @@ export const Timeline = ({
         return unit === 'months' ? 'month' : unit;
     };
 
-    const { defaultTimeStart, defaultTimeEnd } = getDefaultTime();
-
-    const groupsForDnd = hotelRooms.map((room) => ({
-        id: `${timelineId}-${room.id}`,
-        title: room.title,
-    }));
+    const groupsForDnd = useMemo(
+        () =>
+            hotelRooms.map((room) => ({
+                id: `${timelineId}-${room.id}`,
+                title: room.title,
+            })),
+        [hotelRooms, timelineId],
+    );
 
     const handleGroupsReorder = (newOrder: string[]) => {
         // Убираем префикс timelineId из ID групп
@@ -310,25 +338,25 @@ export const Timeline = ({
     // Зум определяется разницей между defaultTimeStart и defaultTimeEnd
     // Маленький диапазон = большой зум (дни), большой диапазон = маленький зум (месяцы)
     useEffect(() => {
-        if (!timelineRef.current) return;
+        initialZoomAppliedRef.current = false;
+    }, [visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays]);
 
-        // Небольшая задержка, чтобы компонент полностью инициализировался
-        const timeoutId = setTimeout(() => {
-            if (!timelineRef.current) return;
+    useEffect(() => {
+        if (!timelineRef.current || initialZoomAppliedRef.current) return;
 
-            // На мобилке нужно приблизить (показать дни), на десктопе - отдалить (показать месяцы)
-            // changeZoom с отрицательным значением приближает, с положительным > 1 - отдаляет
+        const timeoutId = window.setTimeout(() => {
+            if (!timelineRef.current || initialZoomAppliedRef.current) return;
+
+            initialZoomAppliedRef.current = true;
             if (isMobile) {
-                // Приближаем для показа дней
                 timelineRef.current.changeZoom(0.5, 0.5);
             } else {
-                // Отдаляем для показа месяцев
                 timelineRef.current.changeZoom(3.5, 0.5);
             }
         }, 300);
 
-        return () => clearTimeout(timeoutId);
-    }, [isMobile]);
+        return () => window.clearTimeout(timeoutId);
+    }, [isMobile, visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays]);
 
     useEffect(() => {
         setMobileVisibleOffsetDays(0);
@@ -459,15 +487,7 @@ export const Timeline = ({
                 <TimelineComponent
                     key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}-${mobileVisibleOffsetDays}`}
                     ref={timelineRef}
-                    onZoom={(context, unit) => {
-                        // Определяем уровень зума на основе unit и видимого периода
-                        const zoomLevel = getZoomLevel(
-                            unit,
-                            context.visibleTimeStart,
-                            context.visibleTimeEnd,
-                        );
-                        setCurrentUnit(zoomLevel);
-                    }}
+                    onZoom={handleTimelineZoom}
                     className={timelineClassName}
                     groups={hotelRooms}
                     items={hotelReserves}

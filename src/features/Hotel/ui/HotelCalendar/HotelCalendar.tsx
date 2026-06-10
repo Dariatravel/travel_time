@@ -168,21 +168,29 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         return rooms;
     }, [data, sort]);
 
-    let hotelReserves: Array<ReserveDTO & { group: string }> = [];
+    const hotelReserves = useMemo(() => {
+        const reserves: Array<ReserveDTO & { group: string }> = [];
 
-    data?.forEach(({ id: room_id, reserves }) => {
-        const reservesTmp = reserves.map(({ end, start, ...reserve }) => ({
-            ...reserve,
-            id: reserve.id,
-            group: room_id,
-            end: getDateFromUnix(typeof end === 'number' ? end : Math.floor(end.getTime() / 1000)),
-            start: getDateFromUnix(typeof start === 'number' ? start : Math.floor(start.getTime() / 1000)),
-        }));
+        data?.forEach(({ id: room_id, reserves: roomReserves }) => {
+            const reservesTmp = roomReserves.map(({ end, start, ...reserve }) => ({
+                ...reserve,
+                id: reserve.id,
+                group: room_id,
+                end: getDateFromUnix(
+                    typeof end === 'number' ? end : Math.floor(end.getTime() / 1000),
+                ),
+                start: getDateFromUnix(
+                    typeof start === 'number' ? start : Math.floor(start.getTime() / 1000),
+                ),
+            }));
 
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        hotelReserves = hotelReserves.concat(reservesTmp);
-    });
+            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+            // @ts-expect-error
+            reserves.push(...reservesTmp);
+        });
+
+        return reserves;
+    }, [data]);
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
