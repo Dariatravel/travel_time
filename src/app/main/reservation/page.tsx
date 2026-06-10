@@ -77,16 +77,32 @@ const HotelCard = ({
         if (!elementRef.current) return;
 
         const element = elementRef.current;
+        let lastHeight = 0;
+        let rafId: number | null = null;
+
         const measure = () => {
+            const height = element.getBoundingClientRect().height;
+            if (Math.abs(height - lastHeight) < 2) return;
+            lastHeight = height;
             measureElement(element);
         };
 
-        const t0 = requestAnimationFrame(measure);
-        const resizeObserver = new ResizeObserver(measure);
+        const scheduleMeasure = () => {
+            if (rafId !== null) return;
+            rafId = requestAnimationFrame(() => {
+                rafId = null;
+                measure();
+            });
+        };
+
+        scheduleMeasure();
+        const resizeObserver = new ResizeObserver(scheduleMeasure);
         resizeObserver.observe(element);
 
         return () => {
-            cancelAnimationFrame(t0);
+            if (rafId !== null) {
+                cancelAnimationFrame(rafId);
+            }
             resizeObserver.disconnect();
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -105,7 +121,6 @@ const HotelCard = ({
                 left: 0,
                 width: '100%',
                 transform: `translateY(${virtualItem.start}px)`,
-                willChange: 'transform', // Оптимизация для GPU
             }}
             className="p-0"
         >

@@ -48,18 +48,15 @@ export const Calendar = ({
     const { isMobile, isPhone } = useScreenSize();
     const queryClient = useQueryClient();
 
-    // Используем данные из пропсов вместо отдельного запроса
-    // Мемоизируем для оптимизации производительности
     // Сортируем номера по полю order
-    const getData = () => {
+    const data = useMemo(() => {
         const rooms = hotel.rooms || [];
         return [...rooms].sort((a, b) => {
-            const orderA = a.order ?? 999; // Если order отсутствует, помещаем в конец
+            const orderA = a.order ?? 999;
             const orderB = b.order ?? 999;
             return orderA - orderB;
         });
-    };
-    const data = getData();
+    }, [hotel.rooms]);
 
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
@@ -242,6 +239,7 @@ export const Calendar = ({
 
     const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;
     const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
+    const shouldDimCalendar = (reserveLoading || isLoadingCalendar) && !isReserveOpen;
 
     // Возвращаем null только если данные загружены, но пустые
     const isEmpty = !hotelRooms?.length;
@@ -272,11 +270,10 @@ export const Calendar = ({
         <div style={{ position: 'relative' }} className="p-0">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
                 <div className={cn(cx.calendarContainer, 'relative')}>
-                    {(reserveLoading || isLoadingCalendar) && <FullWidthLoader />}
+                    {(reserveLoading || isLoadingCalendar) && !isReserveOpen && <FullWidthLoader />}
                     <div
                         className={cn(
-                            (reserveLoading || isLoadingCalendar) &&
-                                'opacity-50 pointer-events-none',
+                            shouldDimCalendar && 'opacity-50 pointer-events-none',
                         )}
                     >
                         <Timeline

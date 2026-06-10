@@ -54,10 +54,8 @@ export const Interval = ({
       })}
     >
       <div
-        className="sticky"
+        className="px-2.5"
         style={{
-          position: 'sticky',
-          // left: '10px',
           paddingLeft: '10px',
           display: 'flex',
           alignItems: 'center',
