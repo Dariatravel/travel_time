@@ -128,9 +128,11 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
         hotelId, // hotelId
         () => {
             console.log('onSuccess deleteRoom', hotelId);
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.hotelById],
-            });
+            if (hotelId) {
+                queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelById(hotelId),
+                });
+            }
             showToast('Номер успешно удален', 'success');
         },
     );
