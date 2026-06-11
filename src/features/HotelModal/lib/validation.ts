@@ -80,6 +80,7 @@ export const hotelFormSchema = z.object({
             }),
         )
         .default([]),
+    is_search_visible: z.boolean().optional().default(true),
 });
 
 export type HotelFormSchema = z.infer<typeof hotelFormSchema>;

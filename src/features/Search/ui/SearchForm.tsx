@@ -15,7 +15,7 @@ import { ClearableSelect } from '@/shared';
 import {
     FreeHotelsDTO,
     getHotelsWithFreeRoomsCompatible,
-    useGetHotelsForRoom,
+    useGetHotelsForSearch,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import {
@@ -75,7 +75,7 @@ export type SearchFormSchema = z.infer<typeof searchFormSchema>;
 
 export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps) => {
     const router = useRouter();
-    const { data: hotels } = useGetHotelsForRoom();
+    const { data: hotels } = useGetHotelsForSearch();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
     const filter = useUnitCompat($hotelsFilter);
     const { isMobile, isTablet } = useDeviceDetection();

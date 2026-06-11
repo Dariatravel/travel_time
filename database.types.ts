@@ -26,6 +26,7 @@ export type Database = {
           features: string[] | null
           id: string
           image_id: string | null
+          is_search_visible: boolean
           phone: string
           rating: number | null
           telegram_url: string | null
@@ -44,6 +45,7 @@ export type Database = {
           features?: string[] | null
           id?: string
           image_id?: string | null
+          is_search_visible?: boolean
           phone: string
           rating?: number | null
           telegram_url?: string | null
@@ -62,6 +64,7 @@ export type Database = {
           features?: string[] | null
           id?: string
           image_id?: string | null
+          is_search_visible?: boolean
           phone?: string
           rating?: number | null
           telegram_url?: string | null
