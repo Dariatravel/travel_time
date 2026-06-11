@@ -20,7 +20,7 @@ import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import {
     FreeHotelsDTO,
     getHotelsWithFreeRoomsCompatible,
-    useGetHotelsForSearch,
+    useGetHotelsForRoom,
 } from '@/shared/api/hotel/hotel';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import {
@@ -56,7 +56,7 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
     const [quantity, setQuantity] = useState<number | undefined>(undefined);
     const [selectedHotels, setSelectedHotels] = useState<string[]>([]);
     const router = useRouter();
-    const { data: hotels } = useGetHotelsForSearch();
+    const { data: hotels } = useGetHotelsForRoom();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
 
     let start_time = undefined,
