@@ -215,7 +215,7 @@ export default function Home() {
     const PAGE_SIZE = 12;
 
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } =
-        useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
+        useInfiniteHotelsQuery(filter, PAGE_SIZE);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
     const hotelsWithRooms = hotels?.filter((hotel) => hotel?.rooms?.length > 0);
