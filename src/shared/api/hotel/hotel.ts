@@ -559,8 +559,12 @@ export const useHotelDetailQuery = (
 
 export const useHotelById = (id: string) => {
     return useQuery({
-        queryKey: QUERY_KEYS.hotelById,
-        queryFn: () => getHotelById(id),
+        queryKey: QUERY_KEYS.hotelById(id),
+        queryFn: () => {
+            if (!id) throw new Error('Hotel ID is required');
+            return getHotelById(id);
+        },
+        enabled: !!id,
     });
 };
 

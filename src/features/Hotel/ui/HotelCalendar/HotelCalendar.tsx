@@ -41,7 +41,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     const [isMobile] = useUnit([$isMobile]);
     const filter = useUnit($hotelsFilter);
     const queryClient = useQueryClient();
-    const { data, isFetching: isRoomLoading } = useGetRoomsWithReservesByHotel(
+    const { data, isPending: isRoomPending } = useGetRoomsWithReservesByHotel(
         hotel.id,
         filter,
         true,
@@ -221,7 +221,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         setIsRoomOpen(true);
     };
 
-    const isLoading = isRoomLoading || isRoomCreating || isUpdatingOrder;
+    const isLoading = isRoomPending || isRoomCreating || isUpdatingOrder;
     const reserveLoading = isReserveCreating || isReserveUpdating;
 
     // Уникальный ID для этого Timeline

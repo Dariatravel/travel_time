@@ -8,8 +8,10 @@ export const QUERY_KEYS = {
   // Конкретный отель со всеми номерами и бронями
   hotelDetail: (hotelId: string) => ['hotels', 'detail', hotelId] as const,
 
-  // Устаревшие ключи (для совместимости, постепенно удалим)
-  hotelById: ['hotel', 'id'],
+  // Отель по id (страница календаря / хлебные крошки)
+  hotelById: (hotelId: string) => ['hotel', 'id', hotelId] as const,
+  /** Префикс для инвалидации всех hotelById-запросов */
+  hotelByIdPrefix: ['hotel', 'id'] as const,
   rooms: ['rooms'],
   roomsByHotel: ['roomsByHotel'],
   roomsWithReservesByHotel: ['roomsWithReservesByHotel'],

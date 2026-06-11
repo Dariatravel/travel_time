@@ -215,7 +215,7 @@ export const useUpdateRoom = (
                     queryKey: QUERY_KEYS.hotelDetail(id),
                 });
                 await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelById,
+                    queryKey: QUERY_KEYS.hotelById(id),
                 });
             }
             onSuccess?.();
@@ -241,9 +241,11 @@ export const useDeleteRoom = (
                     queryKey: QUERY_KEYS.hotelDetail(id),
                 });
             }
-            queryClient.invalidateQueries({
-                queryKey: [...QUERY_KEYS.hotelById],
-            });
+            if (id) {
+                await queryClient.invalidateQueries({
+                    queryKey: QUERY_KEYS.hotelById(id as string),
+                });
+            }
             onSuccess?.();
         },
         onError,

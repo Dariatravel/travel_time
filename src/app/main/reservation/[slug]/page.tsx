@@ -13,10 +13,14 @@ import cx from './page.module.css';
 export default function HotelCalendarPage() {
     const params = useParams();
 
-    const { data: hotel, isFetching } = useHotelById(params?.slug as string);
+    const hotelId = params?.slug as string;
+    const { data: hotel, isPending: isHotelPending } = useHotelById(hotelId);
     const isFreeHotelsLoading = useUnit($isHotelsWithFreeRoomsLoading);
 
-    if (isFetching || isFreeHotelsLoading) {
+    // Лоадер только при первой загрузке; фоновый refetch не размонтирует календарь
+    const isInitialHotelLoading = isHotelPending && !hotel;
+
+    if (isInitialHotelLoading || isFreeHotelsLoading) {
         return (
             <div className={cx.loaderContainer}>
                 <Loader />
