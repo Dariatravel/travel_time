@@ -46,12 +46,38 @@ export type CurrentReserveType = {
     reserve?: Partial<ReserveDTO>;
 };
 
+const toReserveInsertPayload = (reserve: Reserve) => {
+    const prepayment =
+        reserve.prepayment == null ? null : String(reserve.prepayment);
+
+    return {
+        room_id: reserve.room_id,
+        start: reserve.start,
+        end: reserve.end,
+        guest: reserve.guest,
+        phone: reserve.phone,
+        price: reserve.price,
+        quantity: reserve.quantity,
+        prepayment,
+        comment: reserve.comment ?? '',
+        created_at: reserve.created_at,
+        created_by: reserve.created_by,
+        edited_at: reserve.edited_at,
+        edited_by: reserve.edited_by,
+    };
+};
+
 export const createReserveApi = async (reserve: Reserve) => {
     try {
-        await insertItem<Reserve>(TABLE_NAMES.RESERVES, reserve);
+        const { error } = await insertItem(TABLE_NAMES.RESERVES, toReserveInsertPayload(reserve));
+
+        if (error) {
+            throw new Error(error.message);
+        }
     } catch (err) {
-        console.error('Error fetching posts:', err);
-        throw err; // Передаем ошибку дальше для обработки в React Query
+        console.error('Error creating reserve:', err);
+        showToast('Ошибка при создании брони', 'error');
+        throw err;
     }
 };
 
@@ -98,9 +124,17 @@ export const useCreateReserve = (
         onSuccess: async () => {
             // Точечная инвалидация: обновляем только конкретный отель
             if (hotelId) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
-                });
+                await Promise.all([
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelById(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotelId],
+                    }),
+                ]);
             }
             onSuccess?.();
         },
@@ -123,9 +157,17 @@ export const useUpdateReserve = (
         onSuccess: async () => {
             // Точечная инвалидация: обновляем только конкретный отель
             if (hotelId) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
-                });
+                await Promise.all([
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelById(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotelId],
+                    }),
+                ]);
             }
             onSuccess?.();
         },
@@ -148,9 +190,17 @@ export const useDeleteReserve = (
         onSuccess: async () => {
             // Точечная инвалидация: обновляем только конкретный отель
             if (hotelId) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(hotelId),
-                });
+                await Promise.all([
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelById(hotelId),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotelId],
+                    }),
+                ]);
             }
             onSuccess?.();
         },
