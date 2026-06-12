@@ -71,7 +71,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         },
     );
 
-    const { isPending: isReserveUpdating, mutate: updateReserve } = useUpdateReserve(
+    const { isPending: isReserveUpdating, mutateAsync: updateReserve } = useUpdateReserve(
         hotel.id, // hotelId
         undefined, // roomId
         () => {
