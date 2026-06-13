@@ -19,6 +19,8 @@ export const QUERY_KEYS = {
   createReserve: 'createReserve',
   updateReserve: 'updateReserve',
   allCounts: ['hotels', 'counts'],
+  reserveHistory: (reserveId: string) => ['reserveHistory', reserveId] as const,
+  reserveHistoryPrefix: ['reserveHistory'] as const,
 }
 
 export const queryClient = new QueryClient({

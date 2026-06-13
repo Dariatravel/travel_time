@@ -1,10 +1,15 @@
 import { TABLE_NAMES } from '@/shared/api/const';
+import {
+    parseReserveHistoryChanges,
+    type ReserveHistoryAction,
+    type ReserveHistoryEntry,
+} from '@/features/ReserveInfo/lib/formatReserveHistory';
 import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
 import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { useMutation, useQueryClient } from '@tanstack/react-query';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 export type ReserveDTO = {
     id: string; // Уникальный идентификатор брони
@@ -44,6 +49,63 @@ export type CurrentReserveType = {
     room?: Nullable<RoomDTO>;
     hotel?: Nullable<HotelDTO>;
     reserve?: Partial<ReserveDTO>;
+};
+
+const isMissingHistoryTableError = (error: { code?: string; message?: string }) => {
+    return (
+        error.code === '42P01' ||
+        error.code === 'PGRST205' ||
+        error.message?.includes('reserve_history') === true
+    );
+};
+
+export async function getReserveHistory(reserveId: string): Promise<ReserveHistoryEntry[]> {
+    const { data, error } = await supabase
+        .from('reserve_history')
+        .select('id, reserve_id, action, changed_by, changed_at, changes')
+        .eq('reserve_id', reserveId)
+        .order('changed_at', { ascending: false });
+
+    if (error) {
+        if (isMissingHistoryTableError(error)) {
+            return [];
+        }
+        throw new Error(error.message);
+    }
+
+    return (data ?? []).map((row) => ({
+        id: row.id,
+        reserve_id: row.reserve_id,
+        action: row.action as ReserveHistoryAction,
+        changed_by: row.changed_by,
+        changed_at: row.changed_at,
+        changes: parseReserveHistoryChanges(row.changes),
+    }));
+}
+
+export const useReserveHistory = (reserveId?: string, enabled: boolean = true) => {
+    return useQuery({
+        queryKey: reserveId
+            ? QUERY_KEYS.reserveHistory(reserveId)
+            : [...QUERY_KEYS.reserveHistoryPrefix, 'none'],
+        queryFn: () => {
+            if (!reserveId) {
+                throw new Error('Reserve ID is required');
+            }
+            return getReserveHistory(reserveId);
+        },
+        enabled: enabled && !!reserveId,
+    });
+};
+
+const invalidateReserveHistory = async (
+    queryClient: ReturnType<typeof useQueryClient>,
+    reserveId?: string,
+) => {
+    if (!reserveId) return;
+    await queryClient.invalidateQueries({
+        queryKey: QUERY_KEYS.reserveHistory(reserveId),
+    });
 };
 
 const toReserveInsertPayload = (reserve: Reserve) => {
@@ -154,7 +216,7 @@ export const useUpdateReserve = (
 
     return useMutation({
         mutationFn: updateReserveApi,
-        onSuccess: async () => {
+        onSuccess: async (_data, variables) => {
             // Точечная инвалидация: обновляем только конкретный отель
             if (hotelId) {
                 await Promise.all([
@@ -169,6 +231,7 @@ export const useUpdateReserve = (
                     }),
                 ]);
             }
+            await invalidateReserveHistory(queryClient, variables.id);
             onSuccess?.();
         },
         onError: (err) => {
@@ -187,7 +250,7 @@ export const useDeleteReserve = (
 
     return useMutation({
         mutationFn: deleteReserveApi,
-        onSuccess: async () => {
+        onSuccess: async (_data, reserveId) => {
             // Точечная инвалидация: обновляем только конкретный отель
             if (hotelId) {
                 await Promise.all([
@@ -202,6 +265,7 @@ export const useDeleteReserve = (
                     }),
                 ]);
             }
+            await invalidateReserveHistory(queryClient, reserveId);
             onSuccess?.();
         },
         onError: (err) => {
