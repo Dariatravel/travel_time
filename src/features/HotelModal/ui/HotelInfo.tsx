@@ -1,5 +1,6 @@
 'use client';
 import { Button } from '@/components/ui/button';
+import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { FormButtons, PhoneInput } from '@/shared';
@@ -89,6 +90,7 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
                   .map((item) => ({ id: item.value, label: item.label }))
             : [],
         city: hotel?.city ? adaptToOption({ title: hotel?.city, id: hotel?.city }) : undefined,
+        is_search_visible: hotel?.is_search_visible !== false,
     };
 };
 
@@ -105,6 +107,7 @@ const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
         features: data?.features?.map((item) => item?.id).filter(Boolean),
         eat: data?.eat?.map((item) => item?.id).filter(Boolean),
         city: data?.city?.id,
+        is_search_visible: data.is_search_visible !== false,
     };
 
     console.log({ data });
@@ -525,6 +528,25 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                 disabled={isLoading}
                                 htmlFor="eat"
                             />
+                        )}
+                    />
+                    <Controller
+                        name="is_search_visible"
+                        control={control}
+                        render={({ field }) => (
+                            <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+                                <input
+                                    id="is_search_visible_hidden"
+                                    type="checkbox"
+                                    checked={field.value === false}
+                                    onChange={(event) => field.onChange(!event.target.checked)}
+                                    disabled={isLoading}
+                                    className="h-4 w-4"
+                                />
+                                <Label htmlFor="is_search_visible_hidden" className="font-normal">
+                                    Скрытый отель
+                                </Label>
+                            </div>
                         )}
                     />
                     <Controller
