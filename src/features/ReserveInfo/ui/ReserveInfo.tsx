@@ -8,6 +8,8 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { buildFallbackReserveHistory } from '@/features/ReserveInfo/lib/formatReserveHistory';
+import { ReserveHistory } from '@/features/ReserveInfo/ui/ReserveHistory';
 import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal';
 import { FormButtons, PhoneInput } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
@@ -17,6 +19,7 @@ import {
     Reserve,
     ReserveDTO,
     ReserveForm,
+    useReserveHistory,
 } from '@/shared/api/reserve/reserve';
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
@@ -26,7 +29,6 @@ import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
-import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
 import moment from 'moment';
 import { FC, useCallback, useEffect, useMemo } from 'react';
@@ -135,8 +137,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     };
     // Мемоизируем getDefaultValues, чтобы не пересчитывать при каждом рендере
     const getDefaultValues = useCallback(
-        (currentReserve?: Nullable<CurrentReserveType>): Partial<ReserveForm> => {
-            const { reserve, room, hotel } = currentReserve ?? {};
+        (reserveContext?: Nullable<CurrentReserveType>): Partial<ReserveForm> => {
+            const { reserve, room, hotel } = reserveContext ?? {};
 
             // По умолчанию: с сегодня до завтра (1 сутка)
             const today = moment().startOf('day').toDate();
@@ -163,10 +165,10 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                 price: room?.price ?? 0,
                 quantity: room?.quantity ?? 2,
                 comment: '', // По умолчанию пустая строка
-                created_by: currentReserve?.reserve?.created_by,
-                edited_by: currentReserve?.reserve?.edited_by,
-                created_at: currentReserve?.reserve?.created_at,
-                edited_at: currentReserve?.reserve?.edited_at,
+                created_by: reserveContext?.reserve?.created_by,
+                edited_by: reserveContext?.reserve?.edited_by,
+                created_at: reserveContext?.reserve?.created_at,
+                edited_at: reserveContext?.reserve?.edited_at,
             };
 
             if (!!reserve) {
@@ -183,7 +185,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
 
             return defaults;
         },
-        [currentReserve],
+        [],
     );
 
     // Мемоизируем defaultValues, чтобы не пересчитывать при каждом рендере
@@ -211,26 +213,6 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     const date = watch('date');
     const price = watch('price');
     const prepayment = watch('prepayment');
-    const created_at = watch('created_at');
-    const edited_at = watch('edited_at');
-    const created_by = watch('created_by');
-    const edited_by = watch('edited_by');
-
-    // Создаем объект formData только для компонентов, которым нужны все данные
-    // hotel_id не включаем, так как он не используется в резерве
-    const formData = useMemo(
-        () => ({
-            room_id: roomId,
-            date,
-            price,
-            prepayment,
-            created_at,
-            edited_at,
-            created_by,
-            edited_by,
-        }),
-        [roomId, date, price, prepayment, created_at, edited_at, created_by, edited_by],
-    );
 
     const {
         data: rooms,
@@ -273,10 +255,23 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     }, [roomId?.id]);
 
     const loading = isLoading || isHotelsLoading;
+    const reserveId = currentReserve?.reserve?.id;
+    const { data: historyRows, isPending: isHistoryPending } = useReserveHistory(
+        reserveId,
+        isEdit && isOpen,
+    );
+
+    const historyEntries = useMemo(() => {
+        if (historyRows && historyRows.length > 0) {
+            return historyRows;
+        }
+
+        return buildFallbackReserveHistory(currentReserve?.reserve);
+    }, [historyRows, currentReserve?.reserve]);
 
     // Мемоизируем функцию deserializeData, чтобы не создавать её при каждом рендере
     const deserializeData = useCallback(
-        ({ date, price, quantity, prepayment = 0, comment, hotel_id: _, ...data }: ReserveForm) => {
+        ({ date, price, quantity, prepayment = 0, comment, ...data }: ReserveForm) => {
             const start = moment(date[0]).hour(12).unix();
             const userName = `${user?.name} ${user?.surname}`;
             const end = moment(date[1]).hour(11).unix();
@@ -284,20 +279,21 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
             const priceNumber = +price;
             const quantityNumber = +quantity;
             const prepaymentNumber = +prepayment;
+            const isEditReserve = !!currentReserve?.reserve?.id;
             const created_by = data?.created_by ?? userName;
-            const edited_by = userName;
             const created_at = data?.created_at ?? getDate();
-            const edited_at = data?.edited_at ?? getDate();
+            const edited_by = isEditReserve ? userName : undefined;
+            const edited_at = isEditReserve ? getDate() : undefined;
 
             // Обрабатываем comment: если значение не задано, отправляем пустую строку ""
             const commentValue = comment != null && comment.trim() !== '' ? comment.trim() : '';
 
-            // Исключаем hotel_id из результата, так как он не сохраняется в резерве
             return {
-                ...data,
                 room_id,
                 start,
                 end,
+                guest: data.guest,
+                phone: data.phone,
                 price: priceNumber,
                 quantity: quantityNumber,
                 prepayment: prepaymentNumber,
@@ -308,7 +304,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                 edited_at,
             };
         },
-        [user],
+        [currentReserve?.reserve?.id, user],
     );
 
     // Мемоизируем обработчики событий
@@ -594,28 +590,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                         onClose={onClose}
                         onAccept={handleSubmit(onAcceptForm, onError)}
                     />
-                    <div className={cx.info}>
-                        {formData?.created_at && !formData?.edited_at && (
-                            <div className="flex gap-2 justify-end">
-                                <p className="text-sm text-gray-600">
-                                    Создано {formData?.created_by}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    {dayjs(formData?.created_at).format('DD.MM.YYYY')}
-                                </p>
-                            </div>
-                        )}
-                        {formData?.edited_at && (
-                            <div className="flex gap-2 justify-end">
-                                <p className="text-sm text-gray-600">
-                                    Последнее изменение {formData?.edited_by}
-                                </p>
-                                <p className="text-sm text-gray-600">
-                                    {dayjs(formData?.edited_at).format('DD.MM.YYYY')}
-                                </p>
-                            </div>
-                        )}
-                    </div>
+                    {isEdit && (
+                        <ReserveHistory
+                            entries={historyEntries}
+                            isLoading={isHistoryPending}
+                        />
+                    )}
                 </div>
             </>
         </FormProvider>
