@@ -32,6 +32,7 @@ export interface Hotel extends HotelFeatures {
     telegram_url?: string;
     description: string;
     image_id?: string;
+    is_search_visible?: boolean;
 }
 export interface HotelFeatures {
     /** Город */
@@ -78,12 +79,53 @@ export interface FreeHotelsDTO {
     }[];
 }
 
+export type InfiniteHotelsQueryOptions = {
+    /** Во вкладке «Отели» показываем все отели, включая скрытые и без номеров. */
+    withEmptyRooms?: boolean;
+    /** В поиске/бронировании скрываем отели с is_search_visible = false. */
+    excludeHiddenFromSearch?: boolean;
+};
+
 //для формы Room и Reserve
 export type HotelForRoom = Pick<HotelDTO, 'id' | 'title' | 'telegram_url' | 'phone' | 'address'> & {
     rooms_count?: number;
 };
 
 export type HotelWithRoomsCount = HotelDTO & { rooms: { count: number }[] };
+
+async function getHiddenFromSearchHotelIds(): Promise<string[] | null> {
+    const { data, error } = await supabase
+        .from('hotels')
+        .select('id')
+        .eq('is_search_visible', false);
+
+    if (error) {
+        throw error;
+    }
+
+    return data?.map((hotel) => hotel.id) ?? null;
+}
+
+const excludeHiddenHotelIds = (
+    hotelIds: string[] | undefined,
+    hiddenHotelIds: string[] | null,
+) => {
+    if (!hotelIds) return hotelIds;
+    if (!hiddenHotelIds || hiddenHotelIds.length === 0) return hotelIds;
+
+    const hiddenSet = new Set(hiddenHotelIds);
+    return hotelIds.filter((id) => !hiddenSet.has(id));
+};
+
+const excludeHiddenFreeHotels = (
+    hotels: FreeHotelsDTO[],
+    hiddenHotelIds: string[] | null,
+) => {
+    if (!hiddenHotelIds || hiddenHotelIds.length === 0) return hotels;
+
+    const hiddenSet = new Set(hiddenHotelIds);
+    return hotels.filter((hotel) => !hiddenSet.has(hotel.hotel_id));
+};
 
 /**
  * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
@@ -96,11 +138,16 @@ export async function getAllHotels(
     filter?: TravelFilterType,
     page: number = 0,
     limit: number = 10,
+    options?: { excludeHiddenFromSearch?: boolean },
 ): Promise<{
     data: HotelRoomsReservesDTO[];
     count: number;
 }> {
     try {
+        const hiddenHotelIds = options?.excludeHiddenFromSearch
+            ? await getHiddenFromSearchHotelIds()
+            : null;
+
         // Если есть фильтры (start, end, type, quantity), используем оптимизированную функцию
         // В этом случае расширенные фильтры уже применены через getHotelsWithFreeRooms
         // и результат сохранен в freeHotels_id
@@ -115,11 +162,15 @@ export async function getAllHotels(
             const from = page * limit;
             const to = from + limit - 1;
 
-            let filteredHotelIds = filter.freeHotels_id;
+            let filteredHotelIds = excludeHiddenHotelIds(filter.freeHotels_id, hiddenHotelIds);
 
             if (filter?.hotels && filter?.hotels?.length > 0) {
                 const hotels = filter?.hotels.map((hotel) => hotel.id);
-                filteredHotelIds = filter?.freeHotels_id?.filter((id) => hotels.includes(id));
+                filteredHotelIds = filteredHotelIds?.filter((id) => hotels.includes(id));
+            }
+
+            if (!filteredHotelIds || filteredHotelIds.length === 0) {
+                return { data: [], count: 0 };
             }
 
             const query = supabase
@@ -174,21 +225,46 @@ export async function getAllHotels(
             .select('*, rooms(*)', { count: 'exact' });
 
         if (filter?.freeHotels_id) {
+            const visibleFreeHotelIds = excludeHiddenHotelIds(filter.freeHotels_id, hiddenHotelIds);
+
+            if (!visibleFreeHotelIds || visibleFreeHotelIds.length === 0) {
+                return { data: [], count: 0 };
+            }
+
             if (filter?.hotels && filter?.hotels?.length > 0) {
                 const hotels = filter?.hotels.map((hotel) => hotel.id);
-                const filteredByTitle = filter?.freeHotels_id?.filter((id) => hotels.includes(id));
+                const filteredByTitle = visibleFreeHotelIds.filter((id) => hotels.includes(id));
+
+                if (filteredByTitle.length === 0) {
+                    return { data: [], count: 0 };
+                }
 
                 query.in('id', filteredByTitle);
             } else {
-                query.in('id', filter?.freeHotels_id);
+                query.in('id', visibleFreeHotelIds);
             }
         }
 
         if (!filter?.freeHotels_id && filter?.hotels && filter?.hotels?.length > 0) {
-            query.in(
-                'id',
-                filter?.hotels.map((hotel) => hotel.id),
+            const selectedHotelIds = excludeHiddenHotelIds(
+                filter.hotels.map((hotel) => hotel.id),
+                hiddenHotelIds,
             );
+
+            if (!selectedHotelIds || selectedHotelIds.length === 0) {
+                return { data: [], count: 0 };
+            }
+
+            query.in('id', selectedHotelIds);
+        }
+
+        if (
+            !filter?.freeHotels_id &&
+            (!filter?.hotels || filter.hotels.length === 0) &&
+            hiddenHotelIds &&
+            hiddenHotelIds.length > 0
+        ) {
+            query.not('id', 'in', `(${hiddenHotelIds.join(',')})`);
         }
 
         query.order('title', { ascending: true }).range(from, to);
@@ -350,14 +426,19 @@ export async function getAllHotelsForExport(
 export const useInfiniteHotelsQuery = (
     filter?: TravelFilterType,
     limit: number = 5,
-    withEmptyRooms?: boolean,
+    options?: boolean | InfiniteHotelsQueryOptions,
 ) => {
+    const resolvedOptions =
+        typeof options === 'boolean' ? { withEmptyRooms: options } : (options ?? {});
+
     return useInfiniteQuery({
-        queryKey: QUERY_KEYS.hotels(filter),
+        queryKey: QUERY_KEYS.hotels(filter, resolvedOptions),
         queryFn: async ({ pageParam = 0 }) => {
-            const result = withEmptyRooms
+            const result = resolvedOptions.withEmptyRooms
                 ? await getAllHotelsWithEmptyRooms(filter, pageParam as number, limit)
-                : await getAllHotels(filter, pageParam as number, limit);
+                : await getAllHotels(filter, pageParam as number, limit, {
+                      excludeHiddenFromSearch: resolvedOptions.excludeHiddenFromSearch,
+                  });
 
             console.log('useInfiniteHotelsQuery', { result, filter });
 
@@ -420,6 +501,20 @@ export const useInfiniteHotelsQuery = (
 export async function getAllHotelsForRoom(): Promise<HotelForRoom[]> {
     const response = await supabase.from('hotels').select('id, title');
     return response.data as HotelForRoom[]; // Возвращаем массив отелей
+}
+
+export async function getAllHotelsForSearch(): Promise<HotelForRoom[]> {
+    const response = await supabase
+        .from('hotels')
+        .select('id, title')
+        .eq('is_search_visible', true)
+        .order('title');
+
+    if (response.error) {
+        throw response.error;
+    }
+
+    return (response.data as HotelForRoom[]) ?? [];
 }
 
 export async function getAllCounts() {
@@ -594,6 +689,13 @@ export const useGetHotelsForRoom = () => {
     return useQuery({
         queryKey: QUERY_KEYS.hotelsForRoom,
         queryFn: getAllHotelsForRoom,
+    });
+};
+
+export const useGetHotelsForSearch = () => {
+    return useQuery({
+        queryKey: QUERY_KEYS.hotelsForSearch,
+        queryFn: getAllHotelsForSearch,
     });
 };
 
@@ -792,9 +894,12 @@ export async function getHotelsWithFreeRooms(
             max_price_filter: priceFilters.max_price,
         };
 
-        const { data } = await supabase.rpc('get_available_hotels', default_filter);
+        const [{ data }, hiddenHotelIds] = await Promise.all([
+            supabase.rpc('get_available_hotels', default_filter),
+            getHiddenFromSearchHotelIds(),
+        ]);
 
-        return data ?? ([] as FreeHotelsDTO[]);
+        return excludeHiddenFreeHotels((data ?? []) as FreeHotelsDTO[], hiddenHotelIds);
     } catch (error) {
         console.error(
             'Ошибка при получении отелей с свободными номерами:',

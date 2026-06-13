@@ -255,20 +255,30 @@ export const HotelsTable: React.FC<HotelsTableProps> = ({
                     </Button>
                 ),
 
-                cell: ({ row }) => (
-                    <TooltipProvider>
-                        <Tooltip>
-                            <TooltipTrigger asChild>
-                                <div className=" truncate font-medium cursor-help">
-                                    {row.getValue('title')}
-                                </div>
-                            </TooltipTrigger>
-                            <TooltipContent>
-                                <p className="max-w-xs">{row.getValue('title')}</p>
-                            </TooltipContent>
-                        </Tooltip>
-                    </TooltipProvider>
-                ),
+                cell: ({ row }) => {
+                    const hotel = row.original;
+                    const isHiddenFromSearch = hotel.is_search_visible === false;
+
+                    return (
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <div className="flex items-center gap-2 truncate font-medium cursor-help">
+                                        <span className="truncate">{row.getValue('title')}</span>
+                                        {isHiddenFromSearch && (
+                                            <Badge variant="outline" className="shrink-0 text-xs">
+                                                Скрытый отель
+                                            </Badge>
+                                        )}
+                                    </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                    <p className="max-w-xs">{row.getValue('title')}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    );
+                },
             },
             {
                 accessorKey: 'city',
