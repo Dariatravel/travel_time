@@ -56,6 +56,11 @@ export async function GET(
     const { hotelId } = await params;
     const allowedRooms = parseAllowedRooms(request);
     const authorization = request.headers.get('authorization');
+
+    if (!authorization) {
+        return NextResponse.json({ error: 'Authorization header is required' }, { status: 401 });
+    }
+
     const cacheTtlMs = Number(process.env.YANDEX_BACKEND_PROXY_CACHE_TTL_MS ?? DEFAULT_CACHE_TTL_MS);
     const cacheKey = [
         'hotel-calendar',
