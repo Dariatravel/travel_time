@@ -8,6 +8,10 @@ import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
 import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
+import {
+    isYandexBackendProxyClientEnabled,
+    updateReserveViaYandexBackend,
+} from '@/shared/api/yandexBackendProxy';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -165,6 +169,14 @@ export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
     try {
         if (!id) {
             throw new Error('Reserve ID is required');
+        }
+
+        if (isYandexBackendProxyClientEnabled()) {
+            try {
+                return await updateReserveViaYandexBackend({ id, ...reserve });
+            } catch (error) {
+                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+            }
         }
 
         const { data, error } = await supabase
