@@ -31,7 +31,9 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 <div className={cn(styles.deleteContainer, 'flex justify-end mb-2')}>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button variant="outline"> {deleteText}</Button>
+                            <Button type="button" variant="outline">
+                                {deleteText}
+                            </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-80 py-4 px-1">
                             <div className="flex flex-col gap-4 items-center">
@@ -41,13 +43,16 @@ export const FormButtons: FC<FormButtonsProps> = ({
                                         aria-label={'Удалить бронь'}
                                         variant="outline"
                                         className="text-red-500"
+                                        type="button"
                                         onClick={onDelete}
                                     >
                                         {deleteText}
                                         <TrashIcon />
                                     </Button>
                                     <PopoverClose>
-                                        <Button variant="outline">Отмена</Button>
+                                        <Button type="button" variant="outline">
+                                            Отмена
+                                        </Button>
                                     </PopoverClose>
                                 </div>
                             </div>
@@ -68,7 +73,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 >
                     Отмена
                 </Button>
-                <Button onClick={onAccept} disabled={isLoading}>
+                <Button type="button" onClick={onAccept} disabled={isLoading}>
                     {isEdit ? 'Сохранить' : 'Добавить'}
                 </Button>
             </div>

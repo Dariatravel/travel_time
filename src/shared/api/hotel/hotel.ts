@@ -685,10 +685,11 @@ export const useGetAllCounts = () => {
         queryFn: getAllCounts,
     });
 };
-export const useGetHotelsForRoom = () => {
+export const useGetHotelsForRoom = (enabled: boolean = true) => {
     return useQuery({
         queryKey: QUERY_KEYS.hotelsForRoom,
         queryFn: getAllHotelsForRoom,
+        enabled,
     });
 };
 
