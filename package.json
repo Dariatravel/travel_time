@@ -6,7 +6,7 @@
         "dev": "next dev --turbopack",
         "dev:clean": "npm run clean && npm run dev",
         "build": "next build",
-        "start": "next run dev",
+        "start": "next start",
         "lint": "next lint",
         "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
