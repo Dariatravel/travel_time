@@ -11,6 +11,19 @@ Current production behavior is unchanged: the frontend still talks directly to S
 - Supabase `service_role` is not used here. Routes forward the user's `Authorization` header to keep Supabase RLS/auth behavior intact.
 - Read cache is in-memory and short-lived. It is only an acceleration layer, not a second database.
 
+## Staging Resources
+
+These resources are isolated from production:
+
+- Serverless Container: `travel-time-staging` / `bbae7b6hi1q46eangsa7`
+- API Gateway: `travel-time-staging`
+- Image repository: `cr.yandex/crpf4seergfpqlkg7iih/travel-time-staging:<commit>`
+- Workflow: `.github/workflows/deploy-yandex-staging.yml`
+
+The staging workflow enables `YANDEX_BACKEND_PROXY_ENABLED=true`, but keeps
+`NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false`. This allows route testing without
+switching frontend reads/writes to the proxy.
+
 ## Added Routes
 
 ### Read Calendar
