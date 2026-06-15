@@ -660,6 +660,7 @@ export const useHotelDetailQuery = (
             return getHotelDetail(hotelId, allowedRooms);
         },
         enabled: enabled && !!hotelId,
+        staleTime: 30_000,
         placeholderData: keepPreviousData, // Сохраняем предыдущие данные во время загрузки
     });
 };
