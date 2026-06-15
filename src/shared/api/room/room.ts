@@ -41,11 +41,20 @@ export type RoomReserves = {
 export type Room = Omit<RoomDTO, 'id'>;
 
 export async function getRoomsByHotel(hotel_id?: string) {
-    const response = await supabase
+    if (!hotel_id) {
+        return [];
+    }
+
+    const { data, error } = await supabase
         .from(TABLE_NAMES.ROOMS)
         .select()
         .filter('hotel_id', 'eq', hotel_id);
-    return response.data as RoomDTO[]; // Возвращаем массив отелей
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return data as RoomDTO[]; // Возвращаем массив номеров
 }
 
 export async function getRoomsWithReservesByHotel(
@@ -160,7 +169,7 @@ export const useUpdateRoomOrder = (onSuccess?: () => void, onError?: (error: str
 
 export const useGetRoomsByHotel = (hotel_id?: string, enabled?: boolean) => {
     return useQuery({
-        queryKey: QUERY_KEYS.roomsByHotel,
+        queryKey: [...QUERY_KEYS.roomsByHotel, hotel_id],
         queryFn: () => getRoomsByHotel(hotel_id),
         enabled,
     });

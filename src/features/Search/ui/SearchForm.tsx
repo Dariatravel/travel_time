@@ -150,7 +150,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         // Обработка отелей из URL
         if (urlHotels && hotels) {
-            const hotelIds = urlHotels.split(',');
+            const hotelIds = urlHotels
+                .split(',')
+                .map((id) => id.trim())
+                .filter(Boolean);
             const selectedHotelsData = hotels.filter((h) => hotelIds.includes(h.id));
             const selectedHotels = selectedHotelsData.map((h) => ({ id: h.id, label: h.title }));
             if (selectedHotels.length > 0) {
