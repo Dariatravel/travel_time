@@ -20,9 +20,9 @@ These resources are isolated from production:
 - Image repository: `cr.yandex/crpf4seergfpqlkg7iih/travel-time-staging:<commit>`
 - Workflow: `.github/workflows/deploy-yandex-staging.yml`
 
-The staging workflow enables `YANDEX_BACKEND_PROXY_ENABLED=true`, but keeps
-`NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false`. This allows route testing without
-switching frontend reads/writes to the proxy.
+The staging workflow enables both `YANDEX_BACKEND_PROXY_ENABLED=true` and
+`NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true`. Production remains unchanged because
+this workflow deploys only `travel-time-staging`.
 
 ## Added Routes
 
