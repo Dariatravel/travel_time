@@ -129,6 +129,10 @@ const toReserveInsertPayload = (reserve: Reserve) => {
     };
 };
 
+const toReserveUpdatePayload = (reserve: Omit<ReserveDTO, 'id'>) => {
+    return toReserveInsertPayload(reserve);
+};
+
 export const createReserveApi = async (reserve: Reserve) => {
     try {
         const { error } = await insertItem(TABLE_NAMES.RESERVES, toReserveInsertPayload(reserve));
@@ -159,7 +163,16 @@ export const deleteReserveApi = async (id: string) => {
 
 export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
     try {
-        const { data, error } = await supabase.from('reserves').update(reserve).eq('id', id);
+        if (!id) {
+            throw new Error('Reserve ID is required');
+        }
+
+        const { data, error } = await supabase
+            .from('reserves')
+            .update(toReserveUpdatePayload(reserve))
+            .eq('id', id)
+            .select('id')
+            .single();
 
         if (error) {
             throw new Error(error.message);

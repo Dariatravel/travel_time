@@ -88,11 +88,8 @@ const reserveFormSchema = z.object({
         .min(2, 'ФИО гостя должно содержать минимум 2 символа'),
     phone: z
         .string({ message: 'Номер телефона обязателен' })
-        .min(1, 'Номер телефона обязателен')
-        .regex(
-            /^(\+7\(\d{3}\)\d{3}-\d{2}-\d{2}|\+\d{7,15})$/,
-            'Введите корректный номер телефона',
-        ),
+        .trim()
+        .min(1, 'Номер телефона обязателен'),
     comment: z.string().optional(),
     prepayment: z.coerce.number().optional(),
     created_by: z.string().optional(),
@@ -110,12 +107,15 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     isEdit,
     isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
+    const shouldLoadHotels = isOpen && !currentReserve?.hotel?.id;
+    const shouldLoadRooms = isOpen && !currentReserve?.room?.id;
+
     // Выполняем запросы только когда форма открыта
     const {
         data: hotels,
         isLoading: isHotelsLoading,
         status: hotelsStatus,
-    } = useGetHotelsForRoom();
+    } = useGetHotelsForRoom(shouldLoadHotels);
 
     const user = useUnit($user);
     const getReserveDefaults = ({
@@ -199,6 +199,12 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         defaultValues,
     });
 
+    useEffect(() => {
+        if (isOpen) {
+            form.reset(defaultValues);
+        }
+    }, [defaultValues, form, isOpen]);
+
     const {
         control,
         watch,
@@ -221,26 +227,36 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     } = useGetRoomsByHotel(hotelId?.id, false);
 
     const hotelOptions = useMemo(() => {
-        const hotelsTmp = hotels?.map(adaptToOption);
+        const hotelsTmp = hotels?.map(adaptToOption) ?? [];
+        const currentHotel = currentReserve?.hotel ? adaptToOption(currentReserve.hotel) : undefined;
 
-        return hotelsTmp ?? [];
-    }, [hotels]);
+        if (currentHotel && !hotelsTmp.some((hotel) => hotel.id === currentHotel.id)) {
+            return [currentHotel, ...hotelsTmp];
+        }
+
+        return hotelsTmp;
+    }, [hotels, currentReserve?.hotel]);
 
     const roomOptions = useMemo(() => {
-        const hotelsTmp = rooms?.map(adaptToOption);
+        const roomsTmp = rooms?.map(adaptToOption) ?? [];
+        const currentRoom = currentReserve?.room ? adaptToOption(currentReserve.room) : undefined;
 
-        return hotelsTmp ?? [];
-    }, [rooms]);
+        if (currentRoom && !roomsTmp.some((room) => room.id === currentRoom.id)) {
+            return [currentRoom, ...roomsTmp];
+        }
+
+        return roomsTmp;
+    }, [rooms, currentReserve?.room]);
 
     useEffect(() => {
         // Не выполняем запросы, если форма закрыта
         if (!isOpen) return;
 
-        if (hotelsStatus === 'success' && hotelId?.id) {
+        if ((hotelsStatus === 'success' || !shouldLoadHotels) && hotelId?.id && shouldLoadRooms) {
             fetchRoomsByHotel();
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [hotelsStatus, hotelId?.id, isOpen]);
+    }, [hotelsStatus, hotelId?.id, isOpen, shouldLoadHotels, shouldLoadRooms]);
 
     useEffect(() => {
         // если комнат нет - выходим
@@ -254,7 +270,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId?.id]);
 
-    const loading = isLoading || isHotelsLoading;
+    const loading = isLoading;
+    const lookupLoading = isHotelsLoading || isRoomsLoading;
     const reserveId = currentReserve?.reserve?.id;
     const { data: historyRows, isPending: isHistoryPending } = useReserveHistory(
         reserveId,
@@ -391,7 +408,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                                         field.onChange(selectedHotel);
                                                     }
                                                 }}
-                                                disabled={loading || !!currentReserve?.hotel?.id}
+                                                disabled={lookupLoading || !!currentReserve?.hotel?.id}
                                             >
                                                 <SelectTrigger className={cx.fields}>
                                                     <SelectValue placeholder="Выберите из списка" />
@@ -430,7 +447,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                                         field.onChange(selectedRoom);
                                                     }
                                                 }}
-                                                disabled={isHotelsLoading || isRoomsLoading}
+                                                disabled={lookupLoading}
                                             >
                                                 <SelectTrigger className={cx.fields}>
                                                     <SelectValue placeholder="Выберите из списка" />
@@ -568,7 +585,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                             <Input
                                                 {...field}
                                                 className={cx.fields}
-                                                disabled={loading}
+                                                disabled={lookupLoading}
                                                 value={String(field?.value || 0)}
                                                 onChange={field.onChange}
                                                 type={'number'}
