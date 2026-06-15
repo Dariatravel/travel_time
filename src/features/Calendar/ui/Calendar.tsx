@@ -1,4 +1,7 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
+import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
+import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO, HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
@@ -13,7 +16,6 @@ import {
 } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, useCreateRoom, useUpdateRoomOrder } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
-import { getDateFromUnix } from '@/shared/lib/date';
 import { devLog } from '@/shared/lib/logger';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -180,30 +182,14 @@ export const Calendar = ({
         return rooms;
     }, [data]); // Убираем sort из зависимостей, так как он не используется
 
-    // Мемоизируем hotelReserves для оптимизации производительности
-    const hotelReserves = useMemo(() => {
-        const reserves: Array<ReserveDTO & { group: string }> = [];
+    const hotelReserves = useMemo(() => buildTimelineReserveItems(data ?? []), [data]);
 
-        data?.forEach(({ id: room_id, reserves: roomReserves }) => {
-            const reservesTmp = roomReserves.map(({ end, start, ...reserve }) => ({
-                ...reserve,
-                id: reserve.id,
-                group: room_id,
-                end: getDateFromUnix(
-                    typeof end === 'number' ? end : Math.floor(end.getTime() / 1000),
-                ),
-                start: getDateFromUnix(
-                    typeof start === 'number' ? start : Math.floor(start.getTime() / 1000),
-                ),
-            }));
-
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error
-            reserves.push(...reservesTmp);
-        });
-
-        return reserves;
-    }, [data]);
+    const { displayReserves, handleItemMove, dialogProps } = useReserveDragMove({
+        hotelRooms,
+        hotelReserves,
+        updateReserve,
+        isSaving: isReserveUpdating,
+    });
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
@@ -279,7 +265,7 @@ export const Calendar = ({
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}
-                            hotelReserves={hotelReserves}
+                            hotelReserves={displayReserves}
                             visibleTimeStart={visibleTimeStart}
                             visibleTimeEnd={visibleTimeEnd}
                             timelineClassName="travel-timeline"
@@ -291,6 +277,7 @@ export const Calendar = ({
                             calendarItemClassName={cx.calendarItem}
                             timelineId={timelineId}
                             onGroupsReorder={handleGroupsReorder}
+                            onItemMove={handleItemMove}
                         />
                     </div>
                 </div>
@@ -310,6 +297,7 @@ export const Calendar = ({
                 currentReserve={currentReserve}
                 isLoading={reserveLoading}
             />
+            {dialogProps && <ReserveMoveConfirmDialog {...dialogProps} />}
         </div>
     );
 };

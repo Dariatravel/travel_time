@@ -57,6 +57,7 @@ export interface TimelineProps {
     calendarItemClassName?: string;
     timelineId: string;
     onGroupsReorder?: (newOrder: string[]) => void;
+    onItemMove?: (itemId: Id, dragTime: number, newGroupOrder: number) => void;
 }
 
 export const Timeline = ({
@@ -74,6 +75,7 @@ export const Timeline = ({
     calendarItemClassName,
     timelineId,
     onGroupsReorder,
+    onItemMove,
 }: TimelineProps) => {
     // const [isMobile] = useUnit([$isMobile]);
     const { isMobile, isPhone } = useScreenSize();
@@ -493,8 +495,10 @@ export const Timeline = ({
                     items={hotelReserves}
                     keys={keys}
                     sidebarWidth={defaultSidebarWidth}
-                    canMove
-                    canResize="both"
+                    canMove={!!onItemMove}
+                    canResize={false}
+                    dragSnap={DAY}
+                    onItemMove={onItemMove}
                     canSelect
                     itemTouchSendsClick={true}
                     stackItems={false}

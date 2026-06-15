@@ -1,4 +1,7 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
+import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
+import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
@@ -168,29 +171,14 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         return rooms;
     }, [data, sort]);
 
-    const hotelReserves = useMemo(() => {
-        const reserves: Array<ReserveDTO & { group: string }> = [];
+    const hotelReserves = useMemo(() => buildTimelineReserveItems(data ?? []), [data]);
 
-        data?.forEach(({ id: room_id, reserves: roomReserves }) => {
-            const reservesTmp = roomReserves.map(({ end, start, ...reserve }) => ({
-                ...reserve,
-                id: reserve.id,
-                group: room_id,
-                end: getDateFromUnix(
-                    typeof end === 'number' ? end : Math.floor(end.getTime() / 1000),
-                ),
-                start: getDateFromUnix(
-                    typeof start === 'number' ? start : Math.floor(start.getTime() / 1000),
-                ),
-            }));
-
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-expect-error
-            reserves.push(...reservesTmp);
-        });
-
-        return reserves;
-    }, [data]);
+    const { displayReserves, handleItemMove, dialogProps } = useReserveDragMove({
+        hotelRooms,
+        hotelReserves,
+        updateReserve,
+        isSaving: isReserveUpdating,
+    });
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
@@ -257,7 +245,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                     <Timeline
                         hotel={hotel}
                         hotelRooms={hotelRooms}
-                        hotelReserves={hotelReserves}
+                        hotelReserves={displayReserves}
                         timelineClassName="hotelTimeline"
                         sidebarWidth={isMobile ? 100 : 225}
                         onReserveAdd={onReserveAdd}
@@ -266,6 +254,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                         calendarItemClassName={cx.calendarItem}
                         timelineId={timelineId}
                         onGroupsReorder={handleGroupsReorder}
+                        onItemMove={handleItemMove}
                     />
                 </div>
                 <RoomModal
@@ -288,6 +277,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 currentReserve={currentReserve}
                 isLoading={reserveLoading}
             />
+            {dialogProps && <ReserveMoveConfirmDialog {...dialogProps} />}
         </>
     );
 };
