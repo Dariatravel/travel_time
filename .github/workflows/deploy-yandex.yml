@@ -1,0 +1,100 @@
+name: Deploy Yandex Cloud Mirror
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+env:
+  YC_CLOUD_ID: b1g43dk01a0t2mt0aqhm
+  YC_FOLDER_ID: b1gam66bh2jtelu9656g
+  YC_REGISTRY_ID: crpf4seergfpqlkg7iih
+  YC_CONTAINER_NAME: travel-time
+  YC_API_GATEWAY_NAME: travel-time
+  YC_SERVICE_ACCOUNT_ID: ajengmf1j6jbk729ut5q
+
+jobs:
+  deploy:
+    name: Build and deploy mirror
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Yandex Cloud CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yandex-cloud" -n
+          echo "$HOME/yandex-cloud/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Yandex Cloud profile
+        env:
+          YC_SA_JSON: ${{ secrets.YC_SA_JSON }}
+        run: |
+          printf '%s' "$YC_SA_JSON" > "$RUNNER_TEMP/yc-key.json"
+          yc config profile create travel-time
+          yc config set service-account-key "$RUNNER_TEMP/yc-key.json"
+          yc config set cloud-id "$YC_CLOUD_ID"
+          yc config set folder-id "$YC_FOLDER_ID"
+
+      - name: Login to Yandex Container Registry
+        run: |
+          yc iam create-token | docker login --username iam --password-stdin cr.yandex
+
+      - name: Set image tag
+        run: echo "IMAGE=cr.yandex/${YC_REGISTRY_ID}/travel-time:${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.IMAGE }}
+          build-args: |
+            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+
+      - name: Deploy serverless container revision
+        run: |
+          yc serverless container revision deploy \
+            --container-name "$YC_CONTAINER_NAME" \
+            --image "$IMAGE" \
+            --service-account-id "$YC_SERVICE_ACCOUNT_ID" \
+            --memory 1GB \
+            --cores 1 \
+            --execution-timeout 30s \
+            --concurrency 16 \
+            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+
+      - name: Create or update API Gateway
+        run: |
+          CONTAINER_ID="$(yc serverless container get "$YC_CONTAINER_NAME" --format json | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).id))")"
+          TMP_SPEC="$(mktemp)"
+
+          CONTAINER_ID="$CONTAINER_ID" \
+          SERVICE_ACCOUNT_ID="$YC_SERVICE_ACCOUNT_ID" \
+          SPEC_TEMPLATE="deploy/yandex/api-gateway.yaml" \
+          SPEC_OUTPUT="$TMP_SPEC" \
+            node - <<'NODE'
+          const fs = require('fs');
+
+          const input = fs.readFileSync(process.env.SPEC_TEMPLATE, 'utf8');
+          const output = input
+            .replaceAll('${CONTAINER_ID}', process.env.CONTAINER_ID)
+            .replaceAll('${SERVICE_ACCOUNT_ID}', process.env.SERVICE_ACCOUNT_ID);
+
+          fs.writeFileSync(process.env.SPEC_OUTPUT, output);
+          NODE
+
+          if yc serverless api-gateway get "$YC_API_GATEWAY_NAME" >/dev/null 2>&1; then
+            yc serverless api-gateway update "$YC_API_GATEWAY_NAME" --spec "$TMP_SPEC"
+          else
+            yc serverless api-gateway create "$YC_API_GATEWAY_NAME" --spec "$TMP_SPEC"
+          fi
