@@ -4,6 +4,10 @@ import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
+import {
+    getHotelCalendarViaYandexBackend,
+    isYandexBackendProxyClientEnabled,
+} from '@/shared/api/yandexBackendProxy';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import {
     keepPreviousData,
@@ -570,6 +574,14 @@ export const getHotelDetail = async (
     allowedRooms?: string[],
 ): Promise<HotelRoomsReservesDTO> => {
     try {
+        if (isYandexBackendProxyClientEnabled()) {
+            try {
+                return await getHotelCalendarViaYandexBackend(hotelId, allowedRooms);
+            } catch (error) {
+                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+            }
+        }
+
         // Загружаем базовую информацию об отеле и его номерах
         const { data: hotelData, error: hotelError } = await supabase
             .from('hotels_with_rooms_new')
