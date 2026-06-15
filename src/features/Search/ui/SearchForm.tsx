@@ -93,8 +93,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         },
     });
 
-    const { control, watch, handleSubmit, reset } = methods;
-    const watchedValues = watch();
+    const { control, handleSubmit, reset } = methods;
 
     // Инициализируем форму из URL параметров или filter store при первой загрузке
     useEffect(() => {
@@ -199,26 +198,20 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         }
     }, [isMobile]);
 
-    // Извлекаем значения из формы для сохранения логики
-    const dateFrom = watchedValues.dateFrom;
-    const dateTo = watchedValues.dateTo;
-    const category = watchedValues.category;
-    const quantity = watchedValues.quantity;
-    const selectedHotels = watchedValues.hotels?.map((hotel) => hotel.id) || [];
-
-    let start_time = undefined,
-        end_time = undefined;
-    if (dateFrom) {
-        start_time = moment(dateFrom).hour(12).unix();
-    }
-
-    if (dateTo) {
-        end_time = moment(dateTo).hour(11).unix();
-    }
-
-    const onSearch: SubmitHandler<SearchFormSchema> = async () => {
+    const onSearch: SubmitHandler<SearchFormSchema> = async (formData) => {
         // Обновление URL происходит через FiltersSync для расширенных фильтров
         // Параметры формы можно обновлять отдельно, если нужно
+
+        const category = formData.category;
+        const quantity = formData.quantity;
+        const selectedHotelsFromForm = formData.hotels ?? [];
+        const selectedHotelIds = selectedHotelsFromForm.map((hotel) => hotel.id);
+        const start_time = formData.dateFrom
+            ? moment(formData.dateFrom).hour(12).unix()
+            : undefined;
+        const end_time = formData.dateTo
+            ? moment(formData.dateTo).hour(11).unix()
+            : undefined;
 
         const filter: Partial<TravelFilterType> = {
             type: category ?? undefined,
@@ -343,8 +336,8 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             setFreeHotelsData([]);
         }
 
-        if (selectedHotels.length !== 0) {
-            const filterHotels = hotels?.filter((hotel) => selectedHotels.includes(hotel.id));
+        if (selectedHotelIds.length !== 0) {
+            const filterHotels = hotels?.filter((hotel) => selectedHotelIds.includes(hotel.id));
             filter.hotels = filterHotels;
         } else {
             filter.hotels = undefined;
@@ -367,7 +360,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             !start_time &&
             !end_time &&
             !quantity &&
-            selectedHotels.length === 0 &&
+            selectedHotelIds.length === 0 &&
             !hasActiveFilters;
 
         // Если все фильтры пустые, сбрасываем все query параметры
@@ -431,7 +424,6 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             searchParams.delete('quantity');
         }
 
-        const selectedHotelsFromForm = watchedValues.hotels || [];
         if (selectedHotelsFromForm && selectedHotelsFromForm.length > 0) {
             searchParams.set('hotels', selectedHotelsFromForm.map((h) => h.id).join(','));
         } else {
