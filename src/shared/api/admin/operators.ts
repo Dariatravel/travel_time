@@ -1,5 +1,19 @@
+import supabase from '@/shared/config/supabase';
 import { notifyError, notifySuccess } from '@/shared/ui/Toast/Toast';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+
+const getAuthorizationHeader = async () => {
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+
+    return token ? `Bearer ${token}` : undefined;
+};
+
+const getAuthHeaders = async (): Promise<HeadersInit> => {
+    const authorization = await getAuthorizationHeader();
+
+    return authorization ? { Authorization: authorization } : {};
+};
 
 export type CreateOperatorPayload = {
     email: string;
@@ -31,7 +45,9 @@ const parseResponse = async <T>(response: Response): Promise<T> => {
 };
 
 export const getOperators = async () => {
-    const response = await fetch('/api/admin/operators');
+    const response = await fetch('/api/admin/operators', {
+        headers: await getAuthHeaders(),
+    });
     const data = await parseResponse<{ operators: OperatorListItem[] }>(response);
     return data.operators;
 };
@@ -39,7 +55,10 @@ export const getOperators = async () => {
 export const createOperator = async (payload: CreateOperatorPayload) => {
     const response = await fetch('/api/admin/operators', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+            'Content-Type': 'application/json',
+            ...(await getAuthHeaders()),
+        },
         body: JSON.stringify(payload),
     });
 
