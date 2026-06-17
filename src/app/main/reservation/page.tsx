@@ -71,6 +71,8 @@ const HotelCard = ({
 
     // Используем детальные данные если они загружены, иначе базовые из списка
     const hotelData = hotelDetail || hotel;
+    const shouldShowCalendarLoader =
+        isHotelDetailLoading && !hotelDetail && !(hotel.rooms?.length > 0);
 
     // Измеряем реальную высоту элемента: таймлайн и данные номеров могут менять высоту после первого рендера.
     useEffect(() => {
@@ -173,7 +175,7 @@ const HotelCard = ({
                 </CardHeader>
                 <CardContent className="p-0">
                     <Calendar
-                        isLoading={isHotelDetailLoading}
+                        isLoading={shouldShowCalendarLoader}
                         hotel={hotelData}
                         visibleTimeStart={visibleTimeStart}
                         visibleTimeEnd={visibleTimeEnd}
@@ -214,7 +216,7 @@ export default function Home() {
     /** Страницы API: слишком мелкий размер даёт много запросов; «два отеля и стоп» бывает, если нет скролла и не вызывается fetchNextPage. */
     const PAGE_SIZE = 12;
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, refetch } =
+    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
@@ -338,10 +340,6 @@ export default function Home() {
         fetchNextPage,
         data?.pages.length,
     ]);
-
-    useEffect(() => {
-        refetch();
-    }, [filter, refetch]);
 
     const onHotelClick = (hotel_id: string) => {
         router.push(`${routes.RESERVATION}/${hotel_id}`);

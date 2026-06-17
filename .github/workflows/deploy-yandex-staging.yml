@@ -57,7 +57,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false
+            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true
 
       - name: Deploy staging serverless container revision
         run: |
