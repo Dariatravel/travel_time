@@ -1,31 +1,20 @@
 'use client';
+
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { PhoneInput } from '@/shared';
-import { RegisterProps, useRegister, UserRole } from '@/shared/api/auth/auth';
-import { routes, PagesEnum } from '@/shared/config/routes';
-import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
-import { useRouter } from 'next/navigation';
-import React from 'react';
+import { CreateOperatorPayload, useCreateOperator } from '@/shared/api/admin/operators';
 import { Controller, FormProvider, useForm } from 'react-hook-form';
-import styles from './style.module.css';
 
-export interface LoginProps {
-    children?: React.ReactNode;
-    className?: string;
-}
+import styles from '@/features/Auth/ui/style.module.css';
 
-type RegisterFormData = Omit<RegisterProps, 'role'>;
-
-// Компонент для отображения обязательного поля
 const RequiredLabel = ({ children }: { children: React.ReactNode }) => (
     <span>
         {children} <span className="text-red-600">*</span>
     </span>
 );
 
-// Правила валидации
 const validationRules = {
     surname: {
         required: 'Фамилия обязательна',
@@ -63,33 +52,27 @@ const validationRules = {
     },
 };
 
-export const Register = () => {
-    const router = useRouter();
-    const { isPending, mutateAsync } = useRegister();
+type CreateOperatorFormProps = {
+    onSuccess?: () => void;
+};
 
-    const form = useForm<RegisterFormData>({
-        mode: 'onChange', // Валидация при изменении
-    });
+export const CreateOperatorForm = ({ onSuccess }: CreateOperatorFormProps) => {
+    const { mutateAsync, isPending } = useCreateOperator();
+    const form = useForm<CreateOperatorPayload>({ mode: 'onChange' });
+    const { control, handleSubmit, reset } = form;
 
-    const { control, handleSubmit } = form;
-
-    const onSubmit = async (data: RegisterFormData) => {
-        try {
-            await mutateAsync({ ...data, role: UserRole.HOTEL });
-            // После успешной регистрации перенаправляем на главную страницу
-            router.push(routes[PagesEnum.MAIN]);
-        } catch (error) {
-            console.error('Ошибка регистрации:', error);
-        }
+    const onSubmit = async (data: CreateOperatorPayload) => {
+        await mutateAsync(data);
+        reset();
+        onSuccess?.();
     };
 
     return (
         <FormProvider {...form}>
-            {isPending && <FullWidthLoader />}
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-2">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                        <Label htmlFor="surname">
+                        <Label htmlFor="operator-surname">
                             <RequiredLabel>Фамилия</RequiredLabel>
                         </Label>
                         <Controller
@@ -100,7 +83,7 @@ export const Register = () => {
                                 <div>
                                     <Input
                                         {...field}
-                                        id="surname"
+                                        id="operator-surname"
                                         placeholder="Введите фамилию"
                                         className={styles.fields}
                                         aria-invalid={!!error}
@@ -114,7 +97,7 @@ export const Register = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="name">
+                        <Label htmlFor="operator-name">
                             <RequiredLabel>Имя</RequiredLabel>
                         </Label>
                         <Controller
@@ -125,7 +108,7 @@ export const Register = () => {
                                 <div>
                                     <Input
                                         {...field}
-                                        id="name"
+                                        id="operator-name"
                                         placeholder="Введите имя"
                                         className={styles.fields}
                                         aria-invalid={!!error}
@@ -152,7 +135,7 @@ export const Register = () => {
                     </div>
 
                     <div className="space-y-2">
-                        <Label htmlFor="email">
+                        <Label htmlFor="operator-email">
                             <RequiredLabel>Email</RequiredLabel>
                         </Label>
                         <Controller
@@ -163,7 +146,7 @@ export const Register = () => {
                                 <div>
                                     <Input
                                         {...field}
-                                        id="email"
+                                        id="operator-email"
                                         type="email"
                                         placeholder="example@mail.ru"
                                         className={styles.fields}
@@ -179,8 +162,8 @@ export const Register = () => {
                 </div>
 
                 <div className="space-y-2">
-                    <Label htmlFor="password">
-                        <RequiredLabel>Пароль</RequiredLabel>
+                    <Label htmlFor="operator-password">
+                        <RequiredLabel>Временный пароль</RequiredLabel>
                     </Label>
                     <Controller
                         name="password"
@@ -190,7 +173,7 @@ export const Register = () => {
                             <div>
                                 <Input
                                     {...field}
-                                    id="password"
+                                    id="operator-password"
                                     type="password"
                                     placeholder="Минимум 6 символов (буквы и цифры)"
                                     className={styles.fields}
@@ -204,14 +187,9 @@ export const Register = () => {
                     />
                 </div>
 
-                <div className="pt-2">
-                    <p className="text-sm text-gray-600 mb-3">
-                        <span className="text-red-600">*</span> — обязательные поля
-                    </p>
-                    <Button type="submit" className="w-full" disabled={isPending}>
-                        {isPending ? 'Регистрация...' : 'Зарегистрироваться'}
-                    </Button>
-                </div>
+                <Button type="submit" disabled={isPending}>
+                    {isPending ? 'Создание...' : 'Создать оператора'}
+                </Button>
             </form>
         </FormProvider>
     );

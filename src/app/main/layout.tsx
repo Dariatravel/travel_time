@@ -2,10 +2,11 @@
 import { Navbar, NavbarNavItem } from '@/features/NavBar';
 import { useSignOut } from '@/shared/api/auth/auth';
 import { PagesEnum, routes } from '@/shared/config/routes';
+import { isAdminRole } from '@/shared/lib/isAdmin';
 import { useAuth } from '@/shared/lib/useAuth';
 import { $user } from '@/shared/models/auth';
 import { useUnit } from 'effector-react';
-import { Building2, Calendar, HomeIcon } from 'lucide-react';
+import { Building2, Calendar, HomeIcon, UserCog } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
@@ -14,7 +15,7 @@ import styles from './layout.module.scss';
 
 moment.locale('ru');
 
-const navLink: NavbarNavItem[] = [
+const baseNavLinks: NavbarNavItem[] = [
     { href: routes[PagesEnum.MAIN], label: 'Главная', icon: HomeIcon, active: true },
     { href: routes[PagesEnum.HOTELS], label: 'Отели', icon: Building2 },
     { href: routes[PagesEnum.RESERVATION], label: 'Бронирование', icon: Calendar },
@@ -38,12 +39,23 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
 
     const user = useUnit($user);
 
+    const navigationLinks = isAdminRole(user?.role)
+        ? [
+              ...baseNavLinks,
+              {
+                  href: routes[PagesEnum.ADMIN_OPERATORS],
+                  label: 'Операторы',
+                  icon: UserCog,
+              },
+          ]
+        : baseNavLinks;
+
     console.log(user);
     return (
         <>
             <div className="relative w-full">
                 <Navbar
-                    navigationLinks={navLink}
+                    navigationLinks={navigationLinks}
                     currentDate={currentDate}
                     onUserItemClick={onItemClick}
                     user={user}
