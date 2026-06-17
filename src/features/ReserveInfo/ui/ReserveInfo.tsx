@@ -107,13 +107,16 @@ const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
         .string({ message: 'Номер телефона обязателен' })
         .trim()
         .min(1, 'Номер телефона обязателен'),
-    comment: z.string().optional(),
+    comment: z
+        .any()
+        .optional()
+        .transform((value) => (value == null ? '' : String(value))),
     prepayment: z.coerce.number().optional(),
     created_by: z.string().optional(),
     edited_by: z.string().optional(),
     created_at: z.string().optional(),
     edited_at: z.string().optional(),
-}) satisfies z.ZodType<ReserveForm>;
+});
 
 export const ReserveInfo: FC<ReserveInfoProps> = ({
     onAccept,
@@ -356,8 +359,9 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         [currentReserve, deserializeData, onAccept],
     );
 
-    const onError: SubmitErrorHandler<ReserveForm> = useCallback(() => {
-        showToast(`Заполните все обязательные поля`, 'error');
+    const onError: SubmitErrorHandler<ReserveForm> = useCallback((formErrors) => {
+        const firstError = Object.values(formErrors)[0]?.message;
+        showToast(firstError || 'Заполните все обязательные поля', 'error');
     }, []);
 
     const onReserveDelete = useCallback(() => {
@@ -578,13 +582,19 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                 control={control}
                                 render={({ field }) => (
                                     <div className="space-y-2">
-                                        <Label htmlFor="comment">Комментарии</Label>
+                                        <Label htmlFor="comment">
+                                            Комментарии{' '}
+                                            <span className="text-muted-foreground font-normal">
+                                                (необязательно)
+                                            </span>
+                                        </Label>
                                         <Textarea
                                             {...field}
                                             id="comment"
                                             className={cx.fields}
                                             placeholder="Введите комментарий"
                                             rows={2}
+                                            value={field.value ?? ''}
                                         />
                                     </div>
                                 )}
