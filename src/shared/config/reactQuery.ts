@@ -23,6 +23,7 @@ export const QUERY_KEYS = {
   allCounts: ['hotels', 'counts'],
   reserveHistory: (reserveId: string) => ['reserveHistory', reserveId] as const,
   reserveHistoryPrefix: ['reserveHistory'] as const,
+  recentActivity: ['activity', 'recent'] as const,
 }
 
 export const queryClient = new QueryClient({

@@ -1,6 +1,6 @@
 'use client';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
-import { HotelInfoCard, ReservationInfoCard, RoomInfoCard } from '@/features/Main';
+import { HotelInfoCard, RecentActivityFeed, ReservationInfoCard, RoomInfoCard } from '@/features/Main';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { cn } from '@/lib/utils';
@@ -145,6 +145,10 @@ export default function Main() {
                     showGrowth
                     growthPercent={-3}
                 />
+            </div>
+
+            <div className="max-w-6xl mx-auto mt-6">
+                <RecentActivityFeed />
             </div>
             <ToastContainer />
         </div>
