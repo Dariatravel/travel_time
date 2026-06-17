@@ -106,10 +106,38 @@ export const CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS: {
     { value: 'request', label: 'Белые / по запросу' },
 ];
 
+const CHESSMATE_STATUS_ORDER: Record<ChessmateHotelHeaderStatus, number> = {
+    active: 0,
+    access: 1,
+    request: 2,
+};
+
 export const getChessmateHotelHeaderStatus = (
     title?: string | null,
 ): ChessmateHotelHeaderStatus | undefined => {
     if (!title) return undefined;
 
     return CHESSMATE_STATUS_BY_HOTEL_TITLE[normalizeHotelTitle(title)];
+};
+
+export const getChessmateHotelHeaderStatusOrder = (title?: string | null) => {
+    const status = getChessmateHotelHeaderStatus(title);
+
+    return status ? CHESSMATE_STATUS_ORDER[status] : CHESSMATE_STATUS_ORDER.request;
+};
+
+export const sortByChessmateHotelHeaderStatus = <T extends { title?: string | null }>(
+    rows: T[],
+) => {
+    return [...rows].sort((left, right) => {
+        const statusDiff =
+            getChessmateHotelHeaderStatusOrder(left.title) -
+            getChessmateHotelHeaderStatusOrder(right.title);
+
+        if (statusDiff !== 0) {
+            return statusDiff;
+        }
+
+        return (left.title ?? '').localeCompare(right.title ?? '', 'ru');
+    });
 };
