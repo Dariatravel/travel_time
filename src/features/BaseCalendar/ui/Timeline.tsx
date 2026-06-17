@@ -436,6 +436,15 @@ export const Timeline = ({
     const lowerHeaderUnit = getHeaderUnit(currentUnit, false);
     /** На телефоне скрываем подписи верхнего ряда только когда оба ряда на одном масштабе (дубль). */
     const hideUpperIntervalTextOnPhone = isPhone && upperHeaderUnit === lowerHeaderUnit;
+    const visualHotelReserves = useMemo(
+        () =>
+            hotelReserves.map((reserve) => ({
+                ...reserve,
+                start: moment(reserve.start).hour(12).minute(0).second(0).millisecond(0),
+                end: moment(reserve.end).hour(12).minute(0).second(0).millisecond(0),
+            })),
+        [hotelReserves],
+    );
 
     return (
         <div
@@ -492,7 +501,7 @@ export const Timeline = ({
                     onZoom={handleTimelineZoom}
                     className={timelineClassName}
                     groups={hotelRooms}
-                    items={hotelReserves}
+                    items={visualHotelReserves}
                     keys={keys}
                     sidebarWidth={defaultSidebarWidth}
                     canMove={!!onItemMove}
