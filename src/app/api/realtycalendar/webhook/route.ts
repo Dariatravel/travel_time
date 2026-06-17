@@ -20,6 +20,18 @@ const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
     // Рита: апарты с кухней 1-2
     '95951': '64b7cc39-926f-4608-8d85-c56ec5340ac4',
     '95952': '43ab9a15-fd38-4911-b5d1-592be841e6a5',
+    // Александрия: домики 1-11
+    '109064': '9d36772c-cef8-4c29-b2b6-ef720d743cff',
+    '109065': '4692f638-a62c-4858-8d2b-7a03e49e6c96',
+    '109066': '7325cde0-fd5a-406b-b450-738670238b8a',
+    '109067': '7de4cc07-f8a8-44ba-b9f7-83727da10083',
+    '109068': 'd92fd7da-15e1-496e-8c06-1e1b95978f8c',
+    '109069': 'e58da10d-4ebe-4928-83f2-46ca2e8fb8cc',
+    '109070': '215ac8b2-ccba-4b59-8c73-38defc1e4399',
+    '109071': 'ee9ea528-4d91-4a68-ba0f-789ac0eae01c',
+    '109072': 'e54af704-fe0a-445c-ab11-0140e9eae1eb',
+    '109073': '9f8f1326-a452-4871-a8fc-ec550913ed00',
+    '109074': 'b5d56c33-04be-41e5-be8d-5782b18c82f3',
 };
 
 type RealtyCalendarWebhook = {
