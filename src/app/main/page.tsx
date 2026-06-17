@@ -20,7 +20,7 @@ export default function Main() {
     const [isHotelOpen, setIsHotelOpen] = useState<boolean>(false);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
-    const { data: countsData, isFetching: isCountsLoading } = useGetAllCounts();
+    const { data: countsData, isLoading: isCountsLoading } = useGetAllCounts();
     const { data: sessionData } = useGetSession();
 
     const { isMobile } = useScreenSize();
