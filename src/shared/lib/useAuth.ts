@@ -2,7 +2,7 @@ import { routes } from '@/shared/config/routes';
 import supabase from '@/shared/config/supabase';
 import { setUser } from '@/shared/models/auth';
 import { useQuery } from '@tanstack/react-query';
-import { redirect } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useEffect } from 'react';
 import { devLog } from './logger';
 
@@ -17,6 +17,7 @@ const getSession = async () => {
 };
 
 export const useAuth = () => {
+    const router = useRouter();
     const { data, isFetching } = useQuery({
         queryFn: getSession,
         queryKey: ['AUTH'],
@@ -24,7 +25,10 @@ export const useAuth = () => {
 
     useEffect(() => {
         if (isFetching) return;
-        if (!data?.session) redirect(routes.LOGIN);
+        if (!data?.session) {
+            router.replace(routes.LOGIN);
+            return;
+        }
 
         const user = data?.session?.user;
 
@@ -39,5 +43,5 @@ export const useAuth = () => {
             name: user?.user_metadata?.name,
             user_metadata: user?.user_metadata,
         });
-    }, [isFetching]);
+    }, [data?.session, isFetching, router]);
 };
