@@ -1,9 +1,11 @@
 import { HotelForRoom } from '@/shared/api/hotel/hotel';
+import { ChessmateHotelHeaderStatus } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import { Nullable } from '@/shared/api/reserve/reserve';
 import { createEvent, createStore } from 'effector';
 
 export type TravelFilterType = Nullable<{
     type?: string;
+    chessmateStatus?: ChessmateHotelHeaderStatus;
     quantity?: number;
     start?: number;
     end?: number;

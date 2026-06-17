@@ -13,10 +13,9 @@ import { LinkIcon } from '@/shared/ui/LinkIcon/LinkIcon';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
-import { Info } from 'lucide-react';
+import { ExternalLink, Info } from 'lucide-react';
 import { FC, useCallback, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
-import { FaTelegram } from 'react-icons/fa';
 import { HotelFormSchema, hotelFormSchema } from '../lib/validation';
 import { FormInput } from './components/FormInput';
 import { FormMultipleSelector } from './components/FormMultipleSelector';
@@ -34,7 +33,7 @@ export interface HotelInfoProps {
     isEdit: boolean;
 }
 
-const DEFAULT_VALUE = { rating: '5', telegram_url: 'https://t.me/' };
+const DEFAULT_VALUE = { rating: '5', telegram_url: '' };
 
 // Функция для нормализации формата телефона из БД в формат +7(XXX)XXX-XX-XX
 const normalizePhone = (phone?: string): string => {
@@ -279,7 +278,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                 <div className="relative space-y-2">
                                     <div className="relative">
                                         <FormInput
-                                            label="Ссылка на отель в Telegram"
+                                            label="Ссылка на отель"
                                             error={error?.message}
                                             value={field.value}
                                             onChange={field.onChange}
@@ -291,9 +290,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                         {telegramUrl && (
                                             <div className="absolute right-3 top-1/2">
                                                 <LinkIcon
-                                                    icon={
-                                                        <FaTelegram color="2AABEE" size={'24px'} />
-                                                    }
+                                                    icon={<ExternalLink size={'24px'} />}
                                                     link={telegramUrl}
                                                 />
                                             </div>
