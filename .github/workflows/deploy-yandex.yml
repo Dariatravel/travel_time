@@ -60,6 +60,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true
 
       - name: Deploy serverless container revision
         run: |
@@ -71,7 +72,7 @@ jobs:
             --cores 1 \
             --execution-timeout 30s \
             --concurrency 16 \
-            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}"
+            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
 
       - name: Create or update API Gateway
         run: |
