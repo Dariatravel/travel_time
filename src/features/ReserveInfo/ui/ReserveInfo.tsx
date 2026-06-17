@@ -46,8 +46,9 @@ export interface ReserveInfoProps {
     isOpen?: boolean; // Для контроля выполнения запросов только при открытой форме
 }
 
-// Схема валидации Zod
-const reserveFormSchema = z.object({
+// Схема валидации Zod. При редактировании допускаем legacy-значения,
+// которые уже есть в старых бронях и не должны блокировать сохранение.
+const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
     date: z.tuple([z.date(), z.date()], { message: 'Дата обязательна' }).refine(
         (dates) => {
             const [start, end] = dates;
@@ -75,17 +76,33 @@ const reserveFormSchema = z.object({
             required_error: 'Стоимость обязательна',
             invalid_type_error: 'Стоимость должна быть числом',
         })
-        .positive('Стоимость должна быть больше 0'),
+        .refine(
+            (value) => (allowLegacyValues ? value >= 0 : value > 0),
+            allowLegacyValues
+                ? 'Стоимость не может быть отрицательной'
+                : 'Стоимость должна быть больше 0',
+        ),
     quantity: z.coerce
         .number({
             required_error: 'Количество гостей обязательно',
             invalid_type_error: 'Количество должно быть числом',
         })
-        .positive('Должно быть больше 0')
-        .int('Количество гостей должно быть целым числом'),
+        .int('Количество гостей должно быть целым числом')
+        .refine(
+            (value) => (allowLegacyValues ? value >= 0 : value > 0),
+            allowLegacyValues
+                ? 'Количество гостей не может быть отрицательным'
+                : 'Должно быть больше 0',
+        ),
     guest: z
         .string({ message: 'ФИО гостя обязательно' })
-        .min(2, 'ФИО гостя должно содержать минимум 2 символа'),
+        .trim()
+        .min(
+            allowLegacyValues ? 1 : 2,
+            allowLegacyValues
+                ? 'ФИО гостя обязательно'
+                : 'ФИО гостя должно содержать минимум 2 символа',
+        ),
     phone: z
         .string({ message: 'Номер телефона обязателен' })
         .trim()
@@ -192,6 +209,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     const defaultValues = useMemo(() => {
         return getDefaultValues(currentReserve);
     }, [currentReserve, getDefaultValues]);
+    const reserveFormSchema = useMemo(() => createReserveFormSchema(!!isEdit), [isEdit]);
 
     const form = useForm<ReserveForm>({
         resolver: zodResolver(reserveFormSchema),
