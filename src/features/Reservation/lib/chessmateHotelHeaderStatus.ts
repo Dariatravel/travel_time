@@ -97,6 +97,15 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     эсма: 'access',
 };
 
+export const CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS: {
+    value: ChessmateHotelHeaderStatus;
+    label: string;
+}[] = [
+    { value: 'active', label: 'Актуальные' },
+    { value: 'access', label: 'Есть доступ' },
+    { value: 'request', label: 'Белые / по запросу' },
+];
+
 export const getChessmateHotelHeaderStatus = (
     title?: string | null,
 ): ChessmateHotelHeaderStatus | undefined => {

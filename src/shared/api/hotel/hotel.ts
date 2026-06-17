@@ -4,6 +4,7 @@ import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
+import { getChessmateHotelHeaderStatus } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import {
     getHotelCalendarViaYandexBackend,
     isYandexBackendProxyClientEnabled,
@@ -131,6 +132,19 @@ const excludeHiddenFreeHotels = (
     return hotels.filter((hotel) => !hiddenSet.has(hotel.hotel_id));
 };
 
+const getChessmateStatusFilteredRows = <T extends { title?: string | null }>(
+    rows: T[],
+    filter?: TravelFilterType,
+) => {
+    if (!filter?.chessmateStatus) {
+        return rows;
+    }
+
+    return rows.filter(
+        (hotel) => getChessmateHotelHeaderStatus(hotel.title) === filter.chessmateStatus,
+    );
+};
+
 /**
  * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
  * @param filter - фильтр для поиска
@@ -181,15 +195,25 @@ export async function getAllHotels(
                 .from('hotels_with_rooms_new')
                 .select('*, rooms(*)', { count: 'exact' })
                 .in('id', filteredHotelIds)
-                .order('title', { ascending: true })
-                .range(from, to);
+                .order('title', { ascending: true });
+
+            if (!filter?.chessmateStatus) {
+                query.range(from, to);
+            }
 
             const response = await query;
+            const statusFilteredRows = getChessmateStatusFilteredRows(
+                response?.data ?? [],
+                filter,
+            );
+            const paginatedRows = filter?.chessmateStatus
+                ? statusFilteredRows.slice(from, to + 1)
+                : statusFilteredRows;
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
             const data: HotelRoomsReservesDTO[] =
-                response?.data?.map((hotel: any) => {
+                paginatedRows?.map((hotel: any) => {
                     let filteredRooms = hotel.rooms || [];
 
                     // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
@@ -216,7 +240,7 @@ export async function getAllHotels(
             console.log('getAllHotels', { data });
             return {
                 data,
-                count: response.count || 0,
+                count: filter?.chessmateStatus ? statusFilteredRows.length : response.count || 0,
             };
         }
 
@@ -271,13 +295,22 @@ export async function getAllHotels(
             query.not('id', 'in', `(${hiddenHotelIds.join(',')})`);
         }
 
-        query.order('title', { ascending: true }).range(from, to);
+        query.order('title', { ascending: true });
+
+        if (!filter?.chessmateStatus) {
+            query.range(from, to);
+        }
+
         const response = await query;
+        const statusFilteredRows = getChessmateStatusFilteredRows(response?.data ?? [], filter);
+        const paginatedRows = filter?.chessmateStatus
+            ? statusFilteredRows.slice(from, to + 1)
+            : statusFilteredRows;
 
         // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
         // Если есть фильтр freeHotels (например, по цене), фильтруем номера
         const data: HotelRoomsReservesDTO[] =
-            response?.data?.map((hotel: any) => {
+            paginatedRows?.map((hotel: any) => {
                 let filteredRooms = hotel.rooms || [];
 
                 // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
@@ -309,7 +342,7 @@ export async function getAllHotels(
 
         return {
             data,
-            count: response.count || 0,
+            count: filter?.chessmateStatus ? statusFilteredRows.length : response.count || 0,
         };
     } catch (error) {
         console.error('Ошибка при получении отелей:', error);

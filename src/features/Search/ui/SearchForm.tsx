@@ -11,6 +11,10 @@ import {
 import { ExportHotelsButton } from '@/features/ExportHotels';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
+import {
+    CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS,
+    ChessmateHotelHeaderStatus,
+} from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import { ClearableSelect } from '@/shared';
 import {
     FreeHotelsDTO,
@@ -63,6 +67,8 @@ export const searchFormSchema = z.object({
         .default([]),
     /** Категория отеля */
     category: z.string().optional(),
+    /** Статус отеля по цвету шахматки */
+    chessmateStatus: z.enum(['active', 'access', 'request']).optional(),
     /** Дата начала бронирования */
     dateFrom: z.date().optional(),
     /** Дата окончания бронирования */
@@ -87,6 +93,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         defaultValues: {
             hotels: [],
             category: undefined,
+            chessmateStatus: undefined,
             dateFrom: undefined,
             dateTo: undefined,
             quantity: undefined,
@@ -103,6 +110,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Читаем параметры из URL
         const searchParams = new URLSearchParams(window.location.search);
         const urlCategory = searchParams.get('category');
+        const urlChessmateStatus = searchParams.get('chessmateStatus');
         const urlDateFrom = searchParams.get('dateFrom');
         const urlDateTo = searchParams.get('dateTo');
         const urlQuantity = searchParams.get('quantity');
@@ -118,6 +126,18 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         } else if (filter?.type) {
             formValues.category = filter.type;
             filterValues.type = filter.type;
+        }
+
+        if (
+            urlChessmateStatus === 'active' ||
+            urlChessmateStatus === 'access' ||
+            urlChessmateStatus === 'request'
+        ) {
+            formValues.chessmateStatus = urlChessmateStatus;
+            filterValues.chessmateStatus = urlChessmateStatus;
+        } else if (filter?.chessmateStatus) {
+            formValues.chessmateStatus = filter.chessmateStatus;
+            filterValues.chessmateStatus = filter.chessmateStatus;
         }
 
         if (urlQuantity) {
@@ -203,6 +223,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Параметры формы можно обновлять отдельно, если нужно
 
         const category = formData.category;
+        const chessmateStatus = formData.chessmateStatus;
         const quantity = formData.quantity;
         const selectedHotelsFromForm = formData.hotels ?? [];
         const selectedHotelIds = selectedHotelsFromForm.map((hotel) => hotel.id);
@@ -215,6 +236,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         const filter: Partial<TravelFilterType> = {
             type: category ?? undefined,
+            chessmateStatus: chessmateStatus ?? undefined,
             start: start_time,
             end: end_time,
             quantity: quantity ?? undefined,
@@ -226,9 +248,11 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
          */
         const isAllValuesUndefined = (obj: Record<string, unknown>) => {
             const filter = cloneDeep(obj);
-            const EXCEPTED_KEY = 'hotels';
             if (filter && filter?.hotels) {
-                delete filter[EXCEPTED_KEY];
+                delete filter.hotels;
+            }
+            if (filter && filter?.chessmateStatus) {
+                delete filter.chessmateStatus;
             }
 
             return Object.values(filter).every((value) => {
@@ -279,6 +303,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             start_time,
             end_time,
             type: filter.type,
+            chessmateStatus: filter.chessmateStatus,
             quantity: filter.quantity,
             hasActiveFilters,
         });
@@ -357,6 +382,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Проверяем, все ли фильтры пустые
         const allFiltersEmpty =
             !category &&
+            !chessmateStatus &&
             !start_time &&
             !end_time &&
             !quantity &&
@@ -375,6 +401,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                 start: undefined,
                 end: undefined,
                 type: undefined,
+                chessmateStatus: undefined,
                 quantity: undefined,
                 hotels: undefined,
                 freeHotels: undefined,
@@ -404,6 +431,12 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             searchParams.set('category', category);
         } else {
             searchParams.delete('category');
+        }
+
+        if (chessmateStatus) {
+            searchParams.set('chessmateStatus', chessmateStatus);
+        } else {
+            searchParams.delete('chessmateStatus');
         }
 
         if (start_time) {
@@ -601,6 +634,36 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                             />
                                             <FormMessage message={error?.message} />
                                         </FormField>
+                                    )}
+                                />
+                            </div>
+                            <div className="w-full sm:w-[180px]">
+                                <Controller
+                                    name="chessmateStatus"
+                                    control={control}
+                                    render={({ field, fieldState: { error } }) => (
+                                        <div className="space-y-2">
+                                            <Label
+                                                htmlFor="chessmateStatus"
+                                                className="text-sm font-medium text-gray-700"
+                                            >
+                                                Статус
+                                            </Label>
+                                            <ClearableSelect
+                                                value={field.value || ''}
+                                                onValueChange={(value) =>
+                                                    field.onChange(
+                                                        value === ''
+                                                            ? undefined
+                                                            : (value as ChessmateHotelHeaderStatus),
+                                                    )
+                                                }
+                                                options={CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS}
+                                                clearable
+                                                placeholder="Все"
+                                            />
+                                            <FormMessage message={error?.message} />
+                                        </div>
                                     )}
                                 />
                             </div>
