@@ -4,7 +4,10 @@ import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
-import { getChessmateHotelHeaderStatus } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
+import {
+    getChessmateHotelHeaderStatus,
+    sortByChessmateHotelHeaderStatus,
+} from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import {
     getHotelCalendarViaYandexBackend,
     isYandexBackendProxyClientEnabled,
@@ -145,6 +148,13 @@ const getChessmateStatusFilteredRows = <T extends { title?: string | null }>(
     );
 };
 
+const getOrderedHotelRows = <T extends { title?: string | null }>(
+    rows: T[],
+    filter?: TravelFilterType,
+) => {
+    return sortByChessmateHotelHeaderStatus(getChessmateStatusFilteredRows(rows, filter));
+};
+
 /**
  * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
  * @param filter - фильтр для поиска
@@ -197,18 +207,9 @@ export async function getAllHotels(
                 .in('id', filteredHotelIds)
                 .order('title', { ascending: true });
 
-            if (!filter?.chessmateStatus) {
-                query.range(from, to);
-            }
-
             const response = await query;
-            const statusFilteredRows = getChessmateStatusFilteredRows(
-                response?.data ?? [],
-                filter,
-            );
-            const paginatedRows = filter?.chessmateStatus
-                ? statusFilteredRows.slice(from, to + 1)
-                : statusFilteredRows;
+            const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
+            const paginatedRows = orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
@@ -240,7 +241,7 @@ export async function getAllHotels(
             console.log('getAllHotels', { data });
             return {
                 data,
-                count: filter?.chessmateStatus ? statusFilteredRows.length : response.count || 0,
+                count: orderedRows.length,
             };
         }
 
@@ -297,15 +298,9 @@ export async function getAllHotels(
 
         query.order('title', { ascending: true });
 
-        if (!filter?.chessmateStatus) {
-            query.range(from, to);
-        }
-
         const response = await query;
-        const statusFilteredRows = getChessmateStatusFilteredRows(response?.data ?? [], filter);
-        const paginatedRows = filter?.chessmateStatus
-            ? statusFilteredRows.slice(from, to + 1)
-            : statusFilteredRows;
+        const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
+        const paginatedRows = orderedRows.slice(from, to + 1);
 
         // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
         // Если есть фильтр freeHotels (например, по цене), фильтруем номера
@@ -342,7 +337,7 @@ export async function getAllHotels(
 
         return {
             data,
-            count: filter?.chessmateStatus ? statusFilteredRows.length : response.count || 0,
+            count: orderedRows.length,
         };
     } catch (error) {
         console.error('Ошибка при получении отелей:', error);
