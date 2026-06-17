@@ -20,7 +20,9 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { cn } from '@/lib/utils';
 import { User } from '@/shared';
-import { ChevronDownIcon, HamburgerIcon, MenuIcon } from 'lucide-react';
+import { PagesEnum, routes } from '@/shared/config/routes';
+import { isAdminRole } from '@/shared/lib/isAdmin';
+import { ChevronDownIcon, HamburgerIcon, MenuIcon, UserCog } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -34,11 +36,13 @@ const UserMenu = ({
     userEmail = 'john@example.com',
     userAvatar,
     onItemClick,
+    isAdmin = false,
 }: {
     userName?: string;
     userEmail?: string;
     userAvatar?: string;
     onItemClick?: (item: string) => void;
+    isAdmin?: boolean;
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -66,8 +70,20 @@ const UserMenu = ({
                     <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
                 </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            {/* <DropdownMenuItem onClick={() => onItemClick?.('profile')}>Profile</DropdownMenuItem> */}
+            {isAdmin && (
+                <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link
+                            href={routes[PagesEnum.ADMIN_OPERATORS]}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            <UserCog className="h-4 w-4" />
+                            Операторы
+                        </Link>
+                    </DropdownMenuItem>
+                </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={() => onItemClick?.('logout')}>Выйти</DropdownMenuItem>
         </DropdownMenuContent>
@@ -347,6 +363,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                             onItemClick={onUserItemClick}
                             userName={user?.name}
                             userEmail={user?.email}
+                            isAdmin={isAdminRole(user?.role)}
                         />
                     </div>
                 </div>

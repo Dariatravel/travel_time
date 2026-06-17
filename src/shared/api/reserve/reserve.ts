@@ -31,6 +31,10 @@ export type ReserveDTO = {
     edited_at?: string; // Дата изменения брони Формат: "2023-10-05T12:30:00.000Z
     created_by?: string; // Кто создал бронь
     edited_by?: string; // Кто изменил бронь
+    external_source?: string | null; // Внешний источник синхронизации
+    external_uid?: string | null; // ID события во внешнем источнике
+    external_feed_url?: string | null; // URL iCalendar-фида
+    external_synced_at?: string | null; // Дата последней синхронизации
 };
 
 export type TravelOption = {

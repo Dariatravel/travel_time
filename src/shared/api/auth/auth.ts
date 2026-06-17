@@ -41,11 +41,11 @@ export const login = async ({ email, password }: { email: string; password: stri
     return data;
 };
 
-export async function register({ email, password, surname, role, name }: RegisterProps) {
+export async function register({ email, password, surname, name, phone }: RegisterProps) {
     const { data, error } = await supabase.auth.signUp({
         email: email,
         password: password,
-        options: { data: { surname, role, name } },
+        options: { data: { surname, role: UserRole.HOTEL, name, phone } },
     });
     if (error) {
         notifyError(`Ошибка регистрации ${error.message}`);

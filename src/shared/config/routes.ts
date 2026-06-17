@@ -4,6 +4,7 @@ export enum PagesEnum {
     RESERVATION = 'RESERVATION',
     LOGIN = 'LOGIN',
     ADVANCED_FILTERS = 'ADVANCED_FILTERS',
+    ADMIN_OPERATORS = 'ADMIN_OPERATORS',
 }
 
 export const routes = {
@@ -12,4 +13,5 @@ export const routes = {
     [PagesEnum.RESERVATION]: '/main/reservation',
     [PagesEnum.LOGIN]: '/login',
     [PagesEnum.ADVANCED_FILTERS]: '/advanced-filters',
+    [PagesEnum.ADMIN_OPERATORS]: '/main/admin/operators',
 };

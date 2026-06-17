@@ -82,6 +82,10 @@ export type Database = {
           edited_at: string | null
           edited_by: string | null
           end: number
+          external_feed_url: string | null
+          external_source: string | null
+          external_synced_at: string | null
+          external_uid: string | null
           guest: string
           id: string
           phone: string
@@ -98,6 +102,10 @@ export type Database = {
           edited_at?: string | null
           edited_by?: string | null
           end: number
+          external_feed_url?: string | null
+          external_source?: string | null
+          external_synced_at?: string | null
+          external_uid?: string | null
           guest: string
           id?: string
           phone: string
@@ -114,6 +122,10 @@ export type Database = {
           edited_at?: string | null
           edited_by?: string | null
           end?: number
+          external_feed_url?: string | null
+          external_source?: string | null
+          external_synced_at?: string | null
+          external_uid?: string | null
           guest?: string
           id?: string
           phone?: string

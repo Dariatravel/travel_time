@@ -9,10 +9,15 @@ import { useGetSession } from '@/shared/api/auth/auth';
 import { useGetAllCounts } from '@/shared/api/hotel/hotel';
 import { Reserve, useCreateReserve } from '@/shared/api/reserve/reserve';
 import { QUERY_KEYS, queryClient } from '@/shared/config/reactQuery';
+import { PagesEnum, routes } from '@/shared/config/routes';
 import { devLog } from '@/shared/lib/logger';
+import { isAdminRole } from '@/shared/lib/isAdmin';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { $user } from '@/shared/models/auth';
 import { showToast } from '@/shared/ui/Toast/Toast';
-import { Building2, Calendar, Key } from 'lucide-react';
+import { useUnit } from 'effector-react';
+import { Building2, Calendar, Key, UserCog } from 'lucide-react';
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { ToastContainer } from 'react-toastify';
 
@@ -24,6 +29,8 @@ export default function Main() {
     const { data: sessionData } = useGetSession();
 
     const { isMobile } = useScreenSize();
+    const user = useUnit($user);
+    const isAdmin = isAdminRole(user?.role);
 
     useEffect(() => {
         if (sessionData?.session?.access_token) {
@@ -79,6 +86,23 @@ export default function Main() {
                 currentReserve={null}
                 isLoading={isReserveLoading}
             />
+
+            {isAdmin && (
+                <div className="max-w-6xl mx-auto mt-4">
+                    <Link
+                        href={routes[PagesEnum.ADMIN_OPERATORS]}
+                        className="flex items-center gap-3 rounded-xl border bg-white/90 px-4 py-3 shadow-sm transition-colors hover:bg-white"
+                    >
+                        <UserCog className="h-5 w-5 text-primary" />
+                        <div>
+                            <p className="font-medium">Управление операторами</p>
+                            <p className="text-sm text-muted-foreground">
+                                Создание учётных записей для операторов
+                            </p>
+                        </div>
+                    </Link>
+                </div>
+            )}
 
             <div
                 className={cn(
