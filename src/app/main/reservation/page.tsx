@@ -10,6 +10,7 @@ import {
 } from '@/features/BaseCalendar/lib/timelineLayout';
 import { Calendar } from '@/features/Calendar';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
+import { getChessmateHotelHeaderStatus } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import { $isHotelsWithFreeRoomsLoading } from '@/features/Reservation/model/reservationStore';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { SearchForm } from '@/features/Search';
@@ -73,6 +74,14 @@ const HotelCard = ({
     const hotelData = hotelDetail || hotel;
     const shouldShowCalendarLoader =
         isHotelDetailLoading && !hotelDetail && !(hotel.rooms?.length > 0);
+    const chessmateHeaderStatus = getChessmateHotelHeaderStatus(hotelData?.title);
+    const headerStatusClassName =
+        chessmateHeaderStatus === 'active'
+            ? 'bg-[#00ff00]'
+            : chessmateHeaderStatus === 'access'
+              ? 'bg-[#ffff00]'
+              : '';
+    const titleStatusClassName = chessmateHeaderStatus ? 'text-zinc-900' : 'text-zinc-600';
 
     // Измеряем реальную высоту элемента: таймлайн и данные номеров могут менять высоту после первого рендера.
     useEffect(() => {
@@ -129,7 +138,7 @@ const HotelCard = ({
             <Card className="h-full p-0">
                 <CardHeader className="p-0">
                     <CardTitle>
-                        <div className="space-y-2 p-3 sm:p-4">
+                        <div className={`space-y-2 p-3 sm:p-4 ${headerStatusClassName}`}>
                             <div className="space-y-1">
                                 {/* Ранее здесь отображался тип отеля (hotelData.type),
                                     но тип перенесён на уровень номера (room.type),
@@ -138,7 +147,7 @@ const HotelCard = ({
                                     <HotelTitle
                                         size={isMobile ? 's' : 'xl'}
                                         href={getHotelUrl(hotelData)}
-                                        className="text-sm font-semibold text-zinc-600 sm:text-xl"
+                                        className={`text-sm font-semibold ${titleStatusClassName} sm:text-xl`}
                                     >
                                         {hotelData?.title}
                                     </HotelTitle>
