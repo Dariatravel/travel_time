@@ -227,6 +227,7 @@ export const useCreateReserve = (
                     }),
                 ]);
             }
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentActivity });
             onSuccess?.();
         },
         onError: (err) => {
@@ -261,6 +262,7 @@ export const useUpdateReserve = (
                 ]);
             }
             await invalidateReserveHistory(queryClient, variables.id);
+            await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.recentActivity });
             onSuccess?.();
         },
         onError: (err) => {
