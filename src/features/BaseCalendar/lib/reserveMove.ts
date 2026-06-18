@@ -23,10 +23,10 @@ export const toReserveUnix = (value: ReserveTime): number => {
 };
 
 export const getReserveDurationDays = (start: ReserveTime, end: ReserveTime): number => {
-    return moment
-        .unix(toReserveUnix(end))
-        .hour(11)
-        .diff(moment.unix(toReserveUnix(start)).hour(12), 'days');
+    const checkInDay = moment.unix(toReserveUnix(start)).startOf('day');
+    const checkOutDay = moment.unix(toReserveUnix(end)).startOf('day');
+
+    return checkOutDay.diff(checkInDay, 'days');
 };
 
 export const computeMovedReserveDates = (
