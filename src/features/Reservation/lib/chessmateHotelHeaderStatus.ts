@@ -47,7 +47,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'домики у марины': 'active',
     'дыши глубже': 'access',
     'зеленый дворик': 'active',
-    'каво де буксо': 'access',
+    'каво де буксо': 'active',
     камелия: 'active',
     'каралина апартаменты': 'active',
     карин: 'active',
