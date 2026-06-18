@@ -42,6 +42,13 @@ const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
     // Белая лошадь White Horse: номера с кухней 1-2
     '135204': '6b2c368f-ca85-4586-a9d0-316a975a684b',
     '135205': 'aaa07a9e-9ea8-4ed2-89e0-a6eaf1b15202',
+    // Грей Хаус Grey House: основной объект, комнаты 02-07 -> домики 1-6
+    '130634': 'c6279e4a-bbe3-4d0f-a6c1-f30036a5db22',
+    '130635': '97005b61-1f27-4695-a215-df02a93f7234',
+    '130636': '47aa1c55-9c60-4df1-b217-5b0868e42c68',
+    '130637': '7be035cd-d918-447a-ba3f-1fb94b92d9f3',
+    '130638': 'c5870059-b25c-4006-84cd-6da69c0164d8',
+    '130639': '68c9309a-fc7d-4dc5-96be-38b40644155c',
 };
 
 type RealtyCalendarWebhook = {
