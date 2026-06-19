@@ -78,6 +78,13 @@ const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
     '95933': 'cc7f510e-2cef-4561-866b-23203491439a',
     '104510': '7d6b0f8f-c31c-40f4-9d43-f715554f0724',
     '104511': '33d33e56-2545-4ae0-9990-412923188f86',
+    // Эсма (Камелия): 5 домиков + студия (apt 234007 без sub-rooms)
+    '95919': '510b1315-3b36-4462-ae38-4f649e1fe0a6',
+    '95920': '6b098c30-46d4-4af1-8d85-3269c5aad255',
+    '95921': 'b6468e80-2c0a-4cf5-8fc5-3de629d80f8d',
+    '95922': 'ed7a602a-c48b-4115-8500-ea0cfa99f2ac',
+    '95923': 'f08c9e0b-9530-43d2-99d0-0667aca4c752',
+    '234007': 'cedd00b6-5be0-44d4-9356-d88233ac099e',
 };
 
 type RealtyCalendarWebhook = {
@@ -155,11 +162,19 @@ const getBookingTag = (bookingId: string) => `RealtyCalendar booking: ${bookingI
 
 const getMappedRoomId = (booking: RealtyCalendarBooking) => {
     const realtyRoomId = booking.realty_room_id == null ? null : String(booking.realty_room_id);
+    const realtyId = booking.realty_id == null ? null : String(booking.realty_id);
 
     if (realtyRoomId && REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM[realtyRoomId]) {
         return {
             realtyRoomId,
             roomId: REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM[realtyRoomId],
+        };
+    }
+
+    if (realtyId && REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM[realtyId]) {
+        return {
+            realtyRoomId: realtyId,
+            roomId: REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM[realtyId],
         };
     }
 
