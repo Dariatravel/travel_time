@@ -9,6 +9,12 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { buildFallbackReserveHistory } from '@/features/ReserveInfo/lib/formatReserveHistory';
+import {
+    getReserveFormDefaultDates,
+    isValidReserveFormPeriod,
+    resolveReserveDateRangeSelection,
+    serializeReserveFormDates,
+} from '@/features/ReserveInfo/lib/reserveDateForm';
 import { ReserveHistory } from '@/features/ReserveInfo/ui/ReserveHistory';
 import { ReserveTotal } from '@/features/ReserveInfo/ui/ReserveTotal';
 import { FormButtons, PhoneInput } from '@/shared';
@@ -30,9 +36,8 @@ import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUnit } from 'effector-react/compat';
-import moment from 'moment';
-import { FC, useCallback, useEffect, useMemo } from 'react';
-import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
+import { FC, useCallback, useEffect, useMemo, useRef } from 'react';
+import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.scss';
 
@@ -48,14 +53,30 @@ export interface ReserveInfoProps {
 
 // Схема валидации Zod. При редактировании допускаем legacy-значения,
 // которые уже есть в старых бронях и не должны блокировать сохранение.
+const getFirstFormErrorMessage = (errors: FieldErrors<ReserveForm>): string | undefined => {
+    for (const value of Object.values(errors)) {
+        if (!value) continue;
+
+        if (typeof value === 'object' && 'message' in value && typeof value.message === 'string') {
+            return value.message;
+        }
+
+        if (typeof value === 'object') {
+            const nested = getFirstFormErrorMessage(value as FieldErrors<ReserveForm>);
+            if (nested) {
+                return nested;
+            }
+        }
+    }
+
+    return undefined;
+};
+
 const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
     date: z.tuple([z.date(), z.date()], { message: 'Дата обязательна' }).refine(
-        (dates) => {
-            const [start, end] = dates;
-            return start && end && start <= end;
-        },
+        (dates) => isValidReserveFormPeriod(dates[0], dates[1]),
         {
-            message: 'Дата начала должна быть меньше или равна дате окончания',
+            message: 'Дата выезда должна быть позже даты заезда',
         },
     ),
     hotel_id: z
@@ -160,12 +181,7 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         (reserveContext?: Nullable<CurrentReserveType>): Partial<ReserveForm> => {
             const { reserve, room, hotel } = reserveContext ?? {};
 
-            // По умолчанию: с сегодня до завтра (1 сутка)
-            const today = moment().startOf('day').toDate();
-            const tomorrow = moment().add(1, 'day').startOf('day').toDate();
-
-            const startDate = reserve?.start ? moment(reserve?.start).toDate() : today;
-            const endDate = reserve?.end ? moment(reserve?.end).startOf('day').toDate() : tomorrow;
+            const [startDate, endDate] = getReserveFormDefaultDates(reserve);
 
             let defaults: Partial<ReserveForm> = {
                 date: [startDate, endDate],
@@ -220,10 +236,14 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         defaultValues,
     });
 
+    const wasOpenRef = useRef(false);
+
     useEffect(() => {
-        if (isOpen) {
+        if (isOpen && !wasOpenRef.current) {
             form.reset(defaultValues);
         }
+
+        wasOpenRef.current = isOpen;
     }, [defaultValues, form, isOpen]);
 
     const {
@@ -310,9 +330,8 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     // Мемоизируем функцию deserializeData, чтобы не создавать её при каждом рендере
     const deserializeData = useCallback(
         ({ date, price, quantity, prepayment = 0, comment, ...data }: ReserveForm) => {
-            const start = moment(date[0]).hour(12).unix();
+            const { start, end } = serializeReserveFormDates(date);
             const userName = `${user?.name} ${user?.surname}`;
-            const end = moment(date[1]).hour(11).unix();
             const room_id = data.room_id?.id;
             const priceNumber = +price;
             const quantityNumber = +quantity;
@@ -349,18 +368,25 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
     const onAcceptForm = useCallback(
         (formData: ReserveForm) => {
             if (!formData?.date?.[0] || !formData?.date?.[1]) {
-                showToast('Ошибка при создании брони, проверьте даты', 'error');
+                showToast('Ошибка при сохранении брони, проверьте даты', 'error');
                 return;
             }
 
+            const reserveId = currentReserve?.reserve?.id;
             const data = deserializeData(formData);
-            onAccept(currentReserve ? { ...data, id: currentReserve?.reserve?.id } : data);
+
+            if (reserveId) {
+                onAccept({ ...data, id: reserveId });
+                return;
+            }
+
+            onAccept(data);
         },
-        [currentReserve, deserializeData, onAccept],
+        [currentReserve?.reserve?.id, deserializeData, onAccept],
     );
 
     const onError: SubmitErrorHandler<ReserveForm> = useCallback((formErrors) => {
-        const firstError = Object.values(formErrors)[0]?.message;
+        const firstError = getFirstFormErrorMessage(formErrors);
         showToast(firstError || 'Заполните все обязательные поля', 'error');
     }, []);
 
@@ -393,14 +419,17 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
                                                     : undefined
                                             }
                                             onSelect={(range) => {
-                                                if (range?.from) {
-                                                    field.onChange([
-                                                        range.from,
-                                                        range.to || range.from,
-                                                    ]);
-                                                } else {
-                                                    field.onChange(undefined);
+                                                const nextRange = resolveReserveDateRangeSelection(
+                                                    range,
+                                                    field.value,
+                                                );
+
+                                                if (nextRange) {
+                                                    field.onChange(nextRange);
+                                                    return;
                                                 }
+
+                                                field.onChange(undefined);
                                             }}
                                             label="Период бронирования"
                                             numberOfMonths={2}

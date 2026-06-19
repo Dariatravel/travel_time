@@ -1,5 +1,5 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
-import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
+import { buildTimelineReserveItems, toReserveUnix } from '@/features/BaseCalendar/lib/reserveMove';
 import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
@@ -135,17 +135,15 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         devLog('Создаю ROOM', room);
     }, []);
 
-    const onReserveAccept = async (reserve: Reserve) => {
-        const isEdit = currentReserve?.reserve?.id;
-
-        if (isEdit) {
+    const onReserveAccept = async (reserve: Reserve | ReserveDTO) => {
+        if ('id' in reserve && reserve.id) {
             devLog('Пытаюсь обновить запись');
             await updateReserve(reserve as ReserveDTO);
 
             return;
         }
 
-        await createReserve(reserve);
+        await createReserve(reserve as Reserve);
     };
 
     const onReserveDelete = async (id: string) => {
@@ -199,7 +197,15 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         const room = hotelRooms.find((room) => room.id === reserve?.room_id);
 
         if (room) {
-            setCurrentReserve({ room, reserve, hotel });
+            setCurrentReserve({
+                room,
+                reserve: {
+                    ...reserve,
+                    start: toReserveUnix(reserve.start),
+                    end: toReserveUnix(reserve.end),
+                },
+                hotel,
+            });
             setIsReserveOpen(true);
         }
     };
