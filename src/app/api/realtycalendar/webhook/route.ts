@@ -98,6 +98,8 @@ const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
     '114844': '5bf5be58-8d8f-49ef-9d18-e235a1318905',
     '108464': 'b26b6b13-74a1-470f-b78a-d0f7b9a89b10',
     '108465': 'de6d2b38-ac91-433d-8dea-0d255920afc1',
+    // Дыши глубже: А-фрейм (RC apt Рицинское шоссе, 13ый км)
+    '280027': '501010ac-2c2e-4d4a-8add-5f91a39ec57f',
 };
 
 type RealtyCalendarWebhook = {
