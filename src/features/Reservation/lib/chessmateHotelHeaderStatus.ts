@@ -10,6 +10,20 @@ const normalizeHotelTitle = (title: string) =>
 
 // Source: "СЕЗОН 2026. Описание отелей, цены", sheet "ШАХМАТКИ".
 // B "АКТУАЛЬНА" -> active, C "ЕСТЬ ДОСТУП" -> access, D "ПО ЗАПРОСУ" -> request.
+// Объекты с интеграцией RealtyCalendar всегда active (зелёные), даже если в таблице столбец C.
+const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
+    'рита',
+    'александрия',
+    'белая лошадь white horse',
+    'грей хаус grey house',
+    'грин вилладж greenvillage',
+    'санни хоум',
+    'каво де буксо',
+    'эсма',
+    'сизон',
+    'дыши глубже',
+]);
+
 const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus> = {
     абаза: 'request',
     абырлаш: 'request',
@@ -117,7 +131,13 @@ export const getChessmateHotelHeaderStatus = (
 ): ChessmateHotelHeaderStatus | undefined => {
     if (!title) return undefined;
 
-    return CHESSMATE_STATUS_BY_HOTEL_TITLE[normalizeHotelTitle(title)];
+    const normalizedTitle = normalizeHotelTitle(title);
+
+    if (REALTYCALENDAR_INTEGRATED_HOTEL_TITLES.has(normalizedTitle)) {
+        return 'active';
+    }
+
+    return CHESSMATE_STATUS_BY_HOTEL_TITLE[normalizedTitle];
 };
 
 export const getChessmateHotelHeaderStatusOrder = (title?: string | null) => {
