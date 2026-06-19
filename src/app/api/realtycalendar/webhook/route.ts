@@ -85,6 +85,19 @@ const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
     '95922': 'ed7a602a-c48b-4115-8500-ea0cfa99f2ac',
     '95923': 'f08c9e0b-9530-43d2-99d0-0667aca4c752',
     '234007': 'cedd00b6-5be0-44d4-9356-d88233ac099e',
+    // Сизон: 12 номеров (RC 12/14 -> номер 8/9)
+    '114839': '81e1c24c-2a71-41a9-a8e3-b04cf67cd98a',
+    '114835': '37d4c6f8-2921-4133-a333-6e375fc3ed30',
+    '114840': '6a7f2fc3-b12c-48bf-8169-d6030465effc',
+    '114841': 'a96e9ceb-d1a1-47d9-8a6b-d5da99ffef9c',
+    '114842': '4efd4b84-4202-4b6b-8b17-8c233cd1f9da',
+    '114843': '1df7dd69-a781-469b-8a95-28f759abef1c',
+    '114836': '2c7446bb-c120-4e48-aacd-fb358308e3b2',
+    '114837': 'f84cfc10-0112-4ea4-a056-9c189295547d',
+    '114838': 'fc20d403-661b-4c61-bdea-7ffe18024b5d',
+    '114844': '5bf5be58-8d8f-49ef-9d18-e235a1318905',
+    '108464': 'b26b6b13-74a1-470f-b78a-d0f7b9a89b10',
+    '108465': 'de6d2b38-ac91-433d-8dea-0d255920afc1',
 };
 
 type RealtyCalendarWebhook = {
