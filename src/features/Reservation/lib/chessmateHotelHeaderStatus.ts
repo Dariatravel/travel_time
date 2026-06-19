@@ -94,7 +94,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     тис: 'active',
     'феникс дом под ключ': 'active',
     'флора flora дом': 'active',
-    эсма: 'access',
+    эсма: 'active',
 };
 
 export const CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS: {
