@@ -1,6 +1,5 @@
 import { Text } from '@/components/ui/typography';
-// Grid заменен на Tailwind CSS Grid
-import moment from 'moment/moment';
+import { getReserveFormNightCount } from '@/features/ReserveInfo/lib/reserveDateForm';
 import { FC, ReactNode, useMemo } from 'react';
 
 export interface ReserveTotalProps {
@@ -20,8 +19,7 @@ export const ReserveTotal: FC<ReserveTotalProps> = ({
 }: ReserveTotalProps) => {
     const totalDays = useMemo(() => {
         if (date?.[0] && date?.[1]) {
-            const [start, end] = date;
-            return moment(end).hour(12).diff(moment(start).hour(11), 'days');
+            return getReserveFormNightCount(date[0], date[1]);
         }
 
         return 0;
