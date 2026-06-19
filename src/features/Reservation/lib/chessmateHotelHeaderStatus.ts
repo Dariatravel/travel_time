@@ -86,7 +86,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'сансет sunset квартира 2к': 'active',
     'сансет домики': 'access',
     'секрет гарден апартаменты': 'active',
-    'сизон': 'access',
+    'сизон': 'active',
     симона: 'active',
     'сисайд хаус seasidehouse': 'access',
     'старый причал': 'access',
