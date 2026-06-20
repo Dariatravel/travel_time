@@ -3,6 +3,11 @@ import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMo
 import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
+import { getReserveDraftFromTimelineClick } from '@/features/ReserveInfo/lib/reserveDateForm';
+import { useRoomClosureCalendar } from '@/features/RoomClosure/lib/useRoomClosureCalendar';
+import { ClosureEditModal } from '@/features/RoomClosure/ui/ClosureEditModal';
+import { ClosureModeToolbar } from '@/features/RoomClosure/ui/ClosureModeToolbar';
+import { ClosureQuickModal } from '@/features/RoomClosure/ui/ClosureQuickModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO, HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import {
@@ -24,7 +29,6 @@ import { Id } from 'my-react-calendar-timeline';
 
 import { cn } from '@/lib/utils';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
-import moment from 'moment';
 import { useCallback, useMemo, useState } from 'react';
 import '../../../app/main/reservation/calendar.scss';
 import cx from './style.module.scss';
@@ -189,6 +193,21 @@ export const Calendar = ({
         isSaving: isReserveUpdating,
     });
 
+    const {
+        canvasAction,
+        setCanvasAction,
+        timelineItems,
+        onClosureAdd,
+        onClosureItemClick,
+        closureQuickModal,
+        closureEditModal,
+    } = useRoomClosureCalendar({
+        hotelId: hotel.id,
+        hotelRooms,
+        hotelReserves,
+        displayReserves,
+    });
+
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
 
@@ -196,10 +215,7 @@ export const Calendar = ({
             setCurrentReserve({
                 room,
                 hotel,
-                reserve: {
-                    start: moment(time).startOf('day').toDate(),
-                    end: moment(time).add(1, 'day').startOf('day').toDate(),
-                },
+                reserve: getReserveDraftFromTimelineClick(time),
             });
             setIsReserveOpen(true);
         }
@@ -267,16 +283,20 @@ export const Calendar = ({
                             shouldDimCalendar && 'opacity-50 pointer-events-none',
                         )}
                     >
+                        <ClosureModeToolbar value={canvasAction} onChange={setCanvasAction} />
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}
-                            hotelReserves={displayReserves}
+                            hotelReserves={timelineItems}
                             visibleTimeStart={visibleTimeStart}
                             visibleTimeEnd={visibleTimeEnd}
                             timelineClassName="travel-timeline"
                             sidebarWidth={sidebarWidth}
+                            canvasAction={canvasAction}
                             onReserveAdd={onReserveAdd}
+                            onClosureAdd={onClosureAdd}
                             onItemClick={onItemClick}
+                            onClosureItemClick={onClosureItemClick}
                             onGroupClick={onRoomClick}
                             onCreateRoom={onCreate}
                             calendarItemClassName={cx.calendarItem}
@@ -303,6 +323,8 @@ export const Calendar = ({
                 isLoading={reserveLoading}
             />
             {dialogProps && <ReserveMoveConfirmDialog {...dialogProps} />}
+            <ClosureQuickModal {...closureQuickModal} />
+            <ClosureEditModal {...closureEditModal} />
         </div>
     );
 };
