@@ -14,10 +14,18 @@ import {
 import { PagesEnum, routes } from '@/shared/config/routes';
 import dayjs from 'dayjs';
 import Link from 'next/link';
+import { isStaffRole } from '@/shared/lib/userRoles';
+import { $user } from '@/shared/models/auth';
+import { useUnit } from 'effector-react';
+
 import { useMemo, useState } from 'react';
 
 export const RecentActivityFeed = () => {
-    const { data: entries = [], isLoading, isError, error, refetch } = useRecentActivity();
+    const user = useUnit($user);
+    const canViewDashboardHistory = isStaffRole(user?.role);
+    const { data: entries = [], isLoading, isError, error, refetch } = useRecentActivity(
+        canViewDashboardHistory,
+    );
     const [showAll, setShowAll] = useState(false);
     const [expandedEntryId, setExpandedEntryId] = useState<string | null>(null);
 
@@ -28,6 +36,10 @@ export const RecentActivityFeed = () => {
 
         return entries.slice(0, DASHBOARD_ACTIVITY_PAGE_SIZE);
     }, [entries, showAll]);
+
+    if (!canViewDashboardHistory) {
+        return null;
+    }
 
     return (
         <Card className="bg-white/90 border shadow-sm">

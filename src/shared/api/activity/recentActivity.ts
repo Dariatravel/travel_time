@@ -123,8 +123,9 @@ export const getActivityTitle = (entry: RecentActivityEntry) => {
     return getReserveHistoryActionLabel(entry.action);
 };
 
-export const useRecentActivity = () =>
+export const useRecentActivity = (enabled = true) =>
     useQuery({
         queryKey: QUERY_KEYS.recentActivity,
         queryFn: () => getRecentActivity(),
+        enabled,
     });
