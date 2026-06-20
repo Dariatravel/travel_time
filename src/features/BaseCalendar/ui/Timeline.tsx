@@ -8,6 +8,7 @@ import { cn } from '@/lib/utils';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
+import { parseReserveTime } from '@/shared/lib/date';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import moment from 'moment';
@@ -440,8 +441,8 @@ export const Timeline = ({
         () =>
             hotelReserves.map((reserve) => ({
                 ...reserve,
-                start: moment(reserve.start).hour(12).minute(0).second(0).millisecond(0),
-                end: moment(reserve.end).hour(12).minute(0).second(0).millisecond(0),
+                start: parseReserveTime(reserve.start).hour(12).minute(0).second(0).millisecond(0),
+                end: parseReserveTime(reserve.end).hour(12).minute(0).second(0).millisecond(0),
             })),
         [hotelReserves],
     );
