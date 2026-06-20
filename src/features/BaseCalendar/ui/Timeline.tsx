@@ -8,7 +8,11 @@ import { cn } from '@/lib/utils';
 import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
-import { parseReserveTime } from '@/shared/lib/date';
+import {
+    getTimelineItemLabel,
+    isTimelineClosureItem,
+    normalizeTimelineVisualItem,
+} from '@/features/BaseCalendar/lib/timelineBlocks';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import moment from 'moment';
@@ -51,8 +55,11 @@ export interface TimelineProps {
     visibleTimeEnd?: number;
     timelineClassName?: string;
     sidebarWidth?: number;
+    canvasAction?: 'booking' | 'closure';
     onReserveAdd: (groupId: Id, time: number, e: React.SyntheticEvent) => void;
+    onClosureAdd?: (groupId: Id, time: number, e: React.SyntheticEvent) => void;
     onItemClick: (reserve: ReserveDTO, hotel: HotelDTO) => void;
+    onClosureItemClick?: (item: any) => void;
     onGroupClick?: (room: any) => void;
     onCreateRoom?: () => void;
     calendarItemClassName?: string;
@@ -70,13 +77,16 @@ export const Timeline = ({
     timelineClassName = 'hotelTimeline',
     sidebarWidth,
     onReserveAdd,
+    onClosureAdd,
     onItemClick,
+    onClosureItemClick,
     onGroupClick,
     onCreateRoom,
     calendarItemClassName,
     timelineId,
     onGroupsReorder,
     onItemMove,
+    canvasAction = 'booking',
 }: TimelineProps) => {
     // const [isMobile] = useUnit([$isMobile]);
     const { isMobile, isPhone } = useScreenSize();
@@ -164,6 +174,18 @@ export const Timeline = ({
         [visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays, isMobile],
     );
 
+    const handleCanvasAction = useCallback(
+        (groupId: Id, time: number, e: React.SyntheticEvent) => {
+            if (canvasAction === 'closure') {
+                onClosureAdd?.(groupId, time, e);
+                return;
+            }
+
+            onReserveAdd(groupId, time, e);
+        },
+        [canvasAction, onClosureAdd, onReserveAdd],
+    );
+
     const itemRenderer = useCallback(
         ({
             item,
@@ -179,13 +201,33 @@ export const Timeline = ({
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-expect-error
             const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
+            const isClosure = isTimelineClosureItem(item);
+
+            const handleItemOpen = () => {
+                if (isClosure) {
+                    onClosureItemClick?.(item);
+                    return;
+                }
+
+                onItemClick(item, hotel);
+            };
 
             return (
                 <div
-                    {...getItemProps(item.itemProps)}
-                    onDoubleClick={() => {
-                        onItemClick(item, hotel);
-                    }}
+                    {...getItemProps({
+                        ...item.itemProps,
+                        style: {
+                            ...item.itemProps?.style,
+                            ...(isClosure
+                                ? {
+                                      background: 'transparent',
+                                      border: 'none',
+                                      boxShadow: 'none',
+                                  }
+                                : {}),
+                        },
+                    })}
+                    onDoubleClick={handleItemOpen}
                     onTouchStart={(event) => {
                         const touch = event.touches[0];
                         if (!touch) return;
@@ -203,22 +245,26 @@ export const Timeline = ({
                     }}
                     onTouchEnd={() => {
                         if (hasTouchMovedRef.current) return;
-                        onItemClick(item, hotel);
+                        handleItemOpen();
                     }}
                 >
                     {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
                     <div
-                        className={`${calendarItemClassName || styles.calendarItem} rct-item-content`}
+                        className={`${
+                            isClosure
+                                ? styles.closureItem
+                                : calendarItemClassName || styles.calendarItem
+                        } rct-item-content`}
                         style={{ maxHeight: `${itemContext.dimensions.height}` }}
                     >
-                        {item?.guest} {item?.phone}
+                        {getTimelineItemLabel(item)}
                     </div>
 
                     {itemContext.useResizeHandle ? <div {...rightResizeProps} /> : ''}
                 </div>
             );
         },
-        [calendarItemClassName, hotel, onItemClick],
+        [calendarItemClassName, hotel, onClosureItemClick, onItemClick],
     );
 
     const groupRenderer = useCallback(
@@ -438,12 +484,7 @@ export const Timeline = ({
     /** На телефоне скрываем подписи верхнего ряда только когда оба ряда на одном масштабе (дубль). */
     const hideUpperIntervalTextOnPhone = isPhone && upperHeaderUnit === lowerHeaderUnit;
     const visualHotelReserves = useMemo(
-        () =>
-            hotelReserves.map((reserve) => ({
-                ...reserve,
-                start: parseReserveTime(reserve.start).hour(12).minute(0).second(0).millisecond(0),
-                end: parseReserveTime(reserve.end).hour(12).minute(0).second(0).millisecond(0),
-            })),
+        () => hotelReserves.map((item) => normalizeTimelineVisualItem(item)),
         [hotelReserves],
     );
 
@@ -523,10 +564,10 @@ export const Timeline = ({
                         // @ts-expect-error - Событие touch не определено в типах Timeline
                         if (e?.nativeEvent?.pointerType === 'touch') {
                             if (hasTouchMovedRef.current) return;
-                            onReserveAdd(groupId, time, e);
+                            handleCanvasAction(groupId, time, e);
                         }
                     }}
-                    onCanvasDoubleClick={onReserveAdd}
+                    onCanvasDoubleClick={handleCanvasAction}
                     itemRenderer={itemRenderer}
                     groupRenderer={groupRenderer}
                 >

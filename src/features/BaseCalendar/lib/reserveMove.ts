@@ -2,7 +2,7 @@ import { getDateFromUnix } from '@/shared/lib/date';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import moment, { Moment } from 'moment';
 
-type ReserveTime = number | Date | Moment;
+export type ReserveTime = number | Date | Moment;
 
 export type TimelineReserveItem = Omit<ReserveDTO, 'start' | 'end'> & {
     group: string;
