@@ -36,7 +36,7 @@ import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUnit } from 'effector-react/compat';
-import { FC, useCallback, useEffect, useMemo, useRef } from 'react';
+import { FC, useCallback, useEffect, useMemo } from 'react';
 import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.scss';
@@ -139,7 +139,15 @@ const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
     edited_at: z.string().optional(),
 });
 
-export const ReserveInfo: FC<ReserveInfoProps> = ({
+export const ReserveInfo: FC<ReserveInfoProps> = (props) => {
+    const formKey = props.isEdit
+        ? `edit-${props.currentReserve?.reserve?.id ?? 'unknown'}`
+        : 'create';
+
+    return <ReserveInfoForm key={formKey} {...props} />;
+};
+
+const ReserveInfoForm: FC<ReserveInfoProps> = ({
     onAccept,
     onClose,
     onDelete,
@@ -236,14 +244,10 @@ export const ReserveInfo: FC<ReserveInfoProps> = ({
         defaultValues,
     });
 
-    const wasOpenRef = useRef(false);
-
     useEffect(() => {
-        if (isOpen && !wasOpenRef.current) {
+        if (isOpen) {
             form.reset(defaultValues);
         }
-
-        wasOpenRef.current = isOpen;
     }, [defaultValues, form, isOpen]);
 
     const {
