@@ -1,5 +1,5 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
-import { buildTimelineReserveItems, toReserveUnix } from '@/features/BaseCalendar/lib/reserveMove';
+import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
 import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
@@ -193,18 +193,17 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         }
     };
 
-    const onItemClick = (reserve: ReserveDTO, hotel: HotelDTO) => {
-        const room = hotelRooms.find((room) => room.id === reserve?.room_id);
+    const onItemClick = (item: ReserveDTO, hotelItem: HotelDTO) => {
+        const room = hotelRooms.find((room) => room.id === item?.room_id);
+        const sourceReserve = data
+            ?.flatMap(({ reserves }) => reserves ?? [])
+            .find((reserve) => reserve.id === item.id);
 
-        if (room) {
+        if (room && sourceReserve) {
             setCurrentReserve({
                 room,
-                reserve: {
-                    ...reserve,
-                    start: toReserveUnix(reserve.start),
-                    end: toReserveUnix(reserve.end),
-                },
-                hotel,
+                reserve: sourceReserve,
+                hotel: hotelItem,
             });
             setIsReserveOpen(true);
         }
