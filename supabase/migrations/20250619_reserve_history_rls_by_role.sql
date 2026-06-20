@@ -26,7 +26,7 @@ AS $$
         WHERE r.id = reserve_uuid
           AND (
               app_private.current_user_role() IN ('admin', 'operator')
-              OR h.user_id = auth.uid()::text
+              OR h.user_id = auth.uid()
           )
     );
 $$;
