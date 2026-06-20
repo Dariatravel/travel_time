@@ -71,7 +71,11 @@ export const useReserveDragMove = ({
             const reserve = hotelReserves.find((item) => item.id === itemId);
             const newRoom = hotelRooms[newGroupOrder];
 
-            if (!reserve || !newRoom) {
+            if (
+                !reserve ||
+                !newRoom ||
+                (reserve as { itemKind?: string }).itemKind === 'closure'
+            ) {
                 return;
             }
 
