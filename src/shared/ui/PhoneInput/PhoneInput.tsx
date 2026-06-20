@@ -36,22 +36,34 @@ const looksLikeInternational = (d: string): boolean =>
  * - либо 11 цифр, где первая "7"
  * - либо 10 цифр без страны (тогда будет добавлена "7"), если не похоже на международный код
  */
-const formatRu = (digits: string): string => {
-  if (!digits) return '';
-
+const normalizeRuDigits = (digits: string): string => {
   let d = digitsOnly(digits);
 
   // 8XXXXXXXXXX -> 7XXXXXXXXXX
-  if (d.length === 11 && d.startsWith('8')) d = `7${d.slice(1)}`;
+  if (d.length === 11 && d.startsWith('8')) {
+    d = `7${d.slice(1)}`;
+  }
 
-  // 10 цифр -> РФ только если это не международный префикс (375, 380 и т.д.)
-  if (d.length === 10 && !looksLikeInternational(d)) d = `7${d}`;
+  // 10 цифр без кода страны (9XXXXXXXXX) -> 79XXXXXXXXX
+  // 10 цифр с ведущей 7 — это уже укороченный полный номер, не добавляем 7 повторно
+  if (d.length === 10 && !looksLikeInternational(d) && !d.startsWith('7') && !d.startsWith('8')) {
+    d = `7${d}`;
+  }
+
+  if (d.length === 10 && d.startsWith('8')) {
+    d = `7${d.slice(1)}`;
+  }
+
+  return d;
+};
+
+const formatRu = (digits: string): string => {
+  if (!digits) return '';
+
+  const d = normalizeRuDigits(digits).slice(0, 11);
 
   // Если не РФ - просто отдаем цифры как есть (на всякий случай)
   if (!(d.length >= 1 && d.startsWith('7'))) return d;
-
-  // Ограничиваем 11 цифрами (7 + 10)
-  d = d.slice(0, 11);
 
   if (d.length <= 1) return '+7';
   if (d.length <= 4) return `+7(${d.slice(1)}`;
@@ -93,6 +105,32 @@ const shouldTreatAsInternational = (raw: string, d: string): boolean => {
   return false;
 };
 
+const formatPhoneValue = (raw: string): string => {
+  const d = digitsOnly(raw);
+
+  if (!d) {
+    return '';
+  }
+
+  if (shouldTreatAsInternational(raw, d)) {
+    return normalizeInternational(raw);
+  }
+
+  if (d.length === 10 && looksLikeInternational(d)) {
+    return `+${d}`;
+  }
+
+  if (d.startsWith('7') || d.startsWith('8')) {
+    return formatRu(d);
+  }
+
+  if (d.length <= 10 && !looksLikeInternational(d)) {
+    return formatRu(d);
+  }
+
+  return normalizeInternational(raw);
+};
+
 export const PhoneInput = <T extends FieldValues>({
   control,
   name,
@@ -109,56 +147,8 @@ export const PhoneInput = <T extends FieldValues>({
     return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
   };
 
-  const handleChange = (
-    raw: string,
-    onChange: (value: string) => void,
-    previousValue: string = '',
-  ) => {
-    // если удаляют - не мешаем
-    if (raw.length < (previousValue || '').length) {
-      const d = digitsOnly(raw);
-      if (!d) {
-        onChange('');
-        return;
-      }
-    }
-
-    const d = digitsOnly(raw);
-
-    if (!d) {
-      onChange('');
-      return;
-    }
-
-    // Международные - не навязываем +7
-    if (shouldTreatAsInternational(raw, d)) {
-      onChange(normalizeInternational(raw));
-      return;
-    }
-
-    // 10 цифр — если международный префикс (375, 380…), добавляем + и не форматируем как РФ
-    if (d.length === 10 && looksLikeInternational(d)) {
-      onChange(`+${d}`);
-      return;
-    }
-
-    // РФ сценарии:
-    // - +7...
-    // - 7XXXXXXXXXX
-    // - 8XXXXXXXXXX
-    // - 10 цифр без страны (начинаются с 9, 3xx не 375/380, 4, 5, 8)
-    if (d.length === 10) {
-      onChange(formatRu(d));
-      return;
-    }
-
-    if (d.length >= 1 && (d.startsWith('7') || d.startsWith('8'))) {
-      onChange(formatRu(d));
-      return;
-    }
-
-    // На всякий случай
-    onChange(normalizeInternational(raw));
+  const handleChange = (raw: string, onChange: (value: string) => void) => {
+    onChange(formatPhoneValue(raw));
   };
 
   const handlePaste = (
@@ -168,46 +158,7 @@ export const PhoneInput = <T extends FieldValues>({
     event.preventDefault();
 
     const pastedRaw = (event.clipboardData.getData('text') || '').trim();
-    const d = digitsOnly(pastedRaw);
-
-    if (!d) return;
-
-    const hasPlus = pastedRaw.startsWith('+');
-
-    // Если явно международный (+ и не +7) - сохраняем как международный
-    if (hasPlus && !pastedRaw.startsWith('+7')) {
-      onChange(`+${d.slice(0, 15)}`);
-      return;
-    }
-
-    // РФ кейсы вставки:
-    // +7XXXXXXXXXX
-    // 8XXXXXXXXXX
-    // 7XXXXXXXXXX
-    if (d.length === 11 && (d.startsWith('7') || d.startsWith('8'))) {
-      onChange(formatRu(d));
-      return;
-    }
-
-    // 10 цифр — если международный префикс, добавляем +
-    if (d.length === 10 && looksLikeInternational(d)) {
-      onChange(`+${d}`);
-      return;
-    }
-
-    if (d.length === 10) {
-      onChange(formatRu(d));
-      return;
-    }
-
-    // Всё, что длиннее 10 и не РФ - считаем международным (Беларусь, и т.д.)
-    if (d.length > 10 && !d.startsWith('7') && !d.startsWith('8')) {
-      onChange(`+${d.slice(0, 15)}`);
-      return;
-    }
-
-    // fallback
-    onChange(hasPlus ? `+${d.slice(0, 15)}` : d.slice(0, 15));
+    onChange(formatPhoneValue(pastedRaw));
   };
 
   return (
@@ -230,7 +181,7 @@ export const PhoneInput = <T extends FieldValues>({
               disabled={disabled}
               className={className}
               onChange={(event: React.ChangeEvent<HTMLInputElement>) =>
-                handleChange(event.target.value, field.onChange, field.value || '')
+                handleChange(event.target.value, field.onChange)
               }
               onPaste={(event: React.ClipboardEvent<HTMLInputElement>) =>
                 handlePaste(event, field.onChange)
