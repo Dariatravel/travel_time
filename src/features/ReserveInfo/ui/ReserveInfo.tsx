@@ -41,6 +41,10 @@ import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } fr
 import { z } from 'zod';
 import cx from './style.module.scss';
 
+type ReserveFormValues = Omit<ReserveForm, 'prepayment'> & {
+    prepayment?: number | string;
+};
+
 export interface ReserveInfoProps {
     onClose: () => void;
     onAccept: (reserve: Reserve | ReserveDTO) => void;
@@ -53,7 +57,7 @@ export interface ReserveInfoProps {
 
 // Схема валидации Zod. При редактировании допускаем legacy-значения,
 // которые уже есть в старых бронях и не должны блокировать сохранение.
-const getFirstFormErrorMessage = (errors: FieldErrors<ReserveForm>): string | undefined => {
+const getFirstFormErrorMessage = (errors: FieldErrors<ReserveFormValues>): string | undefined => {
     for (const value of Object.values(errors)) {
         if (!value) continue;
 
@@ -62,7 +66,7 @@ const getFirstFormErrorMessage = (errors: FieldErrors<ReserveForm>): string | un
         }
 
         if (typeof value === 'object') {
-            const nested = getFirstFormErrorMessage(value as FieldErrors<ReserveForm>);
+            const nested = getFirstFormErrorMessage(value as FieldErrors<ReserveFormValues>);
             if (nested) {
                 return nested;
             }
@@ -132,7 +136,18 @@ const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
         .any()
         .optional()
         .transform((value) => (value == null ? '' : String(value))),
-    prepayment: z.coerce.number().optional(),
+    prepayment: z
+        .union([z.number(), z.string(), z.undefined()])
+        .refine((value) => value !== '' && value !== null && value !== undefined, {
+            message: 'Укажите сумму предоплаты',
+        })
+        .transform((value) => Number(value))
+        .refine((value) => !Number.isNaN(value), {
+            message: 'Сумма должна быть числом',
+        })
+        .refine((value) => value >= 0, {
+            message: 'Сумма не может быть отрицательной',
+        }),
     created_by: z.string().optional(),
     edited_by: z.string().optional(),
     created_at: z.string().optional(),
@@ -186,12 +201,12 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     };
     // Мемоизируем getDefaultValues, чтобы не пересчитывать при каждом рендере
     const getDefaultValues = useCallback(
-        (reserveContext?: Nullable<CurrentReserveType>): Partial<ReserveForm> => {
+        (reserveContext?: Nullable<CurrentReserveType>): Partial<ReserveFormValues> => {
             const { reserve, room, hotel } = reserveContext ?? {};
 
             const [startDate, endDate] = getReserveFormDefaultDates(reserve);
 
-            let defaults: Partial<ReserveForm> = {
+            let defaults: Partial<ReserveFormValues> = {
                 date: [startDate, endDate],
                 // hotel_id используется только для выбора отеля и загрузки номеров, не сохраняется в резерве
                 hotel_id: hotel
@@ -238,7 +253,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     }, [currentReserve, getDefaultValues]);
     const reserveFormSchema = useMemo(() => createReserveFormSchema(!!isEdit), [isEdit]);
 
-    const form = useForm<ReserveForm>({
+    const form = useForm<ReserveFormValues>({
         resolver: zodResolver(reserveFormSchema),
         mode: 'onChange',
         defaultValues,
@@ -264,6 +279,8 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     const date = watch('date');
     const price = watch('price');
     const prepayment = watch('prepayment');
+    const prepaymentAmount =
+        prepayment === '' || prepayment == null ? 0 : Number(prepayment) || 0;
 
     const {
         data: rooms,
@@ -333,7 +350,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
     // Мемоизируем функцию deserializeData, чтобы не создавать её при каждом рендере
     const deserializeData = useCallback(
-        ({ date, price, quantity, prepayment = 0, comment, ...data }: ReserveForm) => {
+        ({ date, price, quantity, prepayment = 0, comment, ...data }: ReserveFormValues) => {
             const { start, end } = serializeReserveFormDates(date);
             const userName = `${user?.name} ${user?.surname}`;
             const room_id = data.room_id?.id;
@@ -370,7 +387,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
     // Мемоизируем обработчики событий
     const onAcceptForm = useCallback(
-        (formData: ReserveForm) => {
+        (formData: ReserveFormValues) => {
             if (!formData?.date?.[0] || !formData?.date?.[1]) {
                 showToast('Ошибка при сохранении брони, проверьте даты', 'error');
                 return;
@@ -389,7 +406,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         [currentReserve?.reserve?.id, deserializeData, onAccept],
     );
 
-    const onError: SubmitErrorHandler<ReserveForm> = useCallback((formErrors) => {
+    const onError: SubmitErrorHandler<ReserveFormValues> = useCallback((formErrors) => {
         const firstError = getFirstFormErrorMessage(formErrors);
         showToast(firstError || 'Заполните все обязательные поля', 'error');
     }, []);
@@ -636,21 +653,34 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                             <ReserveTotal
                                 date={date}
                                 price={price}
-                                prepayment={prepayment}
+                                prepayment={prepaymentAmount}
                                 className={cx.fields}
                                 Prepayment={
                                     <Controller
                                         name="prepayment"
                                         control={control}
-                                        render={({ field }) => (
-                                            <Input
-                                                {...field}
-                                                className={cx.fields}
-                                                disabled={lookupLoading}
-                                                value={String(field?.value || 0)}
-                                                onChange={field.onChange}
-                                                type={'number'}
-                                            />
+                                        render={({ field, fieldState: { error } }) => (
+                                            <div className="space-y-1">
+                                                <Input
+                                                    {...field}
+                                                    className={cx.fields}
+                                                    disabled={lookupLoading}
+                                                    value={
+                                                        field.value === '' || field.value == null
+                                                            ? ''
+                                                            : String(field.value)
+                                                    }
+                                                    onChange={(event) => {
+                                                        const nextValue = event.target.value;
+                                                        field.onChange(
+                                                            nextValue === '' ? '' : nextValue,
+                                                        );
+                                                    }}
+                                                    type="number"
+                                                    min={0}
+                                                />
+                                                <FormMessage message={error?.message} />
+                                            </div>
                                         )}
                                     />
                                 }
