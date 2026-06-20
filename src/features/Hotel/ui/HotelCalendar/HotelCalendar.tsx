@@ -40,7 +40,7 @@ import {
     useUpdateRoomOrder,
 } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
-import { getDateFromUnix } from '@/shared/lib/date';
+import { getReserveDraftFromTimelineClick, parseTimelineCanvasTime } from '@/features/ReserveInfo/lib/reserveDateForm';
 import { devLog } from '@/shared/lib/logger';
 import { isRoomClosurePilotHotel } from '@/shared/lib/roomClosurePilot';
 import { $hotelsFilter } from '@/shared/models/hotels';
@@ -51,7 +51,6 @@ import { showToast } from '@/shared/ui/Toast/Toast';
 import { useQueryClient } from '@tanstack/react-query';
 import { useUnit } from 'effector-react/compat';
 import { cloneDeep } from 'lodash';
-import moment from 'moment';
 import { Id } from 'my-react-calendar-timeline';
 import { useCallback, useMemo, useRef, useState } from 'react';
 import '../../../../app/main/reservation/calendar.scss';
@@ -60,9 +59,6 @@ import cx from './style.module.scss';
 export interface CalendarProps {
     hotel: HotelDTO;
 }
-
-const parseTimelineCanvasTime = (time: number) =>
-    time > 1e12 ? moment(time) : moment.unix(time);
 
 type ClosureDraft = {
     roomId: string;
@@ -284,10 +280,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             setCurrentReserve({
                 room,
                 hotel,
-                reserve: {
-                    start: time,
-                    end: getDateFromUnix(time).add(1, 'day').unix(),
-                },
+                reserve: getReserveDraftFromTimelineClick(time),
             });
             setIsReserveOpen(true);
         }

@@ -49,6 +49,19 @@ export const serializeReserveFormDates = (date: [Date, Date]) => {
     return { start, end };
 };
 
+/** Timeline canvas click: ms since epoch; API reserves use unix seconds. */
+export const parseTimelineCanvasTime = (time: number) =>
+    time > 1e12 ? moment(time) : moment.unix(time);
+
+export const getReserveDraftFromTimelineClick = (time: number) => {
+    const checkInDay = parseTimelineCanvasTime(time).startOf('day');
+
+    return serializeReserveFormDates([
+        checkInDay.toDate(),
+        checkInDay.clone().add(1, 'day').toDate(),
+    ]);
+};
+
 export const getReserveFormDefaultDates = (
     reserve?: { start?: number | Date; end?: number | Date },
     fallbackStart?: Date,
