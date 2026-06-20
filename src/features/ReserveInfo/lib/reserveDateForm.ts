@@ -1,8 +1,13 @@
 import moment from 'moment';
 import type { DateRange } from 'react-day-picker';
 
-export const toReserveFormDay = (value: Date | number | string) =>
-    moment(value).startOf('day').toDate();
+export const toReserveFormDay = (value: Date | number | string) => {
+    if (typeof value === 'number') {
+        return moment.unix(value).startOf('day').toDate();
+    }
+
+    return moment(value).startOf('day').toDate();
+};
 
 export const getReserveFormNightCount = (start: Date, end: Date) =>
     moment(end).startOf('day').diff(moment(start).startOf('day'), 'days');

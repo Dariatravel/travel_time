@@ -9,6 +9,7 @@ import {
     FilterOption,
 } from '@/features/AdvancedFilters';
 import { ExportHotelsButton } from '@/features/ExportHotels';
+import { ExportReservesButton } from '@/features/ExportReserves';
 import { HOTEL_TYPES } from '@/features/HotelModal/lib/const';
 import { FormMultipleSelector } from '@/features/HotelModal/ui/components';
 import {
@@ -709,6 +710,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                     }}
                                 />
                                 <ExportHotelsButton />
+                                <ExportReservesButton />
                             </div>
                             <div className="w-full sm:w-auto">
                                 <Button

@@ -1,5 +1,13 @@
-import moment from "moment/moment";
+import moment, { Moment } from 'moment/moment';
 
 export const getDateFromUnix = (unix: number) => {
-    return moment.unix(unix)
-}
+    return moment.unix(unix);
+};
+
+export const parseReserveTime = (value: number | Date | Moment) => {
+    if (typeof value === 'number') {
+        return moment.unix(value);
+    }
+
+    return moment(value);
+};
