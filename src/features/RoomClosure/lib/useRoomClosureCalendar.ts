@@ -6,6 +6,7 @@ import {
     toTimelineBlockEntries,
     type TimelineCalendarItem,
 } from '@/features/BaseCalendar/lib/timelineBlocks';
+import { useClosureDragMove } from '@/features/RoomClosure/lib/useClosureDragMove';
 import { parseTimelineCanvasTime } from '@/features/ReserveInfo/lib/reserveDateForm';
 import type { CanvasAction } from '@/features/RoomClosure/ui/ClosureModeToolbar';
 import {
@@ -38,6 +39,9 @@ type UseRoomClosureCalendarParams = {
     hotelRooms: RoomOption[];
     hotelReserves: TimelineReserveItem[];
     displayReserves: TimelineReserveItem[];
+    onReserveItemMove: (itemId: Id, dragTime: number, newGroupOrder: number) => void;
+    isReserveMoveSaving?: boolean;
+    hasPendingReserveMove?: boolean;
 };
 
 export const useRoomClosureCalendar = ({
@@ -45,6 +49,9 @@ export const useRoomClosureCalendar = ({
     hotelRooms,
     hotelReserves,
     displayReserves,
+    onReserveItemMove,
+    isReserveMoveSaving = false,
+    hasPendingReserveMove = false,
 }: UseRoomClosureCalendarParams) => {
     const user = useUnit($user);
     const userName = user ? `${user.name} ${user.surname}`.trim() : undefined;
@@ -99,14 +106,49 @@ export const useRoomClosureCalendar = ({
         },
     );
 
+    const {
+        displayClosures,
+        handleClosureItemMove,
+        dialogProps: closureMoveDialogProps,
+        hasPendingMove: hasPendingClosureMove,
+    } = useClosureDragMove({
+        hotelRooms,
+        roomClosures,
+        getBlockedEntries,
+        updateRoomClosure,
+        isSaving: isClosureUpdating,
+    });
+
     const timelineItems = useMemo((): TimelineCalendarItem[] => {
         const reserveItems = displayReserves.map((item) => ({
             ...item,
             itemKind: 'reserve' as const,
         }));
 
-        return [...reserveItems, ...buildTimelineClosureItems(roomClosures)];
-    }, [displayReserves, roomClosures]);
+        return [...reserveItems, ...buildTimelineClosureItems(displayClosures)];
+    }, [displayClosures, displayReserves]);
+
+    const handleItemMove = useCallback(
+        (itemId: Id, dragTime: number, newGroupOrder: number) => {
+            if (hasPendingReserveMove || hasPendingClosureMove) {
+                return;
+            }
+
+            if (roomClosures.some((closure) => closure.id === itemId)) {
+                handleClosureItemMove(itemId, dragTime, newGroupOrder);
+                return;
+            }
+
+            onReserveItemMove(itemId, dragTime, newGroupOrder);
+        },
+        [
+            handleClosureItemMove,
+            hasPendingClosureMove,
+            hasPendingReserveMove,
+            onReserveItemMove,
+            roomClosures,
+        ],
+    );
 
     const onClosureAdd = useCallback(
         (groupId: Id, time: number) => {
@@ -129,15 +171,16 @@ export const useRoomClosureCalendar = ({
 
     const onClosureItemClick = useCallback(
         (item: TimelineCalendarItem) => {
-            const closure = roomClosures.find((entry) => entry.id === item.id);
+            const closure = displayClosures.find((entry) => entry.id === item.id);
             if (closure) {
                 setEditingClosure(closure);
             }
         },
-        [roomClosures],
+        [displayClosures],
     );
 
-    const closureLoading = isClosureCreating || isClosureUpdating;
+    const closureLoading =
+        isClosureCreating || isClosureUpdating || isReserveMoveSaving;
     const editingClosureRoomTitle = editingClosure
         ? hotelRooms.find((room) => room.id === editingClosure.room_id)?.title
         : undefined;
@@ -146,8 +189,10 @@ export const useRoomClosureCalendar = ({
         canvasAction,
         setCanvasAction,
         timelineItems,
+        handleItemMove,
         onClosureAdd,
         onClosureItemClick,
+        closureMoveDialogProps,
         closureQuickModal: {
             isOpen: !!closureDraft,
             roomTitle: closureDraft?.roomTitle ?? '',

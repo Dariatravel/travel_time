@@ -13,6 +13,7 @@ import {
 
 export interface ReserveMoveConfirmDialogProps {
     open: boolean;
+    title?: string;
     guestName?: string;
     roomTitle: string;
     periodLabel: string;
@@ -23,6 +24,7 @@ export interface ReserveMoveConfirmDialogProps {
 
 export const ReserveMoveConfirmDialog = ({
     open,
+    title = 'Переместить бронь?',
     guestName,
     roomTitle,
     periodLabel,
@@ -43,7 +45,7 @@ export const ReserveMoveConfirmDialog = ({
         >
             <AlertDialogContent>
                 <AlertDialogHeader>
-                    <AlertDialogTitle>Переместить бронь?</AlertDialogTitle>
+                    <AlertDialogTitle>{title}</AlertDialogTitle>
                     <AlertDialogDescription asChild>
                         <div className="space-y-2 text-sm text-muted-foreground">
                             <p>
