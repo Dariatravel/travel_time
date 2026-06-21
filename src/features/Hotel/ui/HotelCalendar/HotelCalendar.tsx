@@ -175,7 +175,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
 
     const hotelReserves = useMemo(() => buildTimelineReserveItems(data ?? []), [data]);
 
-    const { displayReserves, handleItemMove, dialogProps } = useReserveDragMove({
+    const { displayReserves, handleItemMove: handleReserveItemMove, dialogProps, hasPendingMove: hasPendingReserveMove } = useReserveDragMove({
         hotelRooms,
         hotelReserves,
         updateReserve,
@@ -186,8 +186,10 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         canvasAction,
         setCanvasAction,
         timelineItems,
+        handleItemMove,
         onClosureAdd,
         onClosureItemClick,
+        closureMoveDialogProps,
         closureQuickModal,
         closureEditModal,
     } = useRoomClosureCalendar({
@@ -195,6 +197,9 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         hotelRooms,
         hotelReserves,
         displayReserves,
+        onReserveItemMove: handleReserveItemMove,
+        isReserveMoveSaving: isReserveUpdating,
+        hasPendingReserveMove,
     });
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
@@ -297,6 +302,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 isLoading={reserveLoading}
             />
             {dialogProps && <ReserveMoveConfirmDialog {...dialogProps} />}
+            {closureMoveDialogProps && <ReserveMoveConfirmDialog {...closureMoveDialogProps} />}
             <ClosureQuickModal {...closureQuickModal} />
             <ClosureEditModal {...closureEditModal} />
         </>
