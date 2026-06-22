@@ -4,8 +4,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { NoDataAvailable } from '@/components/ui/empty-state';
 import { VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
 import {
-    TIMELINE_HEADER_ROWS_ESTIMATE,
-    TIMELINE_MOBILE_CONTROLS_ESTIMATE,
     TIMELINE_ROW_HEIGHT,
 } from '@/features/BaseCalendar/lib/timelineLayout';
 import { Calendar } from '@/features/Calendar';
@@ -42,6 +40,7 @@ const HotelCard = ({
     virtualItem,
     hotel,
     isMobile,
+    isPhone,
     onHotelClick,
     onHotelInfoClick,
     onRoomClick,
@@ -53,6 +52,7 @@ const HotelCard = ({
     virtualItem: { index: number; start: number; size: number };
     hotel: HotelRoomsReservesDTO;
     isMobile: boolean;
+    isPhone: boolean;
     onHotelClick?: (hotel_id: string) => void;
     onHotelInfoClick?: (hotel: HotelRoomsReservesDTO) => void;
     onRoomClick?: (room: RoomDTO, hotel: HotelRoomsReservesDTO) => void;
@@ -183,17 +183,29 @@ const HotelCard = ({
                     </CardTitle>
                 </CardHeader>
                 <CardContent className="p-0">
-                    <Calendar
-                        isLoading={shouldShowCalendarLoader}
-                        hotel={hotelData}
-                        visibleTimeStart={visibleTimeStart}
-                        visibleTimeEnd={visibleTimeEnd}
-                        onHotelClick={onHotelClick}
-                        onRoomClick={(room) => {
-                            // Вызываем обработчик из родительского компонента
-                            onRoomClick?.(room, hotelData);
-                        }}
-                    />
+                    {isPhone ? (
+                        <div className="px-3 pb-4">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => onHotelClick?.(hotel.id)}
+                            >
+                                Открыть шахматку
+                            </Button>
+                        </div>
+                    ) : (
+                        <Calendar
+                            isLoading={shouldShowCalendarLoader}
+                            hotel={hotelData}
+                            visibleTimeStart={visibleTimeStart}
+                            visibleTimeEnd={visibleTimeEnd}
+                            onHotelClick={onHotelClick}
+                            onRoomClick={(room) => {
+                                onRoomClick?.(room, hotelData);
+                            }}
+                        />
+                    )}
                 </CardContent>
             </Card>
         </div>
@@ -225,6 +237,9 @@ export default function Home() {
     /** Страницы API: слишком мелкий размер даёт много запросов; «два отеля и стоп» бывает, если нет скролла и не вызывается fetchNextPage. */
     const PAGE_SIZE = 12;
 
+    /** На телефоне не догружаем весь каталог сразу — это перегружает память. */
+    const PHONE_MAX_PAGES = 2;
+
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
 
@@ -237,7 +252,7 @@ export default function Home() {
         getScrollElement,
         estimateSize: (index) => {
             const hotel = hotelsWithRooms[index];
-            if (!hotel) return isPhone ? 520 : 400;
+            if (!hotel) return isPhone ? 232 : 400;
 
             const roomsCount = hotel.rooms?.length || 1;
             const rowHeight = isPhone
@@ -247,15 +262,8 @@ export default function Home() {
                   : TIMELINE_ROW_HEIGHT.desktop;
             const gap = 12;
 
-            /* Телефон: таймлайн растёт по числу номеров, поэтому оценка использует тот же rowHeight, что и Timeline.lineHeight. */
             if (isPhone) {
-                const headerBlock = 200;
-                const calendarBody =
-                    TIMELINE_MOBILE_CONTROLS_ESTIMATE +
-                    TIMELINE_HEADER_ROWS_ESTIMATE +
-                    roomsCount * rowHeight +
-                    24;
-                return headerBlock + calendarBody + gap;
+                return 220 + gap;
             }
 
             const headerHeight = 80;
@@ -267,7 +275,7 @@ export default function Home() {
 
             return headerHeight + paddingMargin + calendarHeight + gap;
         },
-        overscan: 1,
+        overscan: isPhone ? 0 : 1,
     });
 
     // Подгрузка при прокрутке: на десктопе скроллится окно — вешаемся на window; на планшете/телефоне — на .content из layout.
@@ -286,6 +294,8 @@ export default function Home() {
             lastCheckTime = now;
 
             if (!hasNextPage || isFetchingNextPage) return;
+
+            if (isPhone && (data?.pages.length ?? 0) >= PHONE_MAX_PAGES) return;
 
             const virtualItems = virtualizer.getVirtualItems();
             if (virtualItems.length === 0) return;
@@ -320,12 +330,14 @@ export default function Home() {
         };
     }, [
         isMobile,
+        isPhone,
         mainScrollEl,
         hotelsWithRooms.length,
         hasNextPage,
         isFetchingNextPage,
         fetchNextPage,
         virtualizer,
+        data?.pages.length,
     ]);
 
     /**
@@ -333,6 +345,8 @@ export default function Home() {
      */
     useEffect(() => {
         if (!hasNextPage || isFetchingNextPage || hotelsWithRooms.length === 0) return;
+
+        if (isPhone && (data?.pages.length ?? 0) >= PHONE_MAX_PAGES) return;
 
         const scrollEl = getScrollElement();
         if (!scrollEl) return;
@@ -348,6 +362,7 @@ export default function Home() {
         getScrollElement,
         fetchNextPage,
         data?.pages.length,
+        isPhone,
     ]);
 
     const onHotelClick = (hotel_id: string) => {
@@ -461,6 +476,7 @@ export default function Home() {
                                 virtualItem={virtualItem}
                                 hotel={hotel}
                                 isMobile={isMobile}
+                                isPhone={isPhone}
                                 onHotelClick={onHotelClick}
                                 measureElement={virtualizer.measureElement}
                                 onHotelInfoClick={onHotelInfoClick}
