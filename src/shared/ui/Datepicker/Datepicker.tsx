@@ -150,7 +150,12 @@ export const Datepicker = ({
         <div className="w-full">
             <Label className="text-sm block">{label}</Label>
             {isPhone ? (
-                <Drawer open={isDrawerOpen} onOpenChange={setIsDrawerOpen}>
+                <Drawer
+                    open={isDrawerOpen}
+                    onOpenChange={setIsDrawerOpen}
+                    shouldScaleBackground={false}
+                    modal
+                >
                     <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
                     <DrawerContent className="max-h-[92dvh] pb-[env(safe-area-inset-bottom)]">
                         <DrawerHeader>

@@ -4,10 +4,6 @@ import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMo
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { getReserveDraftFromTimelineClick } from '@/features/ReserveInfo/lib/reserveDateForm';
-import { useRoomClosureCalendar } from '@/features/RoomClosure/lib/useRoomClosureCalendar';
-import { ClosureEditModal } from '@/features/RoomClosure/ui/ClosureEditModal';
-import { ClosureModeToolbar } from '@/features/RoomClosure/ui/ClosureModeToolbar';
-import { ClosureQuickModal } from '@/features/RoomClosure/ui/ClosureQuickModal';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO, HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import {
@@ -186,32 +182,17 @@ export const Calendar = ({
 
     const hotelReserves = useMemo(() => buildTimelineReserveItems(data ?? []), [data]);
 
-    const { displayReserves, handleItemMove: handleReserveItemMove, dialogProps, hasPendingMove: hasPendingReserveMove } = useReserveDragMove({
+    const { displayReserves, handleItemMove, dialogProps } = useReserveDragMove({
         hotelRooms,
         hotelReserves,
         updateReserve,
         isSaving: isReserveUpdating,
     });
 
-    const {
-        canvasAction,
-        setCanvasAction,
-        timelineItems,
-        handleItemMove,
-        onClosureAdd,
-        onClosureItemClick,
-        closureMoveDialogProps,
-        closureQuickModal,
-        closureEditModal,
-    } = useRoomClosureCalendar({
-        hotelId: hotel.id,
-        hotelRooms,
-        hotelReserves,
-        displayReserves,
-        onReserveItemMove: handleReserveItemMove,
-        isReserveMoveSaving: isReserveUpdating,
-        hasPendingReserveMove,
-    });
+    const timelineItems = useMemo(
+        () => displayReserves.map((item) => ({ ...item, itemKind: 'reserve' as const })),
+        [displayReserves],
+    );
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
@@ -288,7 +269,6 @@ export const Calendar = ({
                             shouldDimCalendar && 'opacity-50 pointer-events-none',
                         )}
                     >
-                        <ClosureModeToolbar value={canvasAction} onChange={setCanvasAction} />
                         <Timeline
                             hotel={hotel}
                             hotelRooms={hotelRooms}
@@ -297,11 +277,8 @@ export const Calendar = ({
                             visibleTimeEnd={visibleTimeEnd}
                             timelineClassName="travel-timeline"
                             sidebarWidth={sidebarWidth}
-                            canvasAction={canvasAction}
                             onReserveAdd={onReserveAdd}
-                            onClosureAdd={onClosureAdd}
                             onItemClick={onItemClick}
-                            onClosureItemClick={onClosureItemClick}
                             onGroupClick={onRoomClick}
                             onCreateRoom={onCreate}
                             calendarItemClassName={cx.calendarItem}
@@ -328,9 +305,6 @@ export const Calendar = ({
                 isLoading={reserveLoading}
             />
             {dialogProps && <ReserveMoveConfirmDialog {...dialogProps} />}
-            {closureMoveDialogProps && <ReserveMoveConfirmDialog {...closureMoveDialogProps} />}
-            <ClosureQuickModal {...closureQuickModal} />
-            <ClosureEditModal {...closureEditModal} />
         </div>
     );
 };
