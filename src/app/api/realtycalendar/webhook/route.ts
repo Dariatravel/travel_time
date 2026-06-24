@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM } from '@/app/api/realtycalendar/_lib/roomMapping';
+import { logRealtyCalendarWebhookEvent } from '@/app/api/realtycalendar/_lib/webhookLog';
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
@@ -7,100 +9,6 @@ export const dynamic = 'force-dynamic';
 const EXTERNAL_CREATED_BY = 'realtycalendar_webhook';
 const ICAL_CREATED_BY = 'realtycalendar_ical';
 const DEFAULT_GUEST = 'Занято (RealtyCalendar)';
-
-const REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM: Record<string, string> = {
-    // Рита: домики 1-7
-    '95944': '17b50fbb-c925-4434-84a6-92353cee6712',
-    '95945': '445d48c4-1562-48d0-8be9-31dd8257199f',
-    '95946': '44810727-acb0-457c-838f-dbadd8dd6d9a',
-    '95947': 'd9771a12-8b64-416a-b34b-87dc3b777e8f',
-    '95948': '996d1a56-2e8a-4b9b-9290-0f1e042fdaf9',
-    '95949': 'c65cc81b-b6d5-48d9-a12f-4c6057da6b07',
-    '95950': 'e01e64af-a9da-4d09-be76-b35ac49daeb0',
-    // Рита: апарты с кухней 1-2
-    '95951': '64b7cc39-926f-4608-8d85-c56ec5340ac4',
-    '95952': '43ab9a15-fd38-4911-b5d1-592be841e6a5',
-    // Александрия: домики 1-11
-    '109064': '9d36772c-cef8-4c29-b2b6-ef720d743cff',
-    '109065': '4692f638-a62c-4858-8d2b-7a03e49e6c96',
-    '109066': '7325cde0-fd5a-406b-b450-738670238b8a',
-    '109067': '7de4cc07-f8a8-44ba-b9f7-83727da10083',
-    '109068': 'd92fd7da-15e1-496e-8c06-1e1b95978f8c',
-    '109069': 'e58da10d-4ebe-4928-83f2-46ca2e8fb8cc',
-    '109070': '215ac8b2-ccba-4b59-8c73-38defc1e4399',
-    '109071': 'ee9ea528-4d91-4a68-ba0f-789ac0eae01c',
-    '109072': 'e54af704-fe0a-445c-ab11-0140e9eae1eb',
-    '109073': '9f8f1326-a452-4871-a8fc-ec550913ed00',
-    '109074': 'b5d56c33-04be-41e5-be8d-5782b18c82f3',
-    // Белая лошадь White Horse: домики 1-6
-    '100710': 'f32083fb-5d0b-4552-85a3-2fb67cbfd60f',
-    '100711': '63eab7a5-6ecc-4d42-a332-84aad76157ab',
-    '100712': 'c247cfce-999e-49bc-95da-8a0cbe4e75db',
-    '100713': '85a7d545-982b-4979-8062-e4324b74e13a',
-    '100714': '7cbfe54f-32ff-4cb8-8bb7-4b7ce87c3cd8',
-    '100715': '4da70312-31cf-4361-b06a-43a2f70bdcf3',
-    // Белая лошадь White Horse: номера с кухней 1-2
-    '135204': '6b2c368f-ca85-4586-a9d0-316a975a684b',
-    '135205': 'aaa07a9e-9ea8-4ed2-89e0-a6eaf1b15202',
-    // Грей Хаус Grey House: основной объект, комнаты 02-07 -> домики 1-6
-    '130634': 'c6279e4a-bbe3-4d0f-a6c1-f30036a5db22',
-    '130635': '97005b61-1f27-4695-a215-df02a93f7234',
-    '130636': '47aa1c55-9c60-4df1-b217-5b0868e42c68',
-    '130637': '7be035cd-d918-447a-ba3f-1fb94b92d9f3',
-    '130638': 'c5870059-b25c-4006-84cd-6da69c0164d8',
-    '130639': '68c9309a-fc7d-4dc5-96be-38b40644155c',
-    // Грин Вилладж GreenVillage: 8 домиков
-    '135336': '02bd7b7e-18db-49db-b55f-06a6ecc29c6e',
-    '135221': '90191f57-f8ef-464f-80ad-4467bc96def8',
-    '135222': '63b29163-ad63-4d1d-8158-7fc91e5c8c99',
-    '135223': '2fe4b813-649b-499d-8062-fffa80988026',
-    '135225': '19bcd540-eae3-4e6e-98a1-0cd4aae9207f',
-    '135224': '17d1f570-db96-4341-8748-9a4cd4be5edd',
-    '135226': '69adf678-17fb-48d9-8929-08206e40f4f0',
-    '135337': '3c8e719b-34f0-40ce-b160-d7d69ff7fe14',
-    // Санни Хоум Sunny Home: 10 домиков + VIP-домик
-    '140551': '5ba283e6-e212-491f-925f-b49447ec93cc',
-    '140552': 'fcd87905-3896-40b0-abcb-4ee28373a24e',
-    '140553': '9c177b7b-0a87-43c7-9403-fd50b5af2e42',
-    '140554': '97d7bc3d-10ee-4294-94b6-b383ad57195a',
-    '140555': 'c2965aeb-9963-4c34-a717-7c1d66031ec5',
-    '140556': 'f4af5961-fb3f-4a86-a015-cbf410d35e7c',
-    '140557': '2e3cac04-e008-4a6b-a294-129b5573897d',
-    '140558': 'bb09071d-e4d2-4b93-914c-719b59c4a9c1',
-    '140580': 'e3f6c089-429e-451f-9087-55f914df26b7',
-    '140597': '2524eeaf-beea-4a4b-9231-d63719ae9b1c',
-    // Каво-де-Буксо: 8 домиков
-    '95928': '83326bc5-5572-4bf8-a0a9-04788b98104b',
-    '95929': 'dafe03b6-d809-45e0-a4c1-1f4e567c86cc',
-    '95930': '5bdf839a-9dee-461c-ba47-c460307a70b2',
-    '95931': 'cc819224-8980-4d32-bb92-4cc61efd6550',
-    '95932': 'cda420ee-f9f2-4546-b24e-63e638c6f37c',
-    '95933': 'cc7f510e-2cef-4561-866b-23203491439a',
-    '104510': '7d6b0f8f-c31c-40f4-9d43-f715554f0724',
-    '104511': '33d33e56-2545-4ae0-9990-412923188f86',
-    // Эсма (Камелия): 5 домиков + студия (apt 234007 без sub-rooms)
-    '95919': '510b1315-3b36-4462-ae38-4f649e1fe0a6',
-    '95920': '6b098c30-46d4-4af1-8d85-3269c5aad255',
-    '95921': 'b6468e80-2c0a-4cf5-8fc5-3de629d80f8d',
-    '95922': 'ed7a602a-c48b-4115-8500-ea0cfa99f2ac',
-    '95923': 'f08c9e0b-9530-43d2-99d0-0667aca4c752',
-    '234007': 'cedd00b6-5be0-44d4-9356-d88233ac099e',
-    // Сизон: 12 номеров (RC 12/14 -> номер 8/9)
-    '114839': '81e1c24c-2a71-41a9-a8e3-b04cf67cd98a',
-    '114835': '37d4c6f8-2921-4133-a333-6e375fc3ed30',
-    '114840': '6a7f2fc3-b12c-48bf-8169-d6030465effc',
-    '114841': 'a96e9ceb-d1a1-47d9-8a6b-d5da99ffef9c',
-    '114842': '4efd4b84-4202-4b6b-8b17-8c233cd1f9da',
-    '114843': '1df7dd69-a781-469b-8a95-28f759abef1c',
-    '114836': '2c7446bb-c120-4e48-aacd-fb358308e3b2',
-    '114837': 'f84cfc10-0112-4ea4-a056-9c189295547d',
-    '114838': 'fc20d403-661b-4c61-bdea-7ffe18024b5d',
-    '114844': '5bf5be58-8d8f-49ef-9d18-e235a1318905',
-    '108464': 'b26b6b13-74a1-470f-b78a-d0f7b9a89b10',
-    '108465': 'de6d2b38-ac91-433d-8dea-0d255920afc1',
-    // Дыши глубже: А-фрейм (RC apt Рицинское шоссе, 13ый км)
-    '280027': '501010ac-2c2e-4d4a-8add-5f91a39ec57f',
-};
 
 type RealtyCalendarWebhook = {
     action?: string;
@@ -237,11 +145,21 @@ export async function POST(request: NextRequest) {
     const bookingId = booking?.id == null ? null : String(booking.id);
 
     if (!booking || !bookingId) {
+        const supabase = createSupabaseServiceRoleClient();
+        await logRealtyCalendarWebhookEvent(supabase, {
+            action: payload.action,
+            status: payload.status,
+            resultStatus: 'skipped',
+            resultReason: 'Booking payload is missing',
+            payload,
+        });
+
         return NextResponse.json({ status: 'skipped', reason: 'Booking payload is missing' });
     }
 
     const action = payload.action ?? '';
     const { roomId, realtyRoomId } = getMappedRoomId(booking);
+    const supabase = createSupabaseServiceRoleClient();
 
     if (!roomId) {
         console.warn('RealtyCalendar webhook skipped: unmapped room', {
@@ -249,6 +167,17 @@ export async function POST(request: NextRequest) {
             action,
             realty_room_id: realtyRoomId,
             realty_id: booking.realty_id,
+        });
+
+        await logRealtyCalendarWebhookEvent(supabase, {
+            action,
+            status: payload.status,
+            bookingId,
+            rcRoomId: realtyRoomId,
+            rcRealtyId: booking.realty_id == null ? null : String(booking.realty_id),
+            resultStatus: 'skipped',
+            resultReason: 'RealtyCalendar room is not mapped',
+            payload,
         });
 
         return NextResponse.json({
@@ -259,7 +188,6 @@ export async function POST(request: NextRequest) {
         });
     }
 
-    const supabase = createSupabaseServiceRoleClient();
     const bookingTag = getBookingTag(bookingId);
 
     const { data: roomReserves, error: reservesError } = await supabase
@@ -295,6 +223,17 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        await logRealtyCalendarWebhookEvent(supabase, {
+            action,
+            status: payload.status,
+            bookingId,
+            roomId,
+            rcRoomId: realtyRoomId,
+            rcRealtyId: booking.realty_id == null ? null : String(booking.realty_id),
+            resultStatus: 'deleted',
+            payload,
+        });
+
         return NextResponse.json({
             status: 'deleted',
             booking_id: bookingId,
@@ -306,6 +245,18 @@ export async function POST(request: NextRequest) {
     const end = parseBookingDate(booking.end_date, true);
 
     if (!start || !end || end <= start) {
+        await logRealtyCalendarWebhookEvent(supabase, {
+            action,
+            status: payload.status,
+            bookingId,
+            roomId,
+            rcRoomId: realtyRoomId,
+            rcRealtyId: booking.realty_id == null ? null : String(booking.realty_id),
+            resultStatus: 'skipped',
+            resultReason: 'Booking dates are invalid',
+            payload,
+        });
+
         return NextResponse.json({ status: 'skipped', reason: 'Booking dates are invalid' });
     }
 
@@ -332,16 +283,30 @@ export async function POST(request: NextRequest) {
             })),
         });
 
+        const conflictPayload = conflictingOwnReserves.map((reserve) => ({
+            id: reserve.id,
+            guest: reserve.guest,
+            start: reserve.start,
+            end: reserve.end,
+        }));
+
+        await logRealtyCalendarWebhookEvent(supabase, {
+            action,
+            status: payload.status,
+            bookingId,
+            roomId,
+            rcRoomId: realtyRoomId,
+            rcRealtyId: booking.realty_id == null ? null : String(booking.realty_id),
+            resultStatus: 'conflict',
+            payload,
+            conflicts: conflictPayload,
+        });
+
         return NextResponse.json({
             status: 'conflict',
             booking_id: bookingId,
             room_id: roomId,
-            conflicts: conflictingOwnReserves.map((reserve) => ({
-                id: reserve.id,
-                guest: reserve.guest,
-                start: reserve.start,
-                end: reserve.end,
-            })),
+            conflicts: conflictPayload,
         });
     }
 
@@ -380,6 +345,17 @@ export async function POST(request: NextRequest) {
     if (insertError) {
         return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
+
+    await logRealtyCalendarWebhookEvent(supabase, {
+        action,
+        status: payload.status,
+        bookingId,
+        roomId,
+        rcRoomId: realtyRoomId,
+        rcRealtyId: booking.realty_id == null ? null : String(booking.realty_id),
+        resultStatus: 'upserted',
+        payload,
+    });
 
     return NextResponse.json({
         status: 'upserted',
