@@ -19,6 +19,8 @@ yc serverless trigger create timer \
 
 Alternatively, use an external cron (GitHub Actions, UptimeRobot, etc.) to call the URL above.
 
+**Note:** Yandex serverless containers cannot reliably fetch `realtycalendar.ru` iCal feeds. Production cron runs via GitHub Actions workflow `.github/workflows/ical-sync-cron.yml`, which executes `scripts/ical-cron-sync.mjs` on the runner and writes directly to Supabase.
+
 The cron sync uses service role credentials on the server and:
 - upserts all mapped RealtyCalendar iCal feeds
 - prunes stale iCal blocks that disappeared from the feed
