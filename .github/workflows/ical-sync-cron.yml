@@ -1,0 +1,30 @@
+name: RealtyCalendar iCal Cron
+
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync iCal feeds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Trigger production iCal cron
+        env:
+          REALTYCALENDAR_WEBHOOK_TOKEN: ${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }}
+        run: |
+          set -euo pipefail
+          response="$(curl -fsS \
+            "https://d5d4qekr1vt33i1f6g42.tmjd4m4j.apigw.yandexcloud.net/api/realtycalendar/ical-sync/cron?token=${REALTYCALENDAR_WEBHOOK_TOKEN}")"
+          echo "$response" | head -c 4000
+          echo "$response" | node -e "
+            const data = JSON.parse(require('fs').readFileSync(0, 'utf8'));
+            if (data.status !== 'ok') {
+              console.error('Unexpected cron response:', data);
+              process.exit(1);
+            }
+            console.log('Cron OK:', JSON.stringify(data.summary));
+          "
