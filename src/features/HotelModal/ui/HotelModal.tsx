@@ -61,7 +61,9 @@ export const HotelModal: FC<HotelModalProps> = ({
     const onEdit = async (hotel: HotelDTO) => {
         await updateHotel(hotel);
     };
-    const onDelete = async (id: string) => await deleteHotel(id);
+    const onDelete = async (id: string) => {
+        await deleteHotel(id);
+    };
 
     const isEdit = !!currentReserve?.hotel?.id;
 

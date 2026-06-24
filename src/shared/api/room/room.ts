@@ -100,19 +100,22 @@ export const createRoomApi = async (room: Room) => {
 };
 
 export const updateRoomApi = async ({ id, ...room }: RoomDTO) => {
-    try {
-        const { data, error } = await supabase.from('rooms').update(room).eq('id', id);
-
-        if (error) {
-            throw new Error(error.message);
-        }
-
-        return data;
-    } catch (error) {
-        console.error(error);
-        showToast(`Ошибка при обновлении номера ${error}`, 'error');
-        throw error;
+    if (!id) {
+        throw new Error('Room ID is required');
     }
+
+    const { data, error } = await supabase
+        .from('rooms')
+        .update(room)
+        .eq('id', id)
+        .select('id')
+        .single();
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return data;
 };
 
 export const deleteRoomApi = async (id: string) => {
