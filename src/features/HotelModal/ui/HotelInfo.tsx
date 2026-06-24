@@ -5,7 +5,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { FormButtons, PhoneInput } from '@/shared';
 import { TravelUser } from '@/shared/api/auth/auth';
-import { CreateHotelDTO, Hotel, HotelDTO } from '@/shared/api/hotel/hotel';
+import { CreateHotelDTO, HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { translateUserRole } from '@/shared/lib/translateUser';
@@ -17,6 +17,7 @@ import { ExternalLink, Info } from 'lucide-react';
 import { FC, useCallback, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { HotelFormSchema, hotelFormSchema } from '../lib/validation';
+import { HOTEL_TYPES } from '../lib/const';
 import { FormInput } from './components/FormInput';
 import { FormMultipleSelector } from './components/FormMultipleSelector';
 import { FormSelect } from './components/FormSelect';
@@ -26,7 +27,7 @@ import cx from './style.module.css';
 export interface HotelInfoProps {
     users: TravelUser[];
     onClose: () => void;
-    onAccept: (hotel: Hotel | CreateHotelDTO) => Promise<void>;
+    onAccept: (hotel: HotelDTO | CreateHotelDTO) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
     currentReserve: Nullable<CurrentReserveType>;
     isLoading?: boolean;
@@ -63,7 +64,10 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
     const rating = String(hotel?.rating) ?? DEFAULT_VALUE.rating;
     return {
         ...DEFAULT_VALUE,
-        ...hotel,
+        id: hotel?.id,
+        title: hotel?.title,
+        address: hotel?.address,
+        telegram_url: hotel?.telegram_url ?? DEFAULT_VALUE.telegram_url,
         rating,
         phone: normalizePhone(hotel?.phone),
         user_id: hotel?.user_id
@@ -93,31 +97,35 @@ const getInitialValue = (hotel?: Nullable<HotelDTO>): Partial<HotelFormSchema> =
     };
 };
 
-const deserializeData = (data: HotelFormSchema): Hotel | CreateHotelDTO => {
-    const hotelData = {
-        ...data,
-        // Тип больше не сохраняется в отель, он перенесён на уровень номера (room.type).
-        // type: data.type.label,
+const deserializeData = (data: HotelFormSchema): HotelDTO | CreateHotelDTO => {
+    const payload = {
+        title: data.title,
+        address: data.address,
         rating: +(data?.rating || '5'),
-        user_id: data?.user_id?.id,
-        description: data?.description || '',
-        beach: data?.beach?.id,
-        beach_distance: data?.beach_distance?.id,
-        features: data?.features?.map((item) => item?.id).filter(Boolean),
-        eat: data?.eat?.map((item) => item?.id).filter(Boolean),
-        city: data?.city?.id,
+        user_id: data.user_id.id,
+        phone: data.phone,
+        telegram_url: data.telegram_url ?? '',
+        description: data.description || '',
+        beach: data.beach?.id ?? null,
+        beach_distance: data.beach_distance?.id ?? null,
+        features: data.features?.map((item) => item.id).filter(Boolean) ?? [],
+        eat: data.eat?.map((item) => item.id).filter(Boolean) ?? [],
+        city: data.city?.id ?? null,
         is_search_visible: data.is_search_visible !== false,
+        image_id: data.image_id?.id ?? null,
     };
 
-    console.log({ data });
-    if (data?.id) {
+    if (data.id) {
         return {
-            ...hotelData,
+            ...payload,
             id: data.id,
-        } as Hotel;
+        } as HotelDTO;
     }
 
-    return hotelData as CreateHotelDTO;
+    return {
+        ...payload,
+        type: HOTEL_TYPES[0]?.value ?? 'Отели',
+    } as unknown as CreateHotelDTO;
 };
 
 export const HotelInfo: FC<HotelInfoProps> = ({

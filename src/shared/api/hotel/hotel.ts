@@ -1033,37 +1033,40 @@ export async function getHotelsWithFreeRoomsCompatible(
 }
 
 export const createHotelApi = async (hotel: Hotel) => {
-    try {
-        await insertItem<Hotel>(TABLE_NAMES.HOTELS, hotel);
-    } catch (error) {
-        console.error(error);
-        showToast(`Ошибка при обновлении брони ${error}`, 'error');
+    const { error } = await insertItem<Hotel>(TABLE_NAMES.HOTELS, hotel);
+
+    if (error) {
+        throw new Error(error.message);
     }
 };
 
 export const updateHotelApi = async ({ id, ...hotel }: HotelDTO) => {
-    try {
-        const { data, error } = await supabase.from('hotels').update(hotel).eq('id', id);
-
-        if (error) {
-            throw new Error(error.message);
-        }
-
-        return data;
-    } catch (error) {
-        console.error(error);
-        showToast(`Ошибка при обновлении отеля ${error}`, 'error');
-        throw error;
+    if (!id) {
+        throw new Error('Hotel ID is required');
     }
+
+    const { data, error } = await supabase
+        .from('hotels')
+        .update(hotel)
+        .eq('id', id)
+        .select('id')
+        .single();
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return data;
 };
 
 export const deleteHotelApi = async (id: string) => {
-    try {
-        await supabase.from('hotels').delete().eq('id', id);
-    } catch (err) {
-        console.error('Error fetching posts:', err);
-        showToast(`Ошибка при обновлении брони ${err}`, 'error');
+    const { data, error } = await supabase.from('hotels').delete().eq('id', id).select('id').single();
+
+    if (error) {
+        throw new Error(error.message);
     }
+
+    return data;
 };
 
 export const useCreateHotel = (onSuccess: () => void, onError?: (e: Error) => void) => {
@@ -1073,13 +1076,15 @@ export const useCreateHotel = (onSuccess: () => void, onError?: (e: Error) => vo
             return createHotelApi(hotel);
         },
         onSuccess: async () => {
-            // При создании отеля инвалидируем список отелей (нужно обновить список)
             await queryClient.invalidateQueries({
                 queryKey: ['hotels', 'list'],
             });
             onSuccess();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при добавлении отеля: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };
 
@@ -1098,13 +1103,21 @@ export const useUpdateHotel = (
                 queryKey: ['hotels', 'list'],
             });
             if (id) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(id),
-                });
+                await Promise.all([
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelDetail(id),
+                    }),
+                    queryClient.invalidateQueries({
+                        queryKey: QUERY_KEYS.hotelById(id),
+                    }),
+                ]);
             }
             onSuccess?.();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при обновлении отеля: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };
 
@@ -1129,7 +1142,10 @@ export const useDeleteHotel = (
             }
             onSuccess?.();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при удалении отеля: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };
 
