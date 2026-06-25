@@ -20,23 +20,25 @@ import { devLog } from '@/shared/lib/logger';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
-import { FC, useMemo } from 'react';
+import { FC, useEffect, useMemo } from 'react';
 import { Controller, Form, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.css';
 export interface RoomInfoProps {
     onClose: () => void;
-    onAccept: (args?: unknown) => void;
+    onAccept: (args?: unknown) => void | Promise<void>;
     onDelete: (id: string) => void;
     currentReserve?: Nullable<CurrentReserveType>;
     isLoading?: boolean;
     isEdit?: boolean;
+    isOpen?: boolean;
 }
 
 /**
  * RoomFormSchema — схема валидации для формы создания/редактирования номера.
  */
 export const RoomFormSchema = z.object({
+    id: z.string().optional(),
     hotel_id: z.string().min(1, 'Отель обязателен для выбора'),
 
     title: z.string().min(1, 'Название номера обязательно'),
@@ -67,6 +69,35 @@ export const RoomFormSchema = z.object({
 
 export type RoomFormSchemaType = z.infer<typeof RoomFormSchema>;
 
+const getRoomInitialValues = (
+    currentReserve?: Nullable<CurrentReserveType>,
+): Partial<RoomFormSchemaType> => {
+    const defaultType = ROOM_TYPES[0];
+
+    return {
+        id: currentReserve?.room?.id,
+        hotel_id: currentReserve?.hotel?.id ? currentReserve.hotel.id : '',
+        title: currentReserve?.room?.title || '',
+        comment: currentReserve?.room?.comment || '',
+        quantity: currentReserve?.room?.quantity ?? 3,
+        price: String(currentReserve?.room?.price ?? ''),
+        room_features: currentReserve?.room?.room_features ?? [],
+        type: currentReserve?.room?.type
+            ? {
+                  id: currentReserve.room.type,
+                  label:
+                      ROOM_TYPES.find((t) => t.value === currentReserve.room?.type)?.label ||
+                      currentReserve.room.type,
+              }
+            : defaultType
+              ? {
+                    id: defaultType.value,
+                    label: defaultType.label,
+                }
+              : undefined,
+    };
+};
+
 export const RoomInfo: FC<RoomInfoProps> = ({
     onAccept,
     onClose,
@@ -74,36 +105,31 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     isLoading = false,
     isEdit = false,
     onDelete,
+    isOpen = true,
 }: RoomInfoProps) => {
     const { data: hotels, isLoading: isHotelsLoading } = useGetHotelsForRoom();
 
     const loading = isLoading || isHotelsLoading;
 
-    console.log({ currentReserve });
+    const initialValues = useMemo(
+        () => getRoomInitialValues(currentReserve),
+        [currentReserve],
+    );
+
     const form = useForm<RoomFormSchemaType>({
         resolver: zodResolver(RoomFormSchema),
-        defaultValues: {
-            hotel_id: currentReserve?.hotel?.id ? currentReserve?.hotel?.id : '',
-            title: currentReserve?.room?.title || '',
-            comment: currentReserve?.room?.comment || '',
-            quantity: currentReserve?.room?.quantity ?? 3,
-            price: String(currentReserve?.room?.price ?? ''),
-            room_features: currentReserve?.room?.room_features ?? [],
-            // Тип номера: если уже задан у текущего номера, заполняем по умолчанию.
-            type: currentReserve?.room?.type
-                ? {
-                      id: currentReserve.room.type,
-                      label:
-                          ROOM_TYPES.find((t) => t.value === currentReserve.room?.type)?.label ||
-                          currentReserve.room.type,
-                  }
-                : undefined,
-        },
+        defaultValues: initialValues,
         mode: 'onBlur',
         reValidateMode: 'onBlur',
     });
 
-    const { control, handleSubmit } = form;
+    const { control, handleSubmit, reset } = form;
+
+    useEffect(() => {
+        if (isOpen) {
+            reset(initialValues);
+        }
+    }, [initialValues, isOpen, reset]);
 
     const hotelOptions = useMemo(() => {
         const hotelsTmp = hotels?.map(adaptToOption);
@@ -111,26 +137,38 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     }, [hotels]);
 
     const deserializeData = (data: RoomFormSchemaType): Room | RoomDTO => {
-        return {
+        const roomId = data.id ?? currentReserve?.room?.id;
+        const payload = {
             title: data.title,
             price: Number(data?.price ? data?.price : '0'),
             quantity: typeof data.quantity === 'string' ? Number(data.quantity) : data.quantity,
-            comment: data.comment,
+            comment: data.comment ?? '',
             room_features: data.room_features || [],
             hotel_id: data.hotel_id || '',
             type: data.type.id,
+        };
+
+        if (roomId) {
+            return {
+                ...payload,
+                id: roomId,
+                image_path: currentReserve?.room?.image_path ?? '',
+                image_title: currentReserve?.room?.image_title ?? '',
+            };
+        }
+
+        return {
+            ...payload,
             image_path: '',
             image_title: '',
-            ...(currentReserve?.room?.id && { id: currentReserve.room.id }),
         };
     };
 
     const onAcceptForm = async (data: RoomFormSchemaType) => {
-        console.log('Данные формы перед отправкой:', data);
         const serializedData = deserializeData(data);
 
         devLog('onAcceptForm', serializedData);
-        onAccept(serializedData);
+        await onAccept(serializedData);
     };
 
     const onError: SubmitErrorHandler<RoomFormSchemaType> = (errors) => {

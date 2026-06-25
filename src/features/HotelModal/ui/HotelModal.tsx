@@ -76,10 +76,12 @@ export const HotelModal: FC<HotelModalProps> = ({
             title={<FormTitle>{isEdit ? 'Редактирование отеля' : 'Добавление отеля'}</FormTitle>}
             description={
                 <HotelInfo
+                    key={`${isEdit ? 'edit' : 'create'}-${currentReserve?.hotel?.id ?? 'new'}`}
                     users={users ?? []}
                     onClose={() => onClose()}
                     currentReserve={currentReserve}
                     isEdit={isEdit}
+                    isOpen={isOpen}
                     // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                     // @ts-expect-error
                     onAccept={isEdit ? onEdit : onCreate}

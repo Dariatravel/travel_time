@@ -1,7 +1,7 @@
 import { TABLE_NAMES } from '@/shared/api/const';
 import { insertItem } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
-import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import { QUERY_KEYS, invalidateHotelChessmateQueries } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -104,9 +104,19 @@ export const updateRoomApi = async ({ id, ...room }: RoomDTO) => {
         throw new Error('Room ID is required');
     }
 
+    const updatePayload = {
+        hotel_id: room.hotel_id,
+        title: room.title,
+        type: room.type,
+        price: room.price,
+        quantity: room.quantity,
+        comment: room.comment,
+        room_features: room.room_features,
+    };
+
     const { data, error } = await supabase
         .from('rooms')
-        .update(room)
+        .update(updatePayload)
         .eq('id', id)
         .select('id')
         .single();
@@ -119,12 +129,13 @@ export const updateRoomApi = async ({ id, ...room }: RoomDTO) => {
 };
 
 export const deleteRoomApi = async (id: string) => {
-    try {
-        await supabase.from('rooms').delete().eq('id', id);
-    } catch (err) {
-        console.error('Error fetching posts:', err);
-        showToast(`Ошибка при обновлении брони ${err}`, 'error');
+    const { data, error } = await supabase.from('rooms').delete().eq('id', id).select('id').single();
+
+    if (error) {
+        throw new Error(error.message);
     }
+
+    return data;
 };
 
 /**
@@ -156,12 +167,8 @@ export const useUpdateRoomOrder = (onSuccess?: () => void, onError?: (error: str
     return useMutation({
         mutationFn: ({ hotelId, rooms }: { hotelId: string; rooms: RoomDTO[] }) =>
             updateRoomOrder(hotelId, rooms),
-        onSuccess: async (data, variables) => {
-            // Точечная инвалидация: обновляем только конкретный отель
-            await queryClient.invalidateQueries({
-                queryKey: QUERY_KEYS.hotelDetail(variables.hotelId),
-            });
-
+        onSuccess: async (_data, variables) => {
+            await invalidateHotelChessmateQueries(queryClient, variables.hotelId);
             onSuccess?.();
         },
         onError: (error: Error) => {
@@ -196,17 +203,17 @@ export const useCreateRoom = (
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: createRoomApi,
-        onSuccess: async (data, variables) => {
-            // Точечная инвалидация: обновляем только конкретный отель
+        onSuccess: async (_data, variables) => {
             const id = hotelId || variables.hotel_id;
             if (id) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(id),
-                });
+                await invalidateHotelChessmateQueries(queryClient, id);
             }
             onSuccess?.();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при добавлении номера: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };
 
@@ -218,21 +225,17 @@ export const useUpdateRoom = (
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: updateRoomApi,
-        onSuccess: async (data, variables) => {
-            console.log('onSuccess updateRoom', data, variables);
-            // Точечная инвалидация: обновляем только конкретный отель
+        onSuccess: async (_data, variables) => {
             const id = hotelId || variables.hotel_id;
             if (id) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(id),
-                });
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelById(id),
-                });
+                await invalidateHotelChessmateQueries(queryClient, id);
             }
             onSuccess?.();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при обновлении номера: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };
 
@@ -244,22 +247,16 @@ export const useDeleteRoom = (
     const queryClient = useQueryClient();
     return useMutation({
         mutationFn: deleteRoomApi,
-        onSuccess: async (data, variables) => {
-            console.log('onSuccess deleteRoom', data, variables);
-            // Точечная инвалидация: обновляем только конкретный отель
-            const id = hotelId || variables;
+        onSuccess: async (_data, variables) => {
+            const id = hotelId || (typeof variables === 'string' ? variables : undefined);
             if (id) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelDetail(id),
-                });
-            }
-            if (id) {
-                await queryClient.invalidateQueries({
-                    queryKey: QUERY_KEYS.hotelById(id as string),
-                });
+                await invalidateHotelChessmateQueries(queryClient, id);
             }
             onSuccess?.();
         },
-        onError,
+        onError: (err) => {
+            showToast(`Ошибка при удалении номера: ${(err as Error).message}`, 'error');
+            onError?.(err as Error);
+        },
     });
 };

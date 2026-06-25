@@ -37,7 +37,10 @@ export const RoomModal: FC<RoomModalProps> = ({
         currentReserve?.hotel?.id,
         async () => {
             onClose();
-            showToast('Информация в отеле обновлена');
+            showToast('Номер успешно обновлён');
+        },
+        (error) => {
+            showToast(`Ошибка при обновлении номера: ${error.message}`, 'error');
         },
     );
 
@@ -45,17 +48,22 @@ export const RoomModal: FC<RoomModalProps> = ({
         currentReserve?.hotel?.id,
         async () => {
             onClose();
-            showToast('Отель удалён');
+            showToast('Номер удалён');
+        },
+        (error) => {
+            showToast(`Ошибка при удалении номера: ${error.message}`, 'error');
         },
     );
     const onCreate = useCallback(
         async (room: Room) => {
-            await createRoom(room);
+            createRoom(room);
             devLog('Создаю ROOM', room);
         },
         [createRoom],
     );
-    const onEdit = async (room: RoomDTO) => await updateRoom(room);
+    const onEdit = async (room: RoomDTO) => {
+        await updateRoom(room);
+    };
     const onDelete = async (id: string) => await deleteRoom(id);
 
     const loading = isLoading || isRoomCreating || isRoomUpdating || isRoomDeleting;
@@ -69,12 +77,18 @@ export const RoomModal: FC<RoomModalProps> = ({
             title={<FormTitle>{isEdit ? 'Редактирование номера' : 'Добавление номера'}</FormTitle>}
             description={
                 <RoomInfo
+                    key={`${isEdit ? 'edit' : 'create'}-${currentReserve?.room?.id ?? currentReserve?.hotel?.id ?? 'new'}`}
                     onClose={onClose}
                     currentReserve={currentReserve}
+                    isOpen={isOpen}
                     onAccept={
                         isEdit
-                            ? (args: unknown) => onEdit(args as RoomDTO)
-                            : (args: unknown) => onCreate(args as RoomDTO)
+                            ? async (args: unknown) => {
+                                  await onEdit(args as RoomDTO);
+                              }
+                            : async (args: unknown) => {
+                                  await onCreate(args as Room);
+                              }
                     }
                     onDelete={onDelete}
                     isLoading={loading}
