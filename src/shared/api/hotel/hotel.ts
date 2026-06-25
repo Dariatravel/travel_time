@@ -1,7 +1,7 @@
 import { TABLE_NAMES } from '@/shared/api/const';
 import { ReserveDTO, TravelOption, getReservesByHotels } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
-import { QUERY_KEYS } from '@/shared/config/reactQuery';
+import { QUERY_KEYS, invalidateHotelChessmateQueries } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import {
@@ -1097,20 +1097,13 @@ export const useUpdateHotel = (
     return useMutation({
         mutationFn: updateHotelApi,
         onSuccess: async (_data, variables) => {
-            // Точечная инвалидация: обновляем только конкретный отель
             const id = hotelId || variables.id;
-            await queryClient.invalidateQueries({
-                queryKey: ['hotels', 'list'],
-            });
             if (id) {
-                await Promise.all([
-                    queryClient.invalidateQueries({
-                        queryKey: QUERY_KEYS.hotelDetail(id),
-                    }),
-                    queryClient.invalidateQueries({
-                        queryKey: QUERY_KEYS.hotelById(id),
-                    }),
-                ]);
+                await invalidateHotelChessmateQueries(queryClient, id);
+            } else {
+                await queryClient.invalidateQueries({
+                    queryKey: ['hotels', 'list'],
+                });
             }
             onSuccess?.();
         },
@@ -1130,14 +1123,15 @@ export const useDeleteHotel = (
     return useMutation({
         mutationFn: deleteHotelApi,
         onSuccess: async () => {
-            // При удалении инвалидируем список отелей
             await queryClient.invalidateQueries({
                 queryKey: ['hotels', 'list'],
             });
-            // И удаляем детальные данные отеля из кэша
             if (hotelId) {
                 queryClient.removeQueries({
                     queryKey: QUERY_KEYS.hotelDetail(hotelId),
+                });
+                queryClient.removeQueries({
+                    queryKey: QUERY_KEYS.hotelById(hotelId),
                 });
             }
             onSuccess?.();

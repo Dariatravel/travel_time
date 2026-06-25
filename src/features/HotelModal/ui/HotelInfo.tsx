@@ -14,7 +14,7 @@ import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
 import { ExternalLink, Info } from 'lucide-react';
-import { FC, useCallback, useMemo } from 'react';
+import { FC, useCallback, useEffect, useMemo } from 'react';
 import { Controller, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { HotelFormSchema, hotelFormSchema } from '../lib/validation';
 import { HOTEL_TYPES } from '../lib/const';
@@ -32,6 +32,7 @@ export interface HotelInfoProps {
     currentReserve: Nullable<CurrentReserveType>;
     isLoading?: boolean;
     isEdit: boolean;
+    isOpen?: boolean;
 }
 
 const DEFAULT_VALUE = { rating: '5', telegram_url: '' };
@@ -136,15 +137,26 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     currentReserve,
     isLoading = false,
     isEdit = false,
+    isOpen = true,
 }: HotelInfoProps) => {
+    const initialValues = useMemo(
+        () => getInitialValue(currentReserve?.hotel),
+        [currentReserve?.hotel],
+    );
     const form = useForm<HotelFormSchema>({
-        defaultValues: getInitialValue(currentReserve?.hotel),
+        defaultValues: initialValues,
         mode: 'onBlur',
         reValidateMode: 'onBlur',
         // @ts-expect-error - zodResolver type inference issue with complex schemas
         resolver: zodResolver(hotelFormSchema),
     });
-    const { control, handleSubmit, watch } = form;
+    const { control, handleSubmit, watch, reset } = form;
+
+    useEffect(() => {
+        if (isOpen) {
+            reset(initialValues);
+        }
+    }, [initialValues, isOpen, reset]);
 
     const userOptions = useMemo(() => {
         return users?.map((user) =>
