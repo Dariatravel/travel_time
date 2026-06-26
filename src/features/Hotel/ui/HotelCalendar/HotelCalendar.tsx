@@ -28,6 +28,7 @@ import {
 } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { devLog } from '@/shared/lib/logger';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
 import { $isMobile } from '@/shared/models/mobile';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
@@ -46,6 +47,7 @@ export interface CalendarProps {
 
 export const HotelCalendar = ({ hotel }: CalendarProps) => {
     const [isMobile] = useUnit([$isMobile]);
+    const { isPhone } = useScreenSize();
     const filter = useUnit($hotelsFilter);
     const queryClient = useQueryClient();
     const { data, isPending: isRoomPending } = useGetRoomsWithReservesByHotel(
@@ -268,7 +270,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                         hotelRooms={hotelRooms}
                         hotelReserves={timelineItems}
                         timelineClassName="hotelTimeline"
-                        sidebarWidth={isMobile ? 100 : 225}
+                        sidebarWidth={isPhone ? 78 : isMobile ? 92 : 225}
                         canvasAction={canvasAction}
                         onReserveAdd={onReserveAdd}
                         onClosureAdd={onClosureAdd}

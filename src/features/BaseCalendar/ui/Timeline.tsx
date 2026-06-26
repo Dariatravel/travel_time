@@ -94,8 +94,8 @@ export const Timeline = ({
     const touchWrapperRef = useRef<HTMLDivElement | null>(null);
     const touchStartRef = useRef({ x: 0, y: 0 });
     const hasTouchMovedRef = useRef(false);
-    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isMobile ? 'month' : 'day');
-    const [mobileVisibleOffsetDays, setMobileVisibleOffsetDays] = useState(0);
+    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isPhone ? 'day' : isMobile ? 'month' : 'day');
+    const [mobileVisibleRange, setMobileVisibleRange] = useState<{ start: number; end: number } | null>(null);
     const initialZoomAppliedRef = useRef(false);
 
     // Функция для определения уровня зума на основе unit и видимого периода
@@ -126,7 +126,7 @@ export const Timeline = ({
         return 'day'; // По умолчанию
     };
 
-    const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 104 : isMobile ? 100 : 225);
+    const defaultSidebarWidth = sidebarWidth ?? (isPhone ? 78 : isMobile ? 92 : 225);
     const rowHeight = isPhone
         ? TIMELINE_ROW_HEIGHT.phone
         : isMobile
@@ -134,7 +134,7 @@ export const Timeline = ({
           : TIMELINE_ROW_HEIGHT.desktop;
     const monthColors = ['var(--primary)', '#329a77', '#38e0a8'];
 
-    const getDefaultTime = () => {
+    const { defaultTimeStart, defaultTimeEnd } = useMemo(() => {
         // Если задан период поиска — показываем его (с небольшим отступом)
         if (
             visibleTimeStart != null &&
@@ -142,12 +142,8 @@ export const Timeline = ({
             visibleTimeStart < visibleTimeEnd
         ) {
             const paddingDays = isMobile ? 2 : 7;
-            const defaultTimeStart = moment
-                .unix(visibleTimeStart)
-                .add(-paddingDays + mobileVisibleOffsetDays, 'day');
-            const defaultTimeEnd = moment
-                .unix(visibleTimeEnd)
-                .add(paddingDays + mobileVisibleOffsetDays, 'day');
+            const defaultTimeStart = moment.unix(visibleTimeStart).add(-paddingDays, 'day');
+            const defaultTimeEnd = moment.unix(visibleTimeEnd).add(paddingDays, 'day');
             return { defaultTimeStart, defaultTimeEnd };
         }
 
@@ -158,20 +154,22 @@ export const Timeline = ({
         const desktopEndOffset = 45; // ~1.5 месяца вперед
 
         const defaultTimeStart = moment().add(
-            (isMobile ? mobileStartOffset : desktopStartOffset) + mobileVisibleOffsetDays,
+            isMobile ? mobileStartOffset : desktopStartOffset,
             'day',
         );
         const defaultTimeEnd = moment().add(
-            (isMobile ? mobileEndOffset : desktopEndOffset) + mobileVisibleOffsetDays,
+            isMobile ? mobileEndOffset : desktopEndOffset,
             'day',
         );
 
         return { defaultTimeStart, defaultTimeEnd };
-    };
-
-    const { defaultTimeStart, defaultTimeEnd } = useMemo(
-        () => getDefaultTime(),
-        [visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays, isMobile],
+    }, [visibleTimeStart, visibleTimeEnd, isMobile]);
+    const defaultRange = useMemo(
+        () => ({
+            start: defaultTimeStart.valueOf(),
+            end: defaultTimeEnd.valueOf(),
+        }),
+        [defaultTimeStart, defaultTimeEnd],
     );
 
     const handleCanvasAction = useCallback(
@@ -273,6 +271,7 @@ export const Timeline = ({
                 return (
                     <div
                         className={styles.mobileGroupLabel}
+                        title={group.title}
                         onClick={() => {
                             if (onGroupClick) {
                                 onGroupClick(group);
@@ -388,28 +387,29 @@ export const Timeline = ({
     // Маленький диапазон = большой зум (дни), большой диапазон = маленький зум (месяцы)
     useEffect(() => {
         initialZoomAppliedRef.current = false;
-    }, [visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays]);
+    }, [visibleTimeStart, visibleTimeEnd]);
 
     useEffect(() => {
-        if (!timelineRef.current || initialZoomAppliedRef.current) return;
+        if (isPhone || !timelineRef.current || initialZoomAppliedRef.current) return;
 
         const timeoutId = window.setTimeout(() => {
             if (!timelineRef.current || initialZoomAppliedRef.current) return;
 
             initialZoomAppliedRef.current = true;
-            if (isMobile) {
-                timelineRef.current.changeZoom(0.5, 0.5);
-            } else {
-                timelineRef.current.changeZoom(3.5, 0.5);
-            }
+            timelineRef.current.changeZoom(isMobile ? 0.5 : 3.5, 0.5);
         }, 300);
 
         return () => window.clearTimeout(timeoutId);
-    }, [isMobile, visibleTimeStart, visibleTimeEnd, mobileVisibleOffsetDays]);
+    }, [isMobile, isPhone, visibleTimeStart, visibleTimeEnd]);
 
     useEffect(() => {
-        setMobileVisibleOffsetDays(0);
-    }, [visibleTimeStart, visibleTimeEnd]);
+        if (!isPhone) {
+            setMobileVisibleRange(null);
+            return;
+        }
+
+        setMobileVisibleRange(defaultRange);
+    }, [defaultRange, isPhone]);
 
     const handleWrapperTouchStart = (event: React.TouchEvent<HTMLDivElement>) => {
         const touch = event.touches[0];
@@ -450,9 +450,37 @@ export const Timeline = ({
         return `${intervalDate.format('MMM')} '${intervalDate.format('YY')}`;
     };
 
-    const shiftMobileTimeline = (days: number) => {
-        setMobileVisibleOffsetDays((currentOffset) => currentOffset + days);
-    };
+    const shiftMobileTimeline = useCallback(
+        (days: number) => {
+            const shift = days * DAY;
+            setMobileVisibleRange((currentRange) => {
+                const range = currentRange ?? defaultRange;
+                return {
+                    start: range.start + shift,
+                    end: range.end + shift,
+                };
+            });
+        },
+        [defaultRange],
+    );
+
+    const resetMobileTimeline = useCallback(() => {
+        setMobileVisibleRange(defaultRange);
+    }, [defaultRange]);
+
+    const handleTimeChange = useCallback(
+        (
+            visibleStart: number,
+            visibleEnd: number,
+            updateScrollCanvas: (start: number, end: number, forceUpdateDimensions?: boolean) => void,
+        ) => {
+            if (isPhone) {
+                setMobileVisibleRange({ start: visibleStart, end: visibleEnd });
+            }
+            updateScrollCanvas(visibleStart, visibleEnd);
+        },
+        [isPhone],
+    );
 
     const capitalizeMonthToken = (formatted: string) => {
         // ru locale returns lowercase month abbreviations (e.g. «июля»); capitalize for scanability
@@ -462,8 +490,9 @@ export const Timeline = ({
     };
 
     const mobileRangeLabel = (() => {
-        const start = defaultTimeStart;
-        const end = defaultTimeEnd;
+        const range = mobileVisibleRange ?? defaultRange;
+        const start = moment(range.start);
+        const end = moment(range.end);
         let raw: string;
         if (start.isSame(end, 'day')) {
             raw = start.format('D MMM');
@@ -505,17 +534,26 @@ export const Timeline = ({
                             type="button"
                             variant="outline"
                             size="sm"
+                            aria-label="Показать предыдущий день"
+                            onClick={() => shiftMobileTimeline(-1)}
+                        >
+                            -1
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
                             aria-label="Показать предыдущую неделю"
                             onClick={() => shiftMobileTimeline(-7)}
                         >
-                            -7 дней
+                            -7
                         </Button>
                         <Button
                             type="button"
                             variant="secondary"
                             size="sm"
                             aria-label="Вернуться к исходному периоду"
-                            onClick={() => setMobileVisibleOffsetDays(0)}
+                            onClick={resetMobileTimeline}
                         >
                             {mobileResetLabel}
                         </Button>
@@ -526,7 +564,16 @@ export const Timeline = ({
                             aria-label="Показать следующую неделю"
                             onClick={() => shiftMobileTimeline(7)}
                         >
-                            +7 дней
+                            +7
+                        </Button>
+                        <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            aria-label="Показать следующий день"
+                            onClick={() => shiftMobileTimeline(1)}
+                        >
+                            +1
                         </Button>
                     </div>
                 </div>
@@ -538,9 +585,9 @@ export const Timeline = ({
                 enableTouchSensor={!isPhone}
             >
                 <TimelineComponent
-                    key={`${timelineId}-${visibleTimeStart ?? 'none'}-${visibleTimeEnd ?? 'none'}-${mobileVisibleOffsetDays}`}
                     ref={timelineRef}
                     onZoom={handleTimelineZoom}
+                    onTimeChange={handleTimeChange}
                     className={timelineClassName}
                     groups={hotelRooms}
                     items={visualHotelReserves}
@@ -555,8 +602,10 @@ export const Timeline = ({
                     stackItems={false}
                     lineHeight={rowHeight}
                     itemHeightRatio={TIMELINE_ITEM_HEIGHT_RATIO}
-                    defaultTimeStart={defaultTimeStart as unknown as number}
-                    defaultTimeEnd={defaultTimeEnd as unknown as number}
+                    defaultTimeStart={defaultRange.start}
+                    defaultTimeEnd={defaultRange.end}
+                    visibleTimeStart={isPhone ? (mobileVisibleRange ?? defaultRange).start : undefined}
+                    visibleTimeEnd={isPhone ? (mobileVisibleRange ?? defaultRange).end : undefined}
                     minZoom={WEEK}
                     maxZoom={THREE_MONTHS}
                     onCanvasClick={(groupId, time, e) => {
