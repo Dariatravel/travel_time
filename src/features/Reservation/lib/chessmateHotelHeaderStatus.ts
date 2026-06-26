@@ -27,6 +27,7 @@ const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
 const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus> = {
     абаза: 'request',
     абырлаш: 'request',
+    'адунеи гостевой дом': 'active',
     'аврора inn': 'access',
     'аквамарин дом под ключ': 'active',
     александрия: 'access',
