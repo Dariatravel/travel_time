@@ -41,6 +41,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'банан и фундук': 'active',
     'белая дача': 'active',
     'белая лошадь white horse': 'access',
+    бриз: 'active',
     бзыбь: 'access',
     'би хэппи be happy': 'active',
     бугенвиллея: 'active',
