@@ -40,6 +40,9 @@ export default function RootLayout({
                     name="viewport"
                     content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
                 />
+                <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
+                <link rel="icon" href="/icon.png" type="image/png" sizes="512x512" />
+                <link rel="apple-touch-icon" href="/apple-touch-icon.png" sizes="180x180" />
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable}`}>
                 {process.env.NODE_ENV === 'development' && <EffectorLogger />}
