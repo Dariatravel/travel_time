@@ -207,8 +207,6 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                                                     params,
                                                     pathname,
                                                 );
-
-                                                console.log('link', { link, isActive });
                                                 return (
                                                     <NavigationMenuItem
                                                         key={index}

@@ -67,7 +67,7 @@ export async function proxySupabaseGatewayRequest(
     const hasBody = method !== 'GET' && method !== 'HEAD';
     const body = hasBody ? await request.arrayBuffer() : undefined;
 
-    const upstreamResponse = await withRetry(async () => {
+    const fetchUpstream = async () => {
         const response = await fetch(upstreamUrl, {
             method,
             headers,
@@ -80,7 +80,12 @@ export async function proxySupabaseGatewayRequest(
         }
 
         return response;
-    });
+    };
+
+    const upstreamResponse =
+        method === 'GET' || method === 'HEAD'
+            ? await withRetry(fetchUpstream)
+            : await fetchUpstream();
 
     const responseHeaders = new Headers();
     FORWARD_RESPONSE_HEADERS.forEach((headerName) => {

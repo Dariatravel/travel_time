@@ -227,7 +227,6 @@ export async function getAllHotels(
                         );
                     }
 
-                    console.log(`${hotel.title}`, { rooms: hotel.rooms, filteredRooms });
                     return {
                         ...hotel,
                         rooms:
@@ -238,7 +237,6 @@ export async function getAllHotels(
                     };
                 }) || [];
 
-            console.log('getAllHotels', { data });
             return {
                 data,
                 count: orderedRows.length,
@@ -472,8 +470,6 @@ export const useInfiniteHotelsQuery = (
                       excludeHiddenFromSearch: resolvedOptions.excludeHiddenFromSearch,
                   });
 
-            console.log('useInfiniteHotelsQuery', { result, filter });
-
             // Возвращаем отели с номерами БЕЗ броней
             // Брони будут загружены в HotelCard через useHotelDetailQuery
             const hotelsWithEmptyReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
@@ -493,7 +489,6 @@ export const useInfiniteHotelsQuery = (
                 };
             });
 
-            console.log('useInfiniteHotelsQueryEND', { hotelsWithEmptyReserves });
             return {
                 ...result,
                 data: hotelsWithEmptyReserves,
@@ -646,7 +641,6 @@ export const getHotelDetail = async (
             };
             return roomTmp;
         });
-        console.log('hotelData', { hotelData, rooms, allowedRoomsByHotel, filteredRooms });
         // Сортируем номера по полю order
         const sortedRooms = [...rooms].sort((a, b) => {
             const orderA = a.order ?? 999;
@@ -1099,7 +1093,9 @@ export const useUpdateHotel = (
         onSuccess: async (_data, variables) => {
             const id = hotelId || variables.id;
             if (id) {
-                await invalidateHotelChessmateQueries(queryClient, id);
+                await invalidateHotelChessmateQueries(queryClient, id, {
+                    includeHotelList: true,
+                });
             } else {
                 await queryClient.invalidateQueries({
                     queryKey: ['hotels', 'list'],

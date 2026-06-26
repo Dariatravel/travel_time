@@ -297,18 +297,6 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Проверяем активные расширенные фильтры после применения
         const hasActiveFilters = hasActiveAdvancedFilters(advancedFilters);
 
-        // Логирование для отладки
-        console.log('SearchForm.onSearch - filter before getHotelsWithFreeRooms:', {
-            start: filter.start,
-            end: filter.end,
-            start_time,
-            end_time,
-            type: filter.type,
-            chessmateStatus: filter.chessmateStatus,
-            quantity: filter.quantity,
-            hasActiveFilters,
-        });
-
         // Проверяем, есть ли основные фильтры ИЛИ активные расширенные фильтры
         if (!isAllValuesUndefined(filter) || hasActiveFilters) {
             // Устанавливаем состояние загрузки
@@ -317,11 +305,6 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             try {
                 // Парсим расширенные фильтры только если они активны
                 const parsedAdvancedFilter = hasActiveFilters ? parseFilter(advancedFilters) : {};
-
-                console.log('SearchForm.onSearch - calling getHotelsWithFreeRooms with:', {
-                    filter,
-                    parsedAdvancedFilter,
-                });
 
                 const result = await getHotelsWithFreeRoomsCompatible(filter, parsedAdvancedFilter);
 
@@ -392,8 +375,6 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         // Если все фильтры пустые, сбрасываем все query параметры
         if (allFiltersEmpty) {
-            console.log('SearchForm.onSearch - all filters empty, clearing URL and filters');
-
             // Сбрасываем расширенные фильтры
             AdvancedFiltersModel.filtersCleared();
 

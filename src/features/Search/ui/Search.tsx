@@ -145,7 +145,6 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                 freeHotels: getHotelsMap(result),
             };
 
-            console.log({ freeRoomData });
         }
 
         if (selectedHotels.length !== 0) {
@@ -154,8 +153,6 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
         } else {
             filter.hotels = undefined;
         }
-
-        console.log({ filter });
 
         changeTravelFilter({ ...filter, ...freeRoomData });
 

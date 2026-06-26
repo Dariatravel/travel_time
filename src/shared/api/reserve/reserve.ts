@@ -324,7 +324,6 @@ export async function getReservesByHotels(
             return new Map();
         }
 
-        console.log('getReservesByHotels', { allowedRoomsByHotel });
         // Если есть фильтр по номерам, собираем все разрешённые room_ids
         let allowedRoomIds: string[] | undefined;
         if (allowedRoomsByHotel && allowedRoomsByHotel.size > 0) {

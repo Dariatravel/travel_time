@@ -172,9 +172,6 @@ export const RoomInfo: FC<RoomInfoProps> = ({
     };
 
     const onError: SubmitErrorHandler<RoomFormSchemaType> = (errors) => {
-        console.log('Ошибки валидации:', errors);
-        console.log('Значения формы:', form.watch());
-
         // Маппинг полей на понятные названия
         const fieldNames: Record<string, string> = {
             hotel_id: 'Отель',

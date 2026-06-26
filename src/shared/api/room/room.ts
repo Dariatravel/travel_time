@@ -40,6 +40,15 @@ export type RoomReserves = {
 };
 export type Room = Omit<RoomDTO, 'id'>;
 
+const getRoomsWithReservesFilterKey = (filter?: TravelFilterType) => ({
+    freeHotels: filter?.freeHotels
+        ? Array.from(filter.freeHotels.entries())
+              .map(([hotelId, roomIds]) => [hotelId, [...roomIds].sort()] as const)
+              .sort(([left], [right]) => left.localeCompare(right))
+        : null,
+    roomFeatures: filter?.roomFeatures ? [...filter.roomFeatures].sort() : null,
+});
+
 export async function getRoomsByHotel(hotel_id?: string) {
     if (!hotel_id) {
         return [];
@@ -91,12 +100,13 @@ export async function getRoomsWithReservesByHotel(
 }
 
 export const createRoomApi = async (room: Room) => {
-    try {
-        const { responseData } = await insertItem<Room>(TABLE_NAMES.ROOMS, room);
-        return responseData;
-    } catch (error) {
-        throw error;
+    const { responseData, error } = await insertItem<Room>(TABLE_NAMES.ROOMS, room);
+
+    if (error) {
+        throw new Error(error.message);
     }
+
+    return responseData;
 };
 
 export const updateRoomApi = async ({ id, ...room }: RoomDTO) => {
@@ -191,7 +201,12 @@ export const useGetRoomsWithReservesByHotel = (
     withReserves?: boolean,
 ) => {
     return useQuery({
-        queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotel_id],
+        queryKey: [
+            ...QUERY_KEYS.roomsWithReservesByHotel,
+            hotel_id,
+            withReserves,
+            getRoomsWithReservesFilterKey(filter),
+        ],
         queryFn: () => getRoomsWithReservesByHotel(hotel_id, filter, withReserves),
     });
 };

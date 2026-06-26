@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
 import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
-import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
 import { createSupabaseServerClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 
@@ -44,17 +43,14 @@ export async function PATCH(
         const body = (await request.json()) as Partial<ReserveDTO>;
         const supabase = createSupabaseServerClient(authorization);
 
-        const data = await withRetry(async () => {
-            const { data: updatedReserve, error } = await supabase
-                .from('reserves')
-                .update(toReservePayload(body))
-                .eq('id', reserveId)
-                .select('id, room_id')
-                .single();
+        const { data, error } = await supabase
+            .from('reserves')
+            .update(toReservePayload(body))
+            .eq('id', reserveId)
+            .select('id, room_id')
+            .single();
 
-            if (error) throw error;
-            return updatedReserve;
-        });
+        if (error) throw error;
 
         deleteCacheByPrefix('hotel-calendar:');
 
