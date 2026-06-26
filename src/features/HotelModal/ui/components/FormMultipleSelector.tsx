@@ -12,6 +12,7 @@ interface FormMultipleSelectorProps {
     options: Option[];
     placeholder: string;
     disabled?: boolean;
+    emptyIndicator?: React.ReactNode;
     className?: string;
     htmlFor?: string;
 }
@@ -25,6 +26,7 @@ export const FormMultipleSelector: React.FC<FormMultipleSelectorProps> = ({
     options,
     placeholder,
     disabled = false,
+    emptyIndicator,
     className,
     htmlFor,
 }) => {
@@ -35,8 +37,10 @@ export const FormMultipleSelector: React.FC<FormMultipleSelectorProps> = ({
                 value={value}
                 onChange={onChange}
                 disabled={disabled}
+                emptyIndicator={emptyIndicator}
                 hidePlaceholderWhenSelected
                 placeholder={placeholder}
+                className={className}
             />
         </FormField>
     );

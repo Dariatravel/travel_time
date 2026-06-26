@@ -82,11 +82,15 @@ export type SearchFormSchema = z.infer<typeof searchFormSchema>;
 
 export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps) => {
     const router = useRouter();
-    const { data: hotels } = useGetHotelsForSearch();
+    const {
+        data: hotels,
+        isLoading: isHotelsLoading,
+        isError: isHotelsError,
+    } = useGetHotelsForSearch();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
     const filter = useUnitCompat($hotelsFilter);
     const { isMobile, isTablet } = useDeviceDetection();
-    const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(false);
+    const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
     const [isInitialized, setIsInitialized] = useState(false);
 
     const methods = useForm<SearchFormSchema>({
@@ -211,12 +215,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     }, [hotels, isInitialized]); // Зависимость от hotels и isInitialized
 
     useEffect(() => {
-        // Сворачиваем форму только на мобильных и планшетах
-        if (isMobile) {
-            setIsMobileFiltersOpen(false);
-        } else {
-            setIsMobileFiltersOpen(true);
-        }
+        setIsMobileFiltersOpen(true);
     }, [isMobile]);
 
     const onSearch: SubmitHandler<SearchFormSchema> = async (formData) => {
@@ -461,6 +460,16 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const hotelOptions = sortHotelOptionsByLabel(
         hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [],
     );
+    const hotelsPlaceholder = isHotelsLoading
+        ? 'Загружаем отели...'
+        : isHotelsError
+          ? 'Отели не загрузились'
+          : 'Введите название отеля';
+    const hotelsEmptyMessage = isHotelsError
+        ? 'Не удалось загрузить список отелей. Обновите страницу или войдите заново.'
+        : isHotelsLoading
+          ? 'Загружаем список отелей...'
+          : 'Отель не найден';
 
     return (
         <FormProvider {...methods}>
@@ -611,7 +620,12 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                                     value: item.value,
                                                     label: item.label,
                                                 }))}
-                                                placeholder="Введите название отеля"
+                                                placeholder={hotelsPlaceholder}
+                                                emptyIndicator={
+                                                    <span className="text-sm text-muted-foreground">
+                                                        {hotelsEmptyMessage}
+                                                    </span>
+                                                }
                                                 htmlFor="hotels"
                                             />
                                             <FormMessage message={error?.message} />
