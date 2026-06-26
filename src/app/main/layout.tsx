@@ -30,7 +30,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     const router = useRouter();
 
     const onItemClick = async (item: string) => {
-        console.log(item);
         if (item === 'logout') {
             await signOut();
             router.push(routes[PagesEnum.LOGIN]);
@@ -50,7 +49,6 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ]
         : baseNavLinks;
 
-    console.log(user);
     return (
         <>
             <div className="relative w-full">

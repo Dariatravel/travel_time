@@ -184,7 +184,6 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     );
 
     const onError: SubmitErrorHandler<HotelFormSchema> = () => {
-        console.log('data', { values: watch() });
         showToast(`Заполните все обязательные поля`, 'error');
         return;
     };

@@ -32,10 +32,6 @@ export const FiltersSync = () => {
 
         const query = serializeFiltersToQuery(filters);
 
-        // Отладочное логирование
-        console.log('FiltersSync: serializeFiltersToQuery result:', query);
-        console.log('FiltersSync: current filters state:', filters);
-
         const sp = new URLSearchParams(query);
         const newQuery = sp.toString();
 
@@ -71,8 +67,6 @@ export const FiltersSync = () => {
         });
 
         const next = `${pathname}?${currentParams.toString()}`;
-
-        console.log('FiltersSync: updating URL to:', next);
 
         previousQueryRef.current = newQuery;
         router.replace(next, { scroll: false });

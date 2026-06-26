@@ -102,15 +102,12 @@ export const serializeFiltersToQuery = (state: AdvancedFiltersState): Record<str
 
             const active = section.options.filter((o) => o.isActive).map((o) => o.value);
 
-            console.log(`serializeFiltersToQuery: ${stateKey} -> ${queryKey}, active:`, active);
-
             if (active.length === 0) return;
 
             result[queryKey] = active.join(',');
         },
     );
 
-    console.log('serializeFiltersToQuery: final result:', result);
     return result;
 };
 

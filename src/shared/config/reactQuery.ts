@@ -31,12 +31,13 @@ export const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
 })
 
-/** Обновляет все кэши, от которых зависит шахматка после изменения отеля/номера. */
+/** Обновляет кэши шахматки после изменения отеля/номера без лишнего refetch всей страницы. */
 export async function invalidateHotelChessmateQueries(
   queryClient: QueryClient,
   hotelId: string,
+  options: { includeHotelList?: boolean } = {},
 ) {
-  await Promise.all([
+  const tasks = [
     queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.hotelDetail(hotelId),
     }),
@@ -47,9 +48,6 @@ export async function invalidateHotelChessmateQueries(
       queryKey: [...QUERY_KEYS.roomsWithReservesByHotel, hotelId],
     }),
     queryClient.invalidateQueries({
-      queryKey: ['hotels', 'list'],
-    }),
-    queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.roomsByHotel,
     }),
     queryClient.invalidateQueries({
@@ -58,5 +56,15 @@ export async function invalidateHotelChessmateQueries(
     queryClient.invalidateQueries({
       queryKey: QUERY_KEYS.hotelsForSearch,
     }),
-  ])
+  ]
+
+  if (options.includeHotelList) {
+    tasks.push(
+      queryClient.invalidateQueries({
+        queryKey: ['hotels', 'list'],
+      }),
+    )
+  }
+
+  await Promise.all(tasks)
 }

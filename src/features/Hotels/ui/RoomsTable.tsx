@@ -127,7 +127,6 @@ export const RoomsTable: React.FC<RoomsTableProps> = ({
     const { isPending: isDeleting, mutateAsync: deleteRoom } = useDeleteRoom(
         hotelId, // hotelId
         () => {
-            console.log('onSuccess deleteRoom', hotelId);
             if (hotelId) {
                 queryClient.invalidateQueries({
                     queryKey: QUERY_KEYS.hotelById(hotelId),
