@@ -57,7 +57,9 @@ export async function getRoomsByHotel(hotel_id?: string) {
     const { data, error } = await supabase
         .from(TABLE_NAMES.ROOMS)
         .select()
-        .filter('hotel_id', 'eq', hotel_id);
+        .filter('hotel_id', 'eq', hotel_id)
+        .order('order', { ascending: true, nullsFirst: false })
+        .order('title', { ascending: true });
 
     if (error) {
         throw new Error(error.message);
