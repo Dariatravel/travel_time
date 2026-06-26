@@ -172,7 +172,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
     const shouldLoadHotels = isOpen && !currentReserve?.hotel?.id;
-    const shouldLoadRooms = isOpen && !currentReserve?.room?.id;
+    const shouldLoadRooms = isOpen;
 
     // Выполняем запросы только когда форма открыта
     const {
@@ -478,6 +478,10 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                                     );
                                                     if (selectedHotel) {
                                                         field.onChange(selectedHotel);
+                                                        setValue(
+                                                            'room_id',
+                                                            undefined as unknown as ReserveFormValues['room_id'],
+                                                        );
                                                     }
                                                 }}
                                                 disabled={lookupLoading || !!currentReserve?.hotel?.id}
