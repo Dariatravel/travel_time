@@ -22,7 +22,8 @@ import { cn } from '@/lib/utils';
 import { User } from '@/shared';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { isAdminRole } from '@/shared/lib/isAdmin';
-import { ChevronDownIcon, HamburgerIcon, MenuIcon, UserCog } from 'lucide-react';
+import { isStaffRole } from '@/shared/lib/userRoles';
+import { ChevronDownIcon, HamburgerIcon, LayoutDashboard, MenuIcon, UserCog } from 'lucide-react';
 import Link from 'next/link';
 import { useParams, usePathname } from 'next/navigation';
 import * as React from 'react';
@@ -37,12 +38,14 @@ const UserMenu = ({
     userAvatar,
     onItemClick,
     isAdmin = false,
+    isStaff = false,
 }: {
     userName?: string;
     userEmail?: string;
     userAvatar?: string;
     onItemClick?: (item: string) => void;
     isAdmin?: boolean;
+    isStaff?: boolean;
 }) => (
     <DropdownMenu>
         <DropdownMenuTrigger asChild>
@@ -70,6 +73,20 @@ const UserMenu = ({
                     <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
                 </div>
             </DropdownMenuLabel>
+            {isStaff && (
+                <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem asChild>
+                        <Link
+                            href={routes[PagesEnum.OPERATIONS]}
+                            className="flex items-center gap-2 cursor-pointer"
+                        >
+                            <LayoutDashboard className="h-4 w-4" />
+                            Операционный центр
+                        </Link>
+                    </DropdownMenuItem>
+                </>
+            )}
             {isAdmin && (
                 <>
                     <DropdownMenuSeparator />
@@ -362,6 +379,7 @@ export const Navbar = React.forwardRef<HTMLElement, NavbarProps>(
                             userName={user?.name}
                             userEmail={user?.email}
                             isAdmin={isAdminRole(user?.role)}
+                            isStaff={isStaffRole(user?.role)}
                         />
                     </div>
                 </div>

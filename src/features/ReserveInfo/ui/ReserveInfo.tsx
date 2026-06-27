@@ -21,6 +21,7 @@ import { FormButtons, PhoneInput } from '@/shared';
 import { useGetHotelsForRoom } from '@/shared/api/hotel/hotel';
 import {
     type CurrentReserveType,
+    getReserveOverlaps,
     Nullable,
     Reserve,
     ReserveDTO,
@@ -74,6 +75,15 @@ const getFirstFormErrorMessage = (errors: FieldErrors<ReserveFormValues>): strin
     }
 
     return undefined;
+};
+
+const formatOverlapDate = (value: number | Date) => {
+    const unix = typeof value === 'number' ? value : Math.floor(value.getTime() / 1000);
+    return new Date(unix * 1000).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
 };
 
 const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
@@ -387,7 +397,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
     // Мемоизируем обработчики событий
     const onAcceptForm = useCallback(
-        (formData: ReserveFormValues) => {
+        async (formData: ReserveFormValues) => {
             if (!formData?.date?.[0] || !formData?.date?.[1]) {
                 showToast('Ошибка при сохранении брони, проверьте даты', 'error');
                 return;
@@ -395,6 +405,43 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
             const reserveId = currentReserve?.reserve?.id;
             const data = deserializeData(formData);
+            const roomId = data.room_id;
+
+            if (!roomId) {
+                showToast('Ошибка при сохранении брони, выберите номер', 'error');
+                return;
+            }
+
+            try {
+                const overlaps = await getReserveOverlaps({
+                    roomId,
+                    start: data.start as number,
+                    end: data.end as number,
+                    excludeReserveId: reserveId,
+                });
+
+                if (overlaps.length > 0) {
+                    const overlapMessage = overlaps
+                        .map(
+                            (reserve) =>
+                                `• ${reserve.guest || 'Без имени'}: ${formatOverlapDate(reserve.start)} - ${formatOverlapDate(reserve.end)}`,
+                        )
+                        .join('\n');
+                    const shouldContinue = window.confirm(
+                        `В выбранном номере уже есть бронь на эти даты:\n\n${overlapMessage}\n\nВсё равно сохранить?`,
+                    );
+
+                    if (!shouldContinue) {
+                        return;
+                    }
+                }
+            } catch (error) {
+                showToast(
+                    `Не удалось проверить пересечения: ${(error as Error).message}`,
+                    'error',
+                );
+                return;
+            }
 
             if (reserveId) {
                 onAccept({ ...data, id: reserveId });

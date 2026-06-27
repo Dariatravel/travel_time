@@ -24,6 +24,7 @@ export const QUERY_KEYS = {
   reserveHistory: (reserveId: string) => ['reserveHistory', reserveId] as const,
   reserveHistoryPrefix: ['reserveHistory'] as const,
   recentActivity: ['activity', 'recent'] as const,
+  operationsCenter: ['operationsCenter'] as const,
   roomClosuresByHotel: (hotelId: string) => ['roomClosures', hotelId] as const,
 }
 

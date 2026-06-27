@@ -26,6 +26,11 @@ const pages: { label: string; icon: React.ReactNode; href: string }[] = [
         href: routes[PagesEnum.RESERVATION],
     },
     {
+        label: 'Операционный центр',
+        icon: <LuChartNoAxesCombined color="#7C918F" size={24} />,
+        href: routes[PagesEnum.OPERATIONS],
+    },
+    {
         label: 'Расширенные фильтры',
         icon: <LuChartNoAxesCombined color="#7C918F" size={24} />,
         href: routes[PagesEnum.ADVANCED_FILTERS],
