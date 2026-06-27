@@ -71,6 +71,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     карин: 'active',
     'кастл castle': 'active',
     'кира guest house kira': 'active',
+    'киараз резорт': 'active',
     крылья: 'active',
     лазурит: 'access',
     лайм: 'active',
