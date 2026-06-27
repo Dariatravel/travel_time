@@ -3,10 +3,11 @@ import { Navbar, NavbarNavItem } from '@/features/NavBar';
 import { useSignOut } from '@/shared/api/auth/auth';
 import { PagesEnum, routes } from '@/shared/config/routes';
 import { isAdminRole } from '@/shared/lib/isAdmin';
+import { isStaffRole } from '@/shared/lib/userRoles';
 import { useAuth } from '@/shared/lib/useAuth';
 import { $user } from '@/shared/models/auth';
 import { useUnit } from 'effector-react';
-import { Building2, Calendar, HomeIcon, UserCog } from 'lucide-react';
+import { Building2, Calendar, HomeIcon, LayoutDashboard, UserCog } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
@@ -37,17 +38,27 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
     };
 
     const user = useUnit($user);
+    const staffLinks = isStaffRole(user?.role)
+        ? [
+              {
+                  href: routes[PagesEnum.OPERATIONS],
+                  label: 'Операционный центр',
+                  icon: LayoutDashboard,
+              },
+          ]
+        : [];
 
     const navigationLinks = isAdminRole(user?.role)
         ? [
               ...baseNavLinks,
+              ...staffLinks,
               {
                   href: routes[PagesEnum.ADMIN_OPERATORS],
                   label: 'Операторы',
                   icon: UserCog,
               },
           ]
-        : baseNavLinks;
+        : [...baseNavLinks, ...staffLinks];
 
     return (
         <>

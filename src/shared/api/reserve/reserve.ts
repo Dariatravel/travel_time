@@ -8,6 +8,7 @@ import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
 import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
+import { getDate } from '@/shared/lib/getDate';
 import {
     isYandexBackendProxyClientEnabled,
     updateReserveViaYandexBackend,
@@ -57,6 +58,28 @@ export type CurrentReserveType = {
     room?: Nullable<RoomDTO>;
     hotel?: Nullable<HotelDTO>;
     reserve?: Partial<ReserveDTO>;
+};
+
+export type ReserveOverlap = Pick<ReserveDTO, 'id' | 'start' | 'end' | 'guest' | 'phone'> & {
+    rooms?: {
+        title?: string | null;
+        hotels?: {
+            title?: string | null;
+        } | null;
+    } | null;
+};
+
+export type DeletedReserveItem = {
+    id: string;
+    reserve_id: string;
+    deleted_at: string;
+    deleted_by?: string | null;
+    reserve_data: ReserveDTO;
+    room_data?: Partial<RoomDTO> | null;
+    hotel_data?: Partial<HotelDTO> | null;
+    restored_at?: string | null;
+    restored_by?: string | null;
+    restored_reserve_id?: string | null;
 };
 
 const isMissingHistoryTableError = (error: { code?: string; message?: string }) => {
@@ -157,6 +180,46 @@ export const createReserveApi = async (reserve: Reserve) => {
 
 export const deleteReserveApi = async (id: string) => {
     try {
+        const { data: reserveSnapshot, error: snapshotError } = await supabase
+            .from('reserves')
+            .select(
+                `
+                *,
+                rooms (
+                    *,
+                    hotels (*)
+                )
+            `,
+            )
+            .eq('id', id)
+            .single();
+
+        if (snapshotError) {
+            throw new Error(snapshotError.message);
+        }
+
+        if (reserveSnapshot) {
+            const room = Array.isArray(reserveSnapshot.rooms)
+                ? reserveSnapshot.rooms[0]
+                : reserveSnapshot.rooms;
+            const hotel = Array.isArray(room?.hotels) ? room.hotels[0] : room?.hotels;
+            const reserveData = Object.fromEntries(
+                Object.entries(reserveSnapshot).filter(([key]) => key !== 'rooms'),
+            );
+
+            const { error: backupError } = await supabase.from('reserve_deleted_items').insert({
+                reserve_id: id,
+                deleted_by: reserveData.edited_by ?? reserveData.created_by ?? null,
+                reserve_data: reserveData,
+                room_data: room ? { ...room, hotels: undefined } : null,
+                hotel_data: hotel ?? null,
+            });
+
+            if (backupError) {
+                console.warn('Failed to backup deleted reserve', backupError.message);
+            }
+        }
+
         const { data, error } = await supabase.from('reserves').delete().eq('id', id);
 
         if (error) {
@@ -167,6 +230,130 @@ export const deleteReserveApi = async (id: string) => {
         console.error('Error fetching posts:', err);
         throw err; // Передаем ошибку дальше для обработки в React Query
     }
+};
+
+export const getDeletedReserves = async (): Promise<DeletedReserveItem[]> => {
+    const { data, error } = await supabase
+        .from('reserve_deleted_items')
+        .select('*')
+        .is('restored_at', null)
+        .order('deleted_at', { ascending: false })
+        .limit(30);
+
+    if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') return [];
+        throw new Error(error.message);
+    }
+
+    return (data ?? []) as DeletedReserveItem[];
+};
+
+export const restoreDeletedReserveApi = async ({
+    deletedItemId,
+    restoredBy,
+    allowOverlap = false,
+}: {
+    deletedItemId: string;
+    restoredBy?: string;
+    allowOverlap?: boolean;
+}) => {
+    const { data: deletedItem, error: selectError } = await supabase
+        .from('reserve_deleted_items')
+        .select('*')
+        .eq('id', deletedItemId)
+        .is('restored_at', null)
+        .single();
+
+    if (selectError) {
+        throw new Error(selectError.message);
+    }
+
+    const item = deletedItem as DeletedReserveItem;
+    const overlaps = await getReserveOverlaps({
+        roomId: item.reserve_data.room_id,
+        start: Number(item.reserve_data.start),
+        end: Number(item.reserve_data.end),
+    });
+
+    if (overlaps.length > 0 && !allowOverlap) {
+        throw new Error('Есть пересечение с активной бронью. Подтвердите восстановление вручную.');
+    }
+
+    const reservePayload = {
+        ...item.reserve_data,
+        edited_by: restoredBy ?? item.reserve_data.edited_by,
+        edited_at: getDate(),
+    };
+
+    const { data: restoredReserve, error: insertError } = await supabase
+        .from('reserves')
+        .insert(reservePayload)
+        .select('id')
+        .single();
+
+    if (insertError) {
+        throw new Error(insertError.message);
+    }
+
+    const { error: updateError } = await supabase
+        .from('reserve_deleted_items')
+        .update({
+            restored_at: getDate(),
+            restored_by: restoredBy ?? null,
+            restored_reserve_id: restoredReserve.id,
+        })
+        .eq('id', deletedItemId);
+
+    if (updateError) {
+        throw new Error(updateError.message);
+    }
+
+    return restoredReserve;
+};
+
+export const getReserveOverlaps = async ({
+    roomId,
+    start,
+    end,
+    excludeReserveId,
+}: {
+    roomId: string;
+    start: number;
+    end: number;
+    excludeReserveId?: string;
+}) => {
+    let query = supabase
+        .from('reserves')
+        .select(
+            `
+            id,
+            start,
+            end,
+            guest,
+            phone,
+            rooms (
+                title,
+                hotels (
+                    title
+                )
+            )
+        `,
+        )
+        .eq('room_id', roomId)
+        .lt('start', end)
+        .gt('end', start);
+
+    if (excludeReserveId) {
+        query = query.neq('id', excludeReserveId);
+    }
+
+    const { data, error } = await query.order('start', { ascending: true }).limit(8);
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    return (data ?? []) as unknown as ReserveOverlap[];
 };
 
 export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
