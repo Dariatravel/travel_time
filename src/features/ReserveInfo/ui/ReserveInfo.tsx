@@ -42,8 +42,10 @@ import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } fr
 import { z } from 'zod';
 import cx from './style.module.scss';
 
-type ReserveFormValues = Omit<ReserveForm, 'prepayment'> & {
-    prepayment?: number | string;
+type ReserveFormValues = Omit<ReserveForm, 'prepayment' | 'phone' | 'comment'> & {
+    phone?: string | null;
+    comment?: string | null;
+    prepayment?: number | string | null;
 };
 
 export interface ReserveInfoProps {
@@ -139,21 +141,26 @@ const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
                 : 'ФИО гостя должно содержать минимум 2 символа',
         ),
     phone: z
-        .string({ message: 'Номер телефона обязателен' })
-        .trim()
-        .min(1, 'Номер телефона обязателен'),
+        .union([z.string(), z.null(), z.undefined()])
+        .transform((value) => value?.trim() ?? '')
+        .refine((value) => allowLegacyValues || value.length > 0, {
+            message: 'Номер телефона обязателен',
+        }),
     comment: z
         .any()
         .optional()
         .transform((value) => (value == null ? '' : String(value))),
     prepayment: z
-        .union([z.number(), z.string(), z.undefined()])
-        .refine((value) => value !== '' && value !== null && value !== undefined, {
-            message: 'Укажите сумму предоплаты',
+        .union([z.number(), z.string(), z.null(), z.undefined()])
+        .transform((value) => {
+            if (allowLegacyValues && (value === '' || value == null)) {
+                return 0;
+            }
+
+            return Number(value);
         })
-        .transform((value) => Number(value))
         .refine((value) => !Number.isNaN(value), {
-            message: 'Сумма должна быть числом',
+            message: allowLegacyValues ? 'Сумма должна быть числом' : 'Укажите сумму предоплаты',
         })
         .refine((value) => value >= 0, {
             message: 'Сумма не может быть отрицательной',
@@ -204,7 +211,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             price,
             prepayment: prepayment ?? 0,
             guest,
-            phone,
+            phone: phone ?? '',
             comment: comment ?? '', // Если нет комментария, пустая строка
             quantity: quantity ?? 2,
         };
@@ -230,7 +237,12 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                           id: room?.id,
                           title: room?.title,
                       })
-                    : undefined,
+                    : reserve?.room_id
+                      ? {
+                            id: reserve.room_id,
+                            label: 'Текущий номер',
+                        }
+                      : undefined,
                 price: room?.price ?? 0,
                 quantity: room?.quantity ?? 2,
                 comment: '', // По умолчанию пустая строка
@@ -366,7 +378,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             const room_id = data.room_id?.id;
             const priceNumber = +price;
             const quantityNumber = +quantity;
-            const prepaymentNumber = +prepayment;
+            const prepaymentNumber = prepayment == null || prepayment === '' ? 0 : +prepayment;
             const isEditReserve = !!currentReserve?.reserve?.id;
             const created_by = data?.created_by ?? userName;
             const created_at = data?.created_at ?? getDate();
@@ -374,14 +386,15 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             const edited_at = isEditReserve ? getDate() : undefined;
 
             // Обрабатываем comment: если значение не задано, отправляем пустую строку ""
-            const commentValue = comment != null && comment.trim() !== '' ? comment.trim() : '';
+            const commentValue =
+                comment != null && String(comment).trim() !== '' ? String(comment).trim() : '';
 
             return {
                 room_id,
                 start,
                 end,
                 guest: data.guest,
-                phone: data.phone,
+                phone: data.phone?.trim() ?? '',
                 price: priceNumber,
                 quantity: quantityNumber,
                 prepayment: prepaymentNumber,

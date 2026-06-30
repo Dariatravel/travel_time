@@ -151,15 +151,48 @@ type OperationWebhookRow = {
     conflicts: unknown;
 };
 
+export type OperationsCenterMode =
+    | 'search'
+    | 'arrivalsToday'
+    | 'departuresToday'
+    | 'freeRooms'
+    | 'duplicates'
+    | 'conflicts'
+    | 'integrations'
+    | 'deleted';
+
 export type OperationsCenterFilters = {
     query?: string;
     dateFrom?: Date;
     dateTo?: Date;
     freeDateFrom?: Date;
     freeDateTo?: Date;
+    modes?: OperationsCenterMode[];
 };
 
 const normalizePhone = (phone: string) => phone.replace(/\D/g, '');
+
+const emptyOperationsCenterData = (): OperationsCenterData => ({
+    todayArrivals: [],
+    todayDepartures: [],
+    searchResults: [],
+    freeRooms: [],
+    duplicates: [],
+    conflicts: [],
+    externalNewBookings: [],
+    integrationEvents: [],
+    activity: [],
+    deletedReserves: [],
+    totals: {
+        arrivals: 0,
+        departures: 0,
+        duplicates: 0,
+        conflicts: 0,
+        integrationErrors: 0,
+        freeRooms: 0,
+        deletedReserves: 0,
+    },
+});
 
 const mapReserve = (row: OperationReserveRow): OperationReserve => {
     const room = Array.isArray(row.rooms) ? row.rooms[0] : row.rooms;
@@ -195,6 +228,33 @@ const getDateRange = (from?: Date, to?: Date) => {
     const end = dayjs(to ?? from).add(1, 'day').startOf('day').unix();
 
     return { start, end };
+};
+
+const matchesReserveQuery = (reserve: OperationReserve, query: string) => {
+    const normalizedQuery = query.trim().toLowerCase();
+    const queryPhone = normalizePhone(query);
+
+    if (!normalizedQuery) return true;
+
+    const searchableText = [
+        reserve.guest,
+        reserve.phone,
+        reserve.roomTitle,
+        reserve.hotelTitle,
+        dayjs.unix(reserve.start).format('DD.MM.YYYY'),
+        dayjs.unix(reserve.start).format('DD.MM'),
+        dayjs.unix(reserve.start).format('YYYY-MM-DD'),
+        dayjs.unix(reserve.end).format('DD.MM.YYYY'),
+        dayjs.unix(reserve.end).format('DD.MM'),
+        dayjs.unix(reserve.end).format('YYYY-MM-DD'),
+    ]
+        .join(' ')
+        .toLowerCase();
+
+    return (
+        searchableText.includes(normalizedQuery) ||
+        (queryPhone.length >= 3 && normalizePhone(reserve.phone).includes(queryPhone))
+    );
 };
 
 const getReserves = async (from: number, to: number) => {
@@ -395,35 +455,74 @@ export async function getOperationsCenterData(
     const workingEnd = dayjs().add(180, 'day').startOf('day').unix();
     const dateRange = getDateRange(filters.dateFrom, filters.dateTo);
     const freeDateRange = getDateRange(filters.freeDateFrom, filters.freeDateTo);
+    const requestedModes = new Set(filters.modes ?? []);
+    const normalizedQuery = filters.query?.trim() ?? '';
+    const shouldSearch = requestedModes.has('search') || Boolean(normalizedQuery) || Boolean(dateRange);
+    const shouldFindFreeRooms = requestedModes.has('freeRooms') && Boolean(freeDateRange);
+
+    if (
+        !shouldSearch &&
+        !requestedModes.has('arrivalsToday') &&
+        !requestedModes.has('departuresToday') &&
+        !shouldFindFreeRooms &&
+        !requestedModes.has('duplicates') &&
+        !requestedModes.has('conflicts') &&
+        !requestedModes.has('integrations') &&
+        !requestedModes.has('deleted')
+    ) {
+        return emptyOperationsCenterData();
+    }
+
+    const reserveRanges: Array<{ start: number; end: number }> = [];
+
+    if (shouldSearch) {
+        reserveRanges.push(dateRange ?? { start: workingStart, end: workingEnd });
+    }
+
+    if (requestedModes.has('arrivalsToday') || requestedModes.has('departuresToday')) {
+        reserveRanges.push({ start: todayStart, end: todayEnd });
+    }
+
+    if (
+        requestedModes.has('duplicates') ||
+        requestedModes.has('conflicts') ||
+        requestedModes.has('integrations')
+    ) {
+        reserveRanges.push({ start: workingStart, end: workingEnd });
+    }
+
+    if (freeDateRange) {
+        reserveRanges.push(freeDateRange);
+    }
+
+    const reserveRange = reserveRanges.length
+        ? {
+              start: Math.min(...reserveRanges.map((range) => range.start)),
+              end: Math.max(...reserveRanges.map((range) => range.end)),
+          }
+        : null;
 
     const [reserves, integrationEvents, activity, deletedReserves] = await Promise.all([
-        getReserves(dateRange?.start ?? workingStart, dateRange?.end ?? workingEnd),
-        getIntegrationEvents(),
-        getActivity(),
-        getDeletedReserves(),
+        reserveRange ? getReserves(reserveRange.start, reserveRange.end) : Promise.resolve([]),
+        requestedModes.has('integrations') ? getIntegrationEvents() : Promise.resolve([]),
+        requestedModes.has('integrations') ? getActivity() : Promise.resolve([]),
+        requestedModes.has('deleted') ? getDeletedReserves() : Promise.resolve([]),
     ]);
 
-    const normalizedQuery = filters.query?.trim().toLowerCase();
-    const searchResults = normalizedQuery
+    const searchResults = shouldSearch
         ? reserves.filter((reserve) => {
-              const haystack = [
-                  reserve.guest,
-                  reserve.phone,
-                  reserve.roomTitle,
-                  reserve.hotelTitle,
-                  dayjs.unix(reserve.start).format('DD.MM.YYYY'),
-                  dayjs.unix(reserve.end).format('DD.MM.YYYY'),
-              ]
-                  .join(' ')
-                  .toLowerCase();
+              const matchesText = matchesReserveQuery(reserve, normalizedQuery);
+              const matchesDate = dateRange
+                  ? overlaps(reserve, dateRange.start, dateRange.end)
+                  : true;
 
-              return haystack.includes(normalizedQuery);
+              return matchesText && matchesDate;
           })
-        : reserves.slice(0, 40);
+        : [];
 
     let freeRooms: OperationsCenterData['freeRooms'] = [];
 
-    if (freeDateRange) {
+    if (shouldFindFreeRooms && freeDateRange) {
         const rooms = await getRooms();
         const busyRoomIds = new Set(
             reserves
@@ -434,18 +533,25 @@ export async function getOperationsCenterData(
         freeRooms = rooms.filter((room) => !busyRoomIds.has(room.id)).slice(0, 80);
     }
 
-    const todayArrivals = reserves.filter(
-        (reserve) => reserve.start >= todayStart && reserve.start < todayEnd,
-    );
-    const todayDepartures = reserves.filter(
-        (reserve) => reserve.end >= todayStart && reserve.end < todayEnd,
-    );
-    const duplicates = buildDuplicates(reserves.filter((reserve) => reserve.end >= todayStart));
-    const conflicts = buildConflicts(reserves);
-    const externalNewBookings = reserves
-        .filter((reserve) => reserve.externalSource)
-        .sort((left, right) => dayjs(right.createdAt).valueOf() - dayjs(left.createdAt).valueOf())
-        .slice(0, 20);
+    const todayArrivals = requestedModes.has('arrivalsToday')
+        ? reserves.filter((reserve) => reserve.start >= todayStart && reserve.start < todayEnd)
+        : [];
+    const todayDepartures = requestedModes.has('departuresToday')
+        ? reserves.filter((reserve) => reserve.end >= todayStart && reserve.end < todayEnd)
+        : [];
+    const duplicates = requestedModes.has('duplicates')
+        ? buildDuplicates(reserves.filter((reserve) => reserve.end >= todayStart))
+        : [];
+    const conflicts = requestedModes.has('conflicts') ? buildConflicts(reserves) : [];
+    const externalNewBookings = requestedModes.has('integrations')
+        ? reserves
+              .filter((reserve) => reserve.externalSource)
+              .sort(
+                  (left, right) =>
+                      dayjs(right.createdAt).valueOf() - dayjs(left.createdAt).valueOf(),
+              )
+              .slice(0, 20)
+        : [];
     const integrationErrors = integrationEvents.filter(
         (event) => event.resultStatus !== 'success' || event.hasConflicts,
     ).length;
