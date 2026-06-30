@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 import { Loader } from '@/shared';
 import {
     OperationReserve,
+    type OperationsCenterMode,
     useOperationsCenter,
     type OperationActivity,
     type OperationConflict,
@@ -312,17 +313,52 @@ export const OperationsCenterPage = () => {
     const user = useUnit($user);
     const canView = isStaffRole(user?.role);
     const [query, setQuery] = useState('');
+    const [activeMode, setActiveMode] = useState<OperationsCenterMode | null>(null);
     const [dateFrom, setDateFrom] = useState<Date | undefined>();
     const [dateTo, setDateTo] = useState<Date | undefined>();
     const [freeDateFrom, setFreeDateFrom] = useState<Date | undefined>();
     const [freeDateTo, setFreeDateTo] = useState<Date | undefined>();
     const [checkingRestoreId, setCheckingRestoreId] = useState<string | null>(null);
+    const hasFreeDateRange = Boolean(freeDateFrom && freeDateTo);
 
+    const requestedModes = useMemo(() => {
+        const modes: OperationsCenterMode[] = [];
+
+        if (query.trim() || dateFrom || dateTo) {
+            modes.push('search');
+        }
+
+        if (activeMode && (activeMode !== 'freeRooms' || hasFreeDateRange)) {
+            modes.push(activeMode);
+        }
+
+        return Array.from(new Set(modes));
+    }, [activeMode, dateFrom, dateTo, hasFreeDateRange, query]);
+    const hasSearchRequest = requestedModes.length > 0;
     const filters = useMemo(
-        () => ({ query, dateFrom, dateTo, freeDateFrom, freeDateTo }),
-        [dateFrom, dateTo, freeDateFrom, freeDateTo, query],
+        () => ({
+            query,
+            dateFrom,
+            dateTo,
+            freeDateFrom: activeMode === 'freeRooms' && hasFreeDateRange ? freeDateFrom : undefined,
+            freeDateTo: activeMode === 'freeRooms' && hasFreeDateRange ? freeDateTo : undefined,
+            modes: requestedModes,
+        }),
+        [
+            activeMode,
+            dateFrom,
+            dateTo,
+            freeDateFrom,
+            freeDateTo,
+            hasFreeDateRange,
+            query,
+            requestedModes,
+        ],
     );
-    const { data, isLoading, isError, error, refetch } = useOperationsCenter(filters, canView);
+    const { data, isLoading, isError, error, refetch } = useOperationsCenter(
+        filters,
+        canView && hasSearchRequest,
+    );
     const restoreMutation = useMutation({
         mutationFn: restoreDeletedReserveApi,
         onSuccess: async () => {
@@ -383,6 +419,19 @@ export const OperationsCenterPage = () => {
         });
     };
 
+    const toggleMode = (mode: OperationsCenterMode) => {
+        setActiveMode((currentMode) => (currentMode === mode ? null : mode));
+    };
+
+    const clearSearch = () => {
+        setQuery('');
+        setActiveMode(null);
+        setDateFrom(undefined);
+        setDateTo(undefined);
+        setFreeDateFrom(undefined);
+        setFreeDateTo(undefined);
+    };
+
     if (!canView) {
         return (
             <Card className="mx-auto max-w-3xl bg-white/90">
@@ -403,32 +452,41 @@ export const OperationsCenterPage = () => {
                     <div>
                         <h1 className="text-2xl font-semibold">Операционный центр</h1>
                         <p className="mt-1 text-sm text-muted-foreground">
-                            Рабочий пульт: поиск, заезды, выезды, дубли, конфликты и интеграции.
+                            Введите запрос или выберите быстрый режим — данные появятся только после
+                            вашего действия.
                         </p>
                     </div>
-                    <Button type="button" variant="outline" onClick={() => refetch()}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        disabled={!hasSearchRequest || isLoading}
+                        onClick={() => refetch()}
+                    >
                         <RefreshCw className="mr-2 h-4 w-4" />
-                        Обновить
+                        Обновить результаты
                     </Button>
                 </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_1fr_1fr]">
+                <div className="mt-4 grid gap-3 lg:grid-cols-[1.4fr_1fr_1fr]">
                     <div className="space-y-2">
-                        <Label htmlFor="operation-search">Быстрый поиск</Label>
+                        <Label htmlFor="operation-search">Поиск</Label>
                         <div className="relative">
                             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                             <Input
                                 id="operation-search"
                                 value={query}
                                 onChange={(event) => setQuery(event.target.value)}
-                                placeholder="Гость, телефон, номер, отель или дата"
+                                placeholder="Гость, телефон, номер, отель, 30.06 или 2026-06-30"
                                 className="pl-9"
                             />
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                            Ищет по гостю, телефону, номеру, отелю и датам заезда/выезда.
+                        </p>
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                         <div className="space-y-2">
-                            <Label htmlFor="date-from">Поиск с</Label>
+                            <Label htmlFor="date-from">Брони с</Label>
                             <Input
                                 id="date-from"
                                 type="date"
@@ -471,15 +529,56 @@ export const OperationsCenterPage = () => {
                         </div>
                     </div>
                 </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                    {[
+                        ['arrivalsToday', 'Заезд сегодня', CalendarCheck],
+                        ['departuresToday', 'Выезд сегодня', CalendarClock],
+                        ['freeRooms', 'Свободно на даты', Sparkles],
+                        ['duplicates', 'Дубликаты', ArrowRightLeft],
+                        ['conflicts', 'Конфликты', AlertTriangle],
+                        ['integrations', 'Интеграции', ShieldAlert],
+                        ['deleted', 'Удалённые', History],
+                    ].map(([mode, label, Icon]) => {
+                        const quickMode = mode as OperationsCenterMode;
+                        const QuickIcon = Icon as typeof CalendarCheck;
+
+                        return (
+                            <Button
+                                key={quickMode}
+                                type="button"
+                                variant={activeMode === quickMode ? 'default' : 'outline'}
+                                size="sm"
+                                onClick={() => toggleMode(quickMode)}
+                            >
+                                <QuickIcon className="mr-2 h-4 w-4" />
+                                {String(label)}
+                            </Button>
+                        );
+                    })}
+                    <Button type="button" variant="ghost" size="sm" onClick={clearSearch}>
+                        Очистить
+                    </Button>
+                </div>
             </div>
 
-            {isLoading && (
+            {activeMode === 'freeRooms' && !hasFreeDateRange && (
+                <Card className="bg-white/90">
+                    <CardContent className="p-4">
+                        <p className="text-sm text-muted-foreground">
+                            Для поиска свободных номеров выберите обе даты: «Свободно с» и «по».
+                        </p>
+                    </CardContent>
+                </Card>
+            )}
+
+            {hasSearchRequest && isLoading && (
                 <div className="flex justify-center py-16">
                     <Loader />
                 </div>
             )}
 
-            {isError && (
+            {hasSearchRequest && isError && (
                 <Card className="border-red-200 bg-red-50">
                     <CardContent className="p-4">
                         <p className="text-sm text-red-700">
@@ -489,54 +588,37 @@ export const OperationsCenterPage = () => {
                 </Card>
             )}
 
-            {data && (
+            {hasSearchRequest && data && (
                 <>
-                    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
-                        {[
-                            ['Заезды', data.totals.arrivals, CalendarCheck],
-                            ['Выезды', data.totals.departures, CalendarClock],
-                            ['Дубли', data.totals.duplicates, ArrowRightLeft],
-                            ['Конфликты', data.totals.conflicts, AlertTriangle],
-                            ['Ошибки интеграций', data.totals.integrationErrors, ShieldAlert],
-                            ['Свободно', data.totals.freeRooms, Sparkles],
-                            ['Удалённые', data.totals.deletedReserves, History],
-                        ].map(([label, value, Icon]) => {
-                            const CardIcon = Icon as typeof CalendarCheck;
-                            return (
-                                <Card key={String(label)} className="bg-white/90">
-                                    <CardContent className="flex items-center gap-3 p-4">
-                                        <CardIcon className="h-5 w-5 text-primary" />
-                                        <div>
-                                            <p className="text-2xl font-semibold">{String(value)}</p>
-                                            <p className="text-xs text-muted-foreground">{String(label)}</p>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-
-                    <div className="grid gap-4 xl:grid-cols-2">
+                    {requestedModes.includes('search') && (
                         <ReserveList
-                            title="Заезд сегодня"
-                            reserves={data.todayArrivals}
-                            emptyText="Заездов сегодня нет."
+                            title="Результаты поиска"
+                            description="Гость, телефон, номер, отель и пересечение с выбранными датами."
+                            reserves={data.searchResults}
+                            emptyText="Ничего не найдено."
                         />
-                        <ReserveList
-                            title="Выезд сегодня"
-                            reserves={data.todayDepartures}
-                            emptyText="Выездов сегодня нет."
-                        />
-                    </div>
+                    )}
 
-                    <ReserveList
-                        title="Результаты поиска"
-                        description="Фильтрует по гостю, телефону, номеру, отелю и выбранным датам."
-                        reserves={data.searchResults}
-                        emptyText="Ничего не найдено."
-                    />
+                    {(activeMode === 'arrivalsToday' || activeMode === 'departuresToday') && (
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            {activeMode === 'arrivalsToday' && (
+                                <ReserveList
+                                    title="Заезд сегодня"
+                                    reserves={data.todayArrivals}
+                                    emptyText="Заездов сегодня нет."
+                                />
+                            )}
+                            {activeMode === 'departuresToday' && (
+                                <ReserveList
+                                    title="Выезд сегодня"
+                                    reserves={data.todayDepartures}
+                                    emptyText="Выездов сегодня нет."
+                                />
+                            )}
+                        </div>
+                    )}
 
-                    {freeDateFrom && (
+                    {activeMode === 'freeRooms' && hasFreeDateRange && (
                         <Card className="bg-white/90">
                             <CardHeader className="p-4">
                                 <CardTitle className="text-base">Свободные номера на даты</CardTitle>
@@ -560,28 +642,38 @@ export const OperationsCenterPage = () => {
                         </Card>
                     )}
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                        <DuplicateList duplicates={data.duplicates} />
-                        <ConflictList conflicts={data.conflicts} />
-                    </div>
+                    {(activeMode === 'duplicates' || activeMode === 'conflicts') && (
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            {activeMode === 'duplicates' && (
+                                <DuplicateList duplicates={data.duplicates} />
+                            )}
+                            {activeMode === 'conflicts' && <ConflictList conflicts={data.conflicts} />}
+                        </div>
+                    )}
 
-                    <div className="grid gap-4 xl:grid-cols-2">
-                        <ReserveList
-                            title="Новые брони из интеграций"
-                            reserves={data.externalNewBookings}
-                            emptyText="Новых внешних броней не найдено."
+                    {activeMode === 'integrations' && (
+                        <>
+                            <div className="grid gap-4 xl:grid-cols-2">
+                                <ReserveList
+                                    title="Новые брони из интеграций"
+                                    reserves={data.externalNewBookings}
+                                    emptyText="Новых внешних броней не найдено."
+                                />
+                                <IntegrationEvents events={data.integrationEvents} />
+                            </div>
+
+                            <ActivityList activity={data.activity} />
+                        </>
+                    )}
+
+                    {activeMode === 'deleted' && (
+                        <DeletedReserves
+                            deletedReserves={data.deletedReserves}
+                            isRestoring={restoreMutation.isPending}
+                            checkingRestoreId={checkingRestoreId}
+                            onRestore={onRestoreReserve}
                         />
-                        <IntegrationEvents events={data.integrationEvents} />
-                    </div>
-
-                    <ActivityList activity={data.activity} />
-
-                    <DeletedReserves
-                        deletedReserves={data.deletedReserves}
-                        isRestoring={restoreMutation.isPending}
-                        checkingRestoreId={checkingRestoreId}
-                        onRestore={onRestoreReserve}
-                    />
+                    )}
                 </>
             )}
         </div>
