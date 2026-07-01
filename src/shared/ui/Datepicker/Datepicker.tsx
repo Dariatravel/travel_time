@@ -115,6 +115,7 @@ export const Datepicker = ({
 
     const triggerButton = (
         <Button
+            type="button"
             variant="outline"
             id="dates"
             className={cn('relative h-10 w-full justify-between overflow-hidden font-normal text-base', {

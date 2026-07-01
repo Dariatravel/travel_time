@@ -4,7 +4,6 @@ import {
     applyMoveToTimelineItems,
     computeMovedReserveDates,
     formatReservePeriod,
-    hasReserveOverlap,
     TimelineReserveItem,
     toReserveUnix,
 } from '@/features/BaseCalendar/lib/reserveMove';
@@ -28,6 +27,7 @@ export type PendingReserveMove = {
     newStartUnix: number;
     newEndUnix: number;
     periodLabel: string;
+    conflictLabels: string[];
 };
 
 type UseReserveDragMoveParams = {
@@ -95,18 +95,20 @@ export const useReserveDragMove = ({
                 return;
             }
 
-            if (
-                hasReserveOverlap(
-                    hotelReserves,
-                    newRoom.id,
-                    newStartUnix,
-                    newEndUnix,
-                    reserve.id,
-                )
-            ) {
-                showToast('В этом номере уже есть бронь на выбранные даты', 'error');
-                return;
-            }
+            const overlappingReserves = hotelReserves.filter((item) => {
+                if (item.room_id !== newRoom.id || item.id === reserve.id) {
+                    return false;
+                }
+
+                const itemStartUnix = toReserveUnix(item.start);
+                const itemEndUnix = toReserveUnix(item.end);
+
+                return newStartUnix < itemEndUnix && itemStartUnix < newEndUnix;
+            });
+            const conflictLabels = overlappingReserves.map((item) => {
+                const guestLabel = item.guest?.trim() || 'Без имени';
+                return `${guestLabel}: ${formatReservePeriod(toReserveUnix(item.start), toReserveUnix(item.end))}`;
+            });
 
             const optimisticItems = applyMoveToTimelineItems(
                 hotelReserves,
@@ -124,7 +126,12 @@ export const useReserveDragMove = ({
                 newStartUnix,
                 newEndUnix,
                 periodLabel: formatReservePeriod(newStartUnix, newEndUnix),
+                conflictLabels,
             });
+
+            if (conflictLabels.length > 0) {
+                showToast('Есть пересечение. Подтвердите перемещение в окне.', 'error');
+            }
         },
         [hotelReserves, hotelRooms, isSaving, pendingMove],
     );
@@ -158,9 +165,14 @@ export const useReserveDragMove = ({
             pendingMove
                 ? {
                       open: true,
+                      title:
+                          pendingMove.conflictLabels.length > 0
+                              ? 'Переместить с пересечением?'
+                              : undefined,
                       guestName: pendingMove.reserve.guest,
                       roomTitle: pendingMove.newRoomTitle,
                       periodLabel: pendingMove.periodLabel,
+                      conflictLabels: pendingMove.conflictLabels,
                       isLoading: isSaving,
                       onConfirm: handleConfirmMove,
                       onCancel: resetPendingMove,
