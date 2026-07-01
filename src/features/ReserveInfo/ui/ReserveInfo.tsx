@@ -37,7 +37,7 @@ import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUnit } from 'effector-react/compat';
-import { FC, useCallback, useEffect, useMemo } from 'react';
+import { FC, useCallback, useEffect, useId, useMemo } from 'react';
 import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.scss';
@@ -188,6 +188,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     isEdit,
     isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
+    const reserveFormId = useId();
     const shouldLoadHotels = isOpen && !currentReserve?.hotel?.id;
     const shouldLoadRooms = isOpen;
 
@@ -470,6 +471,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         const firstError = getFirstFormErrorMessage(formErrors);
         showToast(firstError || 'Заполните все обязательные поля', 'error');
     }, []);
+    const submitReserveForm = handleSubmit(onAcceptForm, onError);
 
     const onReserveDelete = useCallback(() => {
         if (!currentReserve?.reserve?.id || !onDelete) {
@@ -483,7 +485,12 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         <FormProvider {...form}>
             <>
                 <div className="flex-1 overflow-y-auto px-1 sm:px-1">
-                    <form className="flex h-full flex-col">
+                    <form
+                        id={reserveFormId}
+                        className="flex h-full flex-col"
+                        onSubmit={submitReserveForm}
+                        noValidate
+                    >
                         <div className="flex-1 space-y-1">
                             <Controller
                                 name="date"
@@ -760,7 +767,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         isEdit={isEdit}
                         isLoading={loading}
                         onClose={onClose}
-                        onAccept={handleSubmit(onAcceptForm, onError)}
+                        formId={reserveFormId}
                     />
                     {isEdit && (
                         <ReserveHistory

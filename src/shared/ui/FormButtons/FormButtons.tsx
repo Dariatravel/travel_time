@@ -14,6 +14,7 @@ export interface FormButtonsProps {
     deleteText?: string;
     onDelete?: () => void;
     className?: string;
+    formId?: string;
 }
 
 export const FormButtons: FC<FormButtonsProps> = ({
@@ -24,7 +25,12 @@ export const FormButtons: FC<FormButtonsProps> = ({
     onDelete,
     onAccept,
     className,
+    formId,
 }: FormButtonsProps) => {
+    const submitButtonProps = formId
+        ? { type: 'submit' as const, form: formId }
+        : { type: 'button' as const, onClick: onAccept };
+
     return (
         <div className={cn(className, styles.container)}>
             {isEdit && onDelete && (
@@ -73,7 +79,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 >
                     Отмена
                 </Button>
-                <Button type="button" onClick={onAccept} disabled={isLoading}>
+                <Button {...submitButtonProps} disabled={isLoading}>
                     {isEdit ? 'Сохранить' : 'Добавить'}
                 </Button>
             </div>
