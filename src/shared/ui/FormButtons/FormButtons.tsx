@@ -68,6 +68,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
             )}
             <div className="grid grid-cols-2  gap-2">
                 <Button
+                    type="button"
                     variant="outline"
                     className=" text-red-500"
                     onClick={(e) => {
