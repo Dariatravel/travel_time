@@ -76,13 +76,15 @@ export const TravelDialog: FC<TravelDialogProps> = ({
                         )}
 
                         {description && (
-                            <DialogDescription
-                                className={cn(
-                                    'flex-1 overflow-y-auto px-1 sm:px-1',
-                                    descriptionClassName,
-                                )}
-                            >
-                                {description}
+                            <DialogDescription asChild>
+                                <div
+                                    className={cn(
+                                        'flex-1 overflow-y-auto px-1 sm:px-1',
+                                        descriptionClassName,
+                                    )}
+                                >
+                                    {description}
+                                </div>
                             </DialogDescription>
                         )}
 

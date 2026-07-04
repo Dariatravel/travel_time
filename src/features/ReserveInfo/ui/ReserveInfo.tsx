@@ -483,15 +483,14 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     }, [currentReserve, onDelete]);
     return (
         <FormProvider {...form}>
-            <>
+            <form
+                id={reserveFormId}
+                className="flex h-full flex-col"
+                onSubmit={submitReserveForm}
+                noValidate
+            >
                 <div className="flex-1 overflow-y-auto px-1 sm:px-1">
-                    <form
-                        id={reserveFormId}
-                        className="flex h-full flex-col"
-                        onSubmit={submitReserveForm}
-                        noValidate
-                    >
-                        <div className="flex-1 space-y-1">
+                    <div className="flex-1 space-y-1">
                             <Controller
                                 name="date"
                                 control={control}
@@ -756,8 +755,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                     />
                                 }
                             />
-                        </div>
-                    </form>
+                    </div>
                 </div>
                 <div className="w-full space-y-2">
                     <FormButtons
@@ -776,7 +774,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         />
                     )}
                 </div>
-            </>
+            </form>
         </FormProvider>
     );
 };
