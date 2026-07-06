@@ -589,6 +589,11 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                                     );
                                                     if (selectedRoom) {
                                                         field.onChange(selectedRoom);
+                                                        setValue('room_id', selectedRoom, {
+                                                            shouldDirty: true,
+                                                            shouldTouch: true,
+                                                            shouldValidate: true,
+                                                        });
                                                     }
                                                 }}
                                                 disabled={lookupLoading}
@@ -787,7 +792,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         isEdit={isEdit}
                         isLoading={loading}
                         onClose={onClose}
-                        formId={reserveFormId}
+                        onAccept={submitReserveForm}
                     />
                     {isEdit && (
                         <ReserveHistory
