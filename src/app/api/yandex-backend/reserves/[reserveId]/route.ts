@@ -21,6 +21,7 @@ const toReservePayload = (reserve: Partial<ReserveDTO>) => ({
     created_by: reserve.created_by,
     edited_at: reserve.edited_at,
     edited_by: reserve.edited_by,
+    is_fixed: reserve.is_fixed ?? false,
 });
 
 export async function PATCH(

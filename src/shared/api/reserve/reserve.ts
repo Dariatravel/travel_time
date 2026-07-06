@@ -36,6 +36,7 @@ export type ReserveDTO = {
     external_uid?: string | null; // ID события во внешнем источнике
     external_feed_url?: string | null; // URL iCalendar-фида
     external_synced_at?: string | null; // Дата последней синхронизации
+    is_fixed?: boolean; // Бронь нельзя автоматически или вручную перемещать
 };
 
 export type TravelOption = {
@@ -157,6 +158,7 @@ const toReserveInsertPayload = (reserve: Reserve) => {
         created_by: reserve.created_by,
         edited_at: reserve.edited_at,
         edited_by: reserve.edited_by,
+        is_fixed: reserve.is_fixed ?? false,
     };
 };
 
@@ -166,11 +168,17 @@ const toReserveUpdatePayload = (reserve: Omit<ReserveDTO, 'id'>) => {
 
 export const createReserveApi = async (reserve: Reserve) => {
     try {
-        const { error } = await insertItem(TABLE_NAMES.RESERVES, toReserveInsertPayload(reserve));
+        const { data, error } = await supabase
+            .from(TABLE_NAMES.RESERVES)
+            .insert(toReserveInsertPayload(reserve))
+            .select('*')
+            .single();
 
         if (error) {
             throw new Error(error.message);
         }
+
+        return data as ReserveDTO;
     } catch (err) {
         console.error('Error creating reserve:', err);
         showToast('Ошибка при создании брони', 'error');
