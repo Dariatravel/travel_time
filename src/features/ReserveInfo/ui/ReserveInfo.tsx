@@ -37,7 +37,7 @@ import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUnit } from 'effector-react/compat';
-import { FC, useCallback, useEffect, useId, useMemo } from 'react';
+import { FC, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
 import cx from './style.module.scss';
@@ -190,6 +190,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
     const reserveFormId = useId();
+    const [isCheckingOverlaps, setIsCheckingOverlaps] = useState(false);
     const shouldLoadHotels = isOpen && !currentReserve?.hotel?.id;
     const shouldLoadRooms = isOpen;
 
@@ -294,7 +295,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         control,
         watch,
         setValue,
-        formState: { errors, isSubmitting },
+        formState: { errors },
         handleSubmit,
     } = form;
 
@@ -357,7 +358,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId?.id]);
 
-    const loading = isSubmitting;
+    const loading = isCheckingOverlaps;
     const lookupLoading = isHotelsLoading || isRoomsLoading;
     const reserveId = currentReserve?.reserve?.id;
     const { data: historyRows, isPending: isHistoryPending } = useReserveHistory(
@@ -429,6 +430,8 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                 return;
             }
 
+            setIsCheckingOverlaps(true);
+
             try {
                 const overlaps = await getReserveOverlaps({
                     roomId,
@@ -457,14 +460,16 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                     'error',
                 );
                 return;
+            } finally {
+                setIsCheckingOverlaps(false);
             }
 
             if (reserveId) {
-                await onAccept({ ...data, id: reserveId });
+                void Promise.resolve(onAccept({ ...data, id: reserveId }));
                 return;
             }
 
-            await onAccept(data);
+            void Promise.resolve(onAccept(data));
         },
         [currentReserve?.reserve?.id, deserializeData, onAccept],
     );
