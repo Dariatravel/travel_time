@@ -8,9 +8,6 @@ import {
     toReserveUnix,
 } from '@/features/BaseCalendar/lib/reserveMove';
 import {
-    canMoveWithinTrialCategory,
-    getTrialRoomCategory,
-    getTrialRoomCategoryLabel,
     isTrialHotelTitle,
     isTrialReserveFixed,
 } from '@/features/BaseCalendar/lib/trialBookingLayout';
@@ -94,14 +91,6 @@ export const useReserveDragMove = ({
             if (isTrialHotelTitle(hotelTitle)) {
                 if (isTrialReserveFixed(reserve, currentRoom)) {
                     showToast('Эта бронь закреплена и не перемещается', 'error');
-                    return;
-                }
-
-                if (!canMoveWithinTrialCategory(currentRoom, newRoom)) {
-                    const categoryLabel = getTrialRoomCategoryLabel(
-                        getTrialRoomCategory(currentRoom?.title),
-                    );
-                    showToast(`Бронь можно перемещать только внутри категории ${categoryLabel}`, 'error');
                     return;
                 }
             }
