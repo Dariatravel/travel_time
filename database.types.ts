@@ -88,6 +88,7 @@ export type Database = {
           external_uid: string | null
           guest: string
           id: string
+          is_fixed: boolean
           phone: string
           prepayment: string | null
           price: number
@@ -108,6 +109,7 @@ export type Database = {
           external_uid?: string | null
           guest: string
           id?: string
+          is_fixed?: boolean
           phone: string
           prepayment?: string | null
           price: number
@@ -128,6 +130,7 @@ export type Database = {
           external_uid?: string | null
           guest?: string
           id?: string
+          is_fixed?: boolean
           phone?: string
           prepayment?: string | null
           price?: number
