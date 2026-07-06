@@ -7,7 +7,7 @@ import { FC } from 'react';
 export interface ReserveModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onAccept: (args?: unknown) => void;
+    onAccept: (args?: unknown) => void | Promise<void>;
     onDelete?: (id: string) => void;
     currentReserve?: Nullable<CurrentReserveType>;
     isLoading?: boolean;

@@ -52,7 +52,7 @@ type ReserveFormValues = Omit<ReserveForm, 'prepayment' | 'phone' | 'comment'> &
 
 export interface ReserveInfoProps {
     onClose: () => void;
-    onAccept: (reserve: Reserve | ReserveDTO) => void;
+    onAccept: (reserve: Reserve | ReserveDTO) => void | Promise<void>;
     currentReserve?: Nullable<CurrentReserveType>;
     isLoading: boolean;
     isEdit?: boolean;
@@ -187,7 +187,6 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     onClose,
     onDelete,
     currentReserve,
-    isLoading,
     isEdit,
     isOpen = true, // По умолчанию форма открыта
 }: ReserveInfoProps) => {
@@ -296,7 +295,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         control,
         watch,
         setValue,
-        formState: { errors },
+        formState: { errors, isSubmitting },
         handleSubmit,
     } = form;
 
@@ -359,7 +358,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [roomId?.id]);
 
-    const loading = isLoading;
+    const loading = isSubmitting;
     const lookupLoading = isHotelsLoading || isRoomsLoading;
     const reserveId = currentReserve?.reserve?.id;
     const { data: historyRows, isPending: isHistoryPending } = useReserveHistory(
@@ -468,11 +467,11 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             }
 
             if (reserveId) {
-                onAccept({ ...data, id: reserveId });
+                await onAccept({ ...data, id: reserveId });
                 return;
             }
 
-            onAccept(data);
+            await onAccept(data);
         },
         [currentReserve?.hotel?.title, currentReserve?.reserve?.id, deserializeData, onAccept],
     );
