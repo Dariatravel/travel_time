@@ -49,6 +49,45 @@ const toReservePayload = (
     };
 };
 
+const toReserveUnix = (value: ReserveDTO['start'] | undefined) => {
+    if (value instanceof Date) return Math.floor(value.getTime() / 1000);
+    return typeof value === 'number' ? value : undefined;
+};
+
+const assertNoReserveOverlap = async (
+    supabase: ReturnType<typeof createSupabaseServerClient>,
+    reserveId: string,
+    reserve: Partial<ReserveDTO>,
+) => {
+    const roomId = reserve.room_id;
+    const start = toReserveUnix(reserve.start);
+    const end = toReserveUnix(reserve.end);
+
+    if (!roomId || start == null || end == null) {
+        return;
+    }
+
+    const { data, error } = await supabase
+        .from('reserves')
+        .select('id, guest, start, end')
+        .eq('room_id', roomId)
+        .lt('start', end)
+        .gt('end', start)
+        .neq('id', reserveId)
+        .order('start', { ascending: true })
+        .limit(8);
+
+    if (error) throw error;
+
+    if ((data ?? []).length > 0) {
+        const conflictMessage = (data ?? [])
+            .map((item) => item.guest || 'Без имени')
+            .join(', ');
+
+        throw new Error(`Наложение броней запрещено. Конфликт: ${conflictMessage}`);
+    }
+};
+
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ reserveId: string }> },
@@ -68,6 +107,8 @@ export async function PATCH(
     try {
         const body = (await request.json()) as Partial<ReserveDTO>;
         const supabase = createSupabaseServerClient(authorization);
+
+        await assertNoReserveOverlap(supabase, reserveId, body);
 
         const updateReserve = (includeFixedFlag: boolean) =>
             supabase

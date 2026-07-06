@@ -192,8 +192,59 @@ const toReserveUpdatePayload = (
     return toReserveInsertPayload(reserve, options);
 };
 
+const toReserveUnix = (value: ReserveDTO['start']) =>
+    typeof value === 'number' ? value : Math.floor(value.getTime() / 1000);
+
+const formatOverlapDate = (value: ReserveDTO['start']) =>
+    new Date(toReserveUnix(value) * 1000).toLocaleDateString('ru-RU', {
+        day: '2-digit',
+        month: '2-digit',
+        year: 'numeric',
+    });
+
+const assertNoReserveOverlap = async (
+    reserve: Pick<ReserveDTO, 'room_id' | 'start' | 'end'>,
+    excludeReserveId?: string,
+) => {
+    if (!reserve.room_id) {
+        return;
+    }
+
+    let query = supabase
+        .from('reserves')
+        .select('id, start, end, guest')
+        .eq('room_id', reserve.room_id)
+        .lt('start', toReserveUnix(reserve.end))
+        .gt('end', toReserveUnix(reserve.start));
+
+    if (excludeReserveId) {
+        query = query.neq('id', excludeReserveId);
+    }
+
+    const { data, error } = await query.order('start', { ascending: true }).limit(8);
+
+    if (error) {
+        throw new Error(error.message);
+    }
+
+    if ((data ?? []).length === 0) {
+        return;
+    }
+
+    const conflictMessage = (data ?? [])
+        .map(
+            (item) =>
+                `${item.guest || 'Без имени'}: ${formatOverlapDate(item.start)} - ${formatOverlapDate(item.end)}`,
+        )
+        .join('; ');
+
+    throw new Error(`Наложение броней запрещено. Конфликт: ${conflictMessage}`);
+};
+
 export const createReserveApi = async (reserve: Reserve) => {
     try {
+        await assertNoReserveOverlap(reserve);
+
         const insertReserve = (includeFixedFlag: boolean) =>
             supabase
                 .from(TABLE_NAMES.RESERVES)
@@ -405,6 +456,8 @@ export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
         if (!id) {
             throw new Error('Reserve ID is required');
         }
+
+        await assertNoReserveOverlap(reserve, id);
 
         if (isYandexBackendProxyClientEnabled()) {
             try {
