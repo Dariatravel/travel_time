@@ -91,6 +91,18 @@ const isMissingHistoryTableError = (error: { code?: string; message?: string }) 
     );
 };
 
+const isMissingReserveFixedColumnError = (error: { code?: string; message?: string }) => {
+    const message = error.message?.toLowerCase() ?? '';
+
+    return (
+        message.includes('is_fixed') &&
+        (error.code === 'PGRST204' ||
+            message.includes('schema cache') ||
+            message.includes('column') ||
+            message.includes('could not find'))
+    );
+};
+
 export async function getReserveHistory(reserveId: string): Promise<ReserveHistoryEntry[]> {
     const { data, error } = await supabase
         .from('reserve_history')
@@ -140,11 +152,14 @@ const invalidateReserveHistory = async (
     });
 };
 
-const toReserveInsertPayload = (reserve: Reserve) => {
+const toReserveInsertPayload = (
+    reserve: Reserve,
+    { includeFixedFlag = true }: { includeFixedFlag?: boolean } = {},
+) => {
     const prepayment =
         reserve.prepayment == null ? null : String(reserve.prepayment);
 
-    return {
+    const payload = {
         room_id: reserve.room_id,
         start: reserve.start,
         end: reserve.end,
@@ -158,21 +173,42 @@ const toReserveInsertPayload = (reserve: Reserve) => {
         created_by: reserve.created_by,
         edited_at: reserve.edited_at,
         edited_by: reserve.edited_by,
+    };
+
+    if (!includeFixedFlag) {
+        return payload;
+    }
+
+    return {
+        ...payload,
         is_fixed: reserve.is_fixed ?? false,
     };
 };
 
-const toReserveUpdatePayload = (reserve: Omit<ReserveDTO, 'id'>) => {
-    return toReserveInsertPayload(reserve);
+const toReserveUpdatePayload = (
+    reserve: Omit<ReserveDTO, 'id'>,
+    options?: { includeFixedFlag?: boolean },
+) => {
+    return toReserveInsertPayload(reserve, options);
 };
 
 export const createReserveApi = async (reserve: Reserve) => {
     try {
-        const { data, error } = await supabase
-            .from(TABLE_NAMES.RESERVES)
-            .insert(toReserveInsertPayload(reserve))
-            .select('*')
-            .single();
+        const insertReserve = (includeFixedFlag: boolean) =>
+            supabase
+                .from(TABLE_NAMES.RESERVES)
+                .insert(toReserveInsertPayload(reserve, { includeFixedFlag }))
+                .select('*')
+                .single();
+
+        let { data, error } = await insertReserve(true);
+
+        if (error && isMissingReserveFixedColumnError(error)) {
+            console.warn('reserves.is_fixed is unavailable, retrying create without it');
+            const retry = await insertReserve(false);
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) {
             throw new Error(error.message);
@@ -378,12 +414,22 @@ export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
             }
         }
 
-        const { data, error } = await supabase
-            .from('reserves')
-            .update(toReserveUpdatePayload(reserve))
-            .eq('id', id)
-            .select('id')
-            .single();
+        const updateReserve = (includeFixedFlag: boolean) =>
+            supabase
+                .from('reserves')
+                .update(toReserveUpdatePayload(reserve, { includeFixedFlag }))
+                .eq('id', id)
+                .select('id')
+                .single();
+
+        let { data, error } = await updateReserve(true);
+
+        if (error && isMissingReserveFixedColumnError(error)) {
+            console.warn('reserves.is_fixed is unavailable, retrying update without it');
+            const retry = await updateReserve(false);
+            data = retry.data;
+            error = retry.error;
+        }
 
         if (error) {
             throw new Error(error.message);
