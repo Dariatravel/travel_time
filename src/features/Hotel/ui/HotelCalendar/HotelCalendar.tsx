@@ -190,6 +190,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
                 rooms: hotelRooms,
                 reserves: allReserves,
                 category,
+                sourceRoomId: reserveWithRoom.room_id,
             });
 
             for (const update of updates) {
@@ -221,7 +222,11 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         }
 
         const createdReserve = await createReserve(reserve as Reserve);
-        await rebalanceTrialCategory(createdReserve, reserve as Reserve);
+        try {
+            await rebalanceTrialCategory(createdReserve, reserve as Reserve);
+        } catch (error) {
+            showToast((error as Error).message, 'error');
+        }
     };
 
     const onReserveDelete = async (id: string) => {

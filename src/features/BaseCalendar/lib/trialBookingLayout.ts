@@ -8,6 +8,7 @@ export type TrialRoomCategory = 'comfort' | 'comfortPlus' | 'semiLux' | 'vip';
 type RoomLike = Pick<RoomDTO, 'id' | 'title'>;
 type ReserveLike = Pick<ReserveDTO, 'id' | 'room_id' | 'start' | 'end'> & {
     is_fixed?: boolean | null;
+    comment?: string | null;
 };
 
 type Placement = {
@@ -24,6 +25,8 @@ type PlacementCandidate = {
     sameRoomPenalty: number;
     roomOrder: number;
 };
+
+type TrialRoomGroupKey = `${'Д' | 'К'}:${TrialRoomCategory}`;
 
 const DAY_SECONDS = 24 * 60 * 60;
 
@@ -65,22 +68,34 @@ export const getTrialRoomCategoryLabel = (category: TrialRoomCategory | null) =>
     }
 };
 
+export const getTrialRoomGroupKey = (roomTitle?: string | null): TrialRoomGroupKey | null => {
+    const title = (roomTitle ?? '').trim();
+    const category = getTrialRoomCategory(title);
+    const corpus = title.startsWith('Д') ? 'Д' : title.startsWith('К') ? 'К' : null;
+
+    if (!category || !corpus) {
+        return null;
+    }
+
+    return `${corpus}:${category}`;
+};
+
 export const isTrialVipRoom = (roomTitle?: string | null) =>
     getTrialRoomCategory(roomTitle) === 'vip';
 
 export const isTrialReserveFixed = (
-    reserve: { is_fixed?: boolean | null },
+    reserve: { is_fixed?: boolean | null; comment?: string | null },
     room?: { title?: string | null } | null,
-) => Boolean(reserve.is_fixed) || isTrialVipRoom(room?.title);
+) => Boolean(reserve.is_fixed) || isTrialVipRoom(room?.title) || reserve.comment?.includes('НЕДВИЖИМАЯ') === true;
 
 export const canMoveWithinTrialCategory = (
     fromRoom?: { title?: string | null } | null,
     toRoom?: { title?: string | null } | null,
 ) => {
-    const fromCategory = getTrialRoomCategory(fromRoom?.title);
-    const toCategory = getTrialRoomCategory(toRoom?.title);
+    const fromGroup = getTrialRoomGroupKey(fromRoom?.title);
+    const toGroup = getTrialRoomGroupKey(toRoom?.title);
 
-    return Boolean(fromCategory && toCategory && fromCategory === toCategory);
+    return Boolean(fromGroup && toGroup && fromGroup === toGroup);
 };
 
 const hasOverlap = (placements: Placement[], reserve: ReserveLike, roomId: string) => {
@@ -168,12 +183,23 @@ export const buildTrialCategoryReserveUpdates = ({
     rooms,
     reserves,
     category,
+    sourceRoomId,
 }: {
     rooms: RoomLike[];
     reserves: ReserveLike[];
     category: TrialRoomCategory;
+    sourceRoomId?: string | null;
 }): Array<Pick<ReserveDTO, 'id' | 'room_id'>> => {
-    const categoryRooms = rooms.filter((room) => getTrialRoomCategory(room.title) === category);
+    const sourceGroupKey = getTrialRoomGroupKey(
+        rooms.find((room) => room.id === sourceRoomId)?.title,
+    );
+    const categoryRooms = rooms.filter((room) => {
+        if (sourceGroupKey) {
+            return getTrialRoomGroupKey(room.title) === sourceGroupKey;
+        }
+
+        return getTrialRoomCategory(room.title) === category;
+    });
     const categoryRoomIds = categoryRooms.map((room) => room.id);
     const roomById = new Map(rooms.map((room) => [room.id, room]));
     const roomOrderById = new Map(categoryRoomIds.map((roomId, index) => [roomId, index]));
@@ -189,15 +215,31 @@ export const buildTrialCategoryReserveUpdates = ({
     const movableReserves = categoryReserves
         .filter((reserve) => !isTrialReserveFixed(reserve, roomById.get(reserve.room_id)))
         .sort((left, right) => {
+            const leftCandidateCount = categoryRoomIds.filter(
+                (roomId) => !hasOverlap(fixedPlacements, left, roomId),
+            ).length;
+            const rightCandidateCount = categoryRoomIds.filter(
+                (roomId) => !hasOverlap(fixedPlacements, right, roomId),
+            ).length;
+
+            if (leftCandidateCount !== rightCandidateCount) {
+                return leftCandidateCount - rightCandidateCount;
+            }
+
             const startDiff = toUnix(left.start) - toUnix(right.start);
             if (startDiff !== 0) return startDiff;
 
             return toUnix(right.end) - toUnix(right.start) - (toUnix(left.end) - toUnix(left.start));
         });
     const placements = [...fixedPlacements];
-    const updates: Array<Pick<ReserveDTO, 'id' | 'room_id'>> = [];
+    const updates = new Map<string, Pick<ReserveDTO, 'id' | 'room_id'>>();
 
-    movableReserves.forEach((reserve) => {
+    const placeReserve = (index: number): boolean => {
+        if (index >= movableReserves.length) {
+            return true;
+        }
+
+        const reserve = movableReserves[index];
         const candidates = categoryRoomIds
             .filter((roomId) => !hasOverlap(placements, reserve, roomId))
             .map((roomId): PlacementCandidate => {
@@ -218,22 +260,41 @@ export const buildTrialCategoryReserveUpdates = ({
             })
             .sort(compareCandidates);
 
-        const bestCandidate = candidates[0];
-        const nextRoomId = bestCandidate?.roomId ?? reserve.room_id;
+        for (const candidate of candidates) {
+            const nextRoomId = candidate.roomId;
+            const placement: Placement = {
+                reserve,
+                roomId: nextRoomId,
+                start: toUnix(reserve.start),
+                end: toUnix(reserve.end),
+            };
+            placements.push(placement);
 
-        placements.push({
-            reserve,
-            roomId: nextRoomId,
-            start: toUnix(reserve.start),
-            end: toUnix(reserve.end),
-        });
+            if (nextRoomId !== reserve.room_id) {
+                updates.set(reserve.id, { id: reserve.id, room_id: nextRoomId });
+            } else {
+                updates.delete(reserve.id);
+            }
 
-        if (nextRoomId !== reserve.room_id) {
-            updates.push({ id: reserve.id, room_id: nextRoomId });
+            if (placeReserve(index + 1)) {
+                return true;
+            }
+
+            placements.pop();
+            updates.delete(reserve.id);
         }
-    });
 
-    return updates;
+        return false;
+    };
+
+    const canPlaceAll = placeReserve(0);
+
+    if (!canPlaceAll) {
+        const categoryLabel = getTrialRoomCategoryLabel(category);
+        throw new Error(`Нет свободного размещения без пересечений для категории ${categoryLabel}`);
+    }
+
+    return Array.from(updates.values());
 };
 
 export const getTrialCategoryForReserveRoom = (
