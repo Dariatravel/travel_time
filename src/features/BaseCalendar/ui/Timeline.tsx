@@ -9,6 +9,10 @@ import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { ZOOM_UNITS, ZoomUnit } from '@/shared/lib/const';
 import {
+    isTrialHotelTitle,
+    isTrialReserveFixed,
+} from '@/features/BaseCalendar/lib/trialBookingLayout';
+import {
     getTimelineItemLabel,
     isTimelineClosureItem,
     normalizeTimelineVisualItem,
@@ -200,6 +204,12 @@ export const Timeline = ({
             // @ts-expect-error
             const { left: leftResizeProps, right: rightResizeProps } = getResizeProps();
             const isClosure = isTimelineClosureItem(item);
+            const reserveClassName =
+                !isClosure && item.trialReserveVariant === 'fixed'
+                    ? styles.fixedReserveItem
+                    : !isClosure && item.trialReserveVariant === 'movable'
+                      ? styles.movableReserveItem
+                      : calendarItemClassName || styles.calendarItem;
 
             const handleItemOpen = () => {
                 if (isClosure) {
@@ -248,11 +258,7 @@ export const Timeline = ({
                 >
                     {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}
                     <div
-                        className={`${
-                            isClosure
-                                ? styles.closureItem
-                                : calendarItemClassName || styles.calendarItem
-                        } rct-item-content`}
+                        className={`${isClosure ? styles.closureItem : reserveClassName} rct-item-content`}
                         style={{ maxHeight: `${itemContext.dimensions.height}` }}
                     >
                         {getTimelineItemLabel(item)}
@@ -512,10 +518,35 @@ export const Timeline = ({
     const lowerHeaderUnit = getHeaderUnit(currentUnit, false);
     /** На телефоне скрываем подписи верхнего ряда только когда оба ряда на одном масштабе (дубль). */
     const hideUpperIntervalTextOnPhone = isPhone && upperHeaderUnit === lowerHeaderUnit;
-    const visualHotelReserves = useMemo(
-        () => hotelReserves.map((item) => normalizeTimelineVisualItem(item)),
-        [hotelReserves],
-    );
+    const visualHotelReserves = useMemo(() => {
+        const isTrialHotel = isTrialHotelTitle(hotel.title);
+        const roomById = new Map(hotelRooms.map((room) => [room.id, room]));
+
+        return hotelReserves.map((item) => {
+            const visualItem = normalizeTimelineVisualItem(item);
+
+            if (!isTrialHotel || isTimelineClosureItem(item)) {
+                return visualItem;
+            }
+
+            const room = roomById.get(item.room_id);
+            const isFixed = isTrialReserveFixed(item, room);
+
+            return {
+                ...visualItem,
+                canMove: !isFixed,
+                trialReserveVariant: isFixed ? 'fixed' : 'movable',
+                itemProps: {
+                    ...item.itemProps,
+                    style: {
+                        ...item.itemProps?.style,
+                        background: isFixed ? '#fee2e2' : '#ffffff',
+                        border: isFixed ? '1px solid #ef4444' : '1px solid #d1d5db',
+                    },
+                },
+            };
+        });
+    }, [hotel.title, hotelRooms, hotelReserves]);
 
     return (
         <div

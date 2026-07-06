@@ -7,6 +7,13 @@ import {
     TimelineReserveItem,
     toReserveUnix,
 } from '@/features/BaseCalendar/lib/reserveMove';
+import {
+    canMoveWithinTrialCategory,
+    getTrialRoomCategory,
+    getTrialRoomCategoryLabel,
+    isTrialHotelTitle,
+    isTrialReserveFixed,
+} from '@/features/BaseCalendar/lib/trialBookingLayout';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import { getDate } from '@/shared/lib/getDate';
 import { $user } from '@/shared/models/auth';
@@ -35,6 +42,7 @@ type UseReserveDragMoveParams = {
     hotelReserves: TimelineReserveItem[];
     updateReserve: (reserve: ReserveDTO) => Promise<unknown>;
     isSaving?: boolean;
+    hotelTitle?: string | null;
 };
 
 export const useReserveDragMove = ({
@@ -42,6 +50,7 @@ export const useReserveDragMove = ({
     hotelReserves,
     updateReserve,
     isSaving = false,
+    hotelTitle,
 }: UseReserveDragMoveParams) => {
     const user = useUnit($user);
     const [pendingMove, setPendingMove] = useState<PendingReserveMove | null>(null);
@@ -70,6 +79,9 @@ export const useReserveDragMove = ({
 
             const reserve = hotelReserves.find((item) => item.id === itemId);
             const newRoom = hotelRooms[newGroupOrder];
+            const currentRoom = reserve
+                ? hotelRooms.find((room) => room.id === reserve.room_id)
+                : undefined;
 
             if (
                 !reserve ||
@@ -77,6 +89,21 @@ export const useReserveDragMove = ({
                 (reserve as { itemKind?: string }).itemKind === 'closure'
             ) {
                 return;
+            }
+
+            if (isTrialHotelTitle(hotelTitle)) {
+                if (isTrialReserveFixed(reserve, currentRoom)) {
+                    showToast('Эта бронь закреплена и не перемещается', 'error');
+                    return;
+                }
+
+                if (!canMoveWithinTrialCategory(currentRoom, newRoom)) {
+                    const categoryLabel = getTrialRoomCategoryLabel(
+                        getTrialRoomCategory(currentRoom?.title),
+                    );
+                    showToast(`Бронь можно перемещать только внутри категории ${categoryLabel}`, 'error');
+                    return;
+                }
             }
 
             const { start: newStartUnix, end: newEndUnix } = computeMovedReserveDates(
@@ -133,7 +160,7 @@ export const useReserveDragMove = ({
                 showToast('Есть пересечение. Подтвердите перемещение в окне.', 'error');
             }
         },
-        [hotelReserves, hotelRooms, isSaving, pendingMove],
+        [hotelReserves, hotelRooms, hotelTitle, isSaving, pendingMove],
     );
 
     const handleConfirmMove = useCallback(async () => {

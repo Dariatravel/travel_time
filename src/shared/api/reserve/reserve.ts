@@ -4,7 +4,7 @@ import {
     type ReserveHistoryAction,
     type ReserveHistoryEntry,
 } from '@/features/ReserveInfo/lib/formatReserveHistory';
-import { HotelDTO, insertItem } from '@/shared/api/hotel/hotel';
+import { HotelDTO } from '@/shared/api/hotel/hotel';
 import { RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
