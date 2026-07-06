@@ -8,6 +8,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { isTrialHotelTitle } from '@/features/BaseCalendar/lib/trialBookingLayout';
 import { buildFallbackReserveHistory } from '@/features/ReserveInfo/lib/formatReserveHistory';
 import {
     getReserveFormDefaultDates,
@@ -46,6 +47,7 @@ type ReserveFormValues = Omit<ReserveForm, 'prepayment' | 'phone' | 'comment'> &
     phone?: string | null;
     comment?: string | null;
     prepayment?: number | string | null;
+    is_fixed?: boolean;
 };
 
 export interface ReserveInfoProps {
@@ -169,6 +171,7 @@ const createReserveFormSchema = (allowLegacyValues: boolean) => z.object({
     edited_by: z.string().optional(),
     created_at: z.string().optional(),
     edited_at: z.string().optional(),
+    is_fixed: z.boolean().optional(),
 });
 
 export const ReserveInfo: FC<ReserveInfoProps> = (props) => {
@@ -251,6 +254,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                 edited_by: reserveContext?.reserve?.edited_by,
                 created_at: reserveContext?.reserve?.created_at,
                 edited_at: reserveContext?.reserve?.edited_at,
+                is_fixed: reserveContext?.reserve?.is_fixed ?? false,
             };
 
             if (!!reserve) {
@@ -404,6 +408,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                 edited_by,
                 created_at,
                 edited_at,
+                is_fixed: data.is_fixed ?? false,
             };
         },
         [currentReserve?.reserve?.id, user],
@@ -427,26 +432,31 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             }
 
             try {
-                const overlaps = await getReserveOverlaps({
-                    roomId,
-                    start: data.start as number,
-                    end: data.end as number,
-                    excludeReserveId: reserveId,
-                });
+                const shouldSkipRoomOverlapCheck =
+                    !reserveId && isTrialHotelTitle(currentReserve?.hotel?.title);
 
-                if (overlaps.length > 0) {
-                    const overlapMessage = overlaps
-                        .map(
-                            (reserve) =>
-                                `• ${reserve.guest || 'Без имени'}: ${formatOverlapDate(reserve.start)} - ${formatOverlapDate(reserve.end)}`,
-                        )
-                        .join('\n');
-                    const shouldContinue = window.confirm(
-                        `В выбранном номере уже есть бронь на эти даты:\n\n${overlapMessage}\n\nВсё равно сохранить?`,
-                    );
+                if (!shouldSkipRoomOverlapCheck) {
+                    const overlaps = await getReserveOverlaps({
+                        roomId,
+                        start: data.start as number,
+                        end: data.end as number,
+                        excludeReserveId: reserveId,
+                    });
 
-                    if (!shouldContinue) {
-                        return;
+                    if (overlaps.length > 0) {
+                        const overlapMessage = overlaps
+                            .map(
+                                (reserve) =>
+                                    `• ${reserve.guest || 'Без имени'}: ${formatOverlapDate(reserve.start)} - ${formatOverlapDate(reserve.end)}`,
+                            )
+                            .join('\n');
+                        const shouldContinue = window.confirm(
+                            `В выбранном номере уже есть бронь на эти даты:\n\n${overlapMessage}\n\nВсё равно сохранить?`,
+                        );
+
+                        if (!shouldContinue) {
+                            return;
+                        }
                     }
                 }
             } catch (error) {
@@ -464,7 +474,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
             onAccept(data);
         },
-        [currentReserve?.reserve?.id, deserializeData, onAccept],
+        [currentReserve?.hotel?.title, currentReserve?.reserve?.id, deserializeData, onAccept],
     );
 
     const onError: SubmitErrorHandler<ReserveFormValues> = useCallback((formErrors) => {
@@ -716,6 +726,26 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                             rows={2}
                                             value={field.value ?? ''}
                                         />
+                                    </div>
+                                )}
+                            />
+
+                            <Controller
+                                name="is_fixed"
+                                control={control}
+                                render={({ field }) => (
+                                    <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
+                                        <input
+                                            id="reserve_is_fixed"
+                                            type="checkbox"
+                                            checked={field.value === true}
+                                            onChange={(event) => field.onChange(event.target.checked)}
+                                            disabled={lookupLoading}
+                                            className="h-4 w-4"
+                                        />
+                                        <Label htmlFor="reserve_is_fixed" className="font-normal">
+                                            Нельзя перемещать
+                                        </Label>
                                     </div>
                                 )}
                             />

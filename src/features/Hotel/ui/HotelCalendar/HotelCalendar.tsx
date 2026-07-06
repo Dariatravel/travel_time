@@ -1,5 +1,11 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
 import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
+import {
+    buildTrialCategoryReserveUpdates,
+    flattenRoomReserves,
+    getTrialCategoryForReserveRoom,
+    isTrialHotelTitle,
+} from '@/features/BaseCalendar/lib/trialBookingLayout';
 import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMove';
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
@@ -139,7 +145,72 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     const onRoomCreate = useCallback((room: Room) => {
         createRoom(room);
         devLog('Создаю ROOM', room);
-    }, []);
+    }, [createRoom]);
+
+    const hotelRooms = useMemo(() => {
+        const rooms =
+            data?.map(({ reserves, id, title, ...room }) => ({
+                id,
+                title: `${title}`,
+                ...room,
+            })) ?? [];
+
+        return rooms;
+    }, [data]);
+
+    const rebalanceTrialCategory = useCallback(
+        async (createdReserve: ReserveDTO, requestedReserve: Reserve) => {
+            if (!isTrialHotelTitle(hotel.title) || !data) {
+                return;
+            }
+
+            const reserveWithRoom = {
+                ...createdReserve,
+                room_id: createdReserve.room_id || requestedReserve.room_id,
+            };
+            const category = getTrialCategoryForReserveRoom(hotelRooms, reserveWithRoom.room_id);
+
+            if (!category) {
+                return;
+            }
+
+            const roomsWithCreatedReserve = data.map((room) => {
+                if (room.id !== reserveWithRoom.room_id) {
+                    return room;
+                }
+
+                return {
+                    ...room,
+                    reserves: [...(room.reserves ?? []), reserveWithRoom],
+                };
+            });
+            const allReserves = flattenRoomReserves(roomsWithCreatedReserve);
+            const reserveById = new Map(allReserves.map((item) => [item.id, item]));
+            const updates = buildTrialCategoryReserveUpdates({
+                rooms: hotelRooms,
+                reserves: allReserves,
+                category,
+            });
+
+            for (const update of updates) {
+                const sourceReserve = reserveById.get(update.id);
+
+                if (!sourceReserve) {
+                    continue;
+                }
+
+                await updateReserve({
+                    ...sourceReserve,
+                    room_id: update.room_id,
+                });
+            }
+
+            if (updates.length > 0) {
+                showToast(`Автораспределение: перемещено броней ${updates.length}`);
+            }
+        },
+        [data, hotel.title, hotelRooms, updateReserve],
+    );
 
     const onReserveAccept = async (reserve: Reserve | ReserveDTO) => {
         if ('id' in reserve && reserve.id) {
@@ -149,7 +220,8 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             return;
         }
 
-        await createReserve(reserve as Reserve);
+        const createdReserve = await createReserve(reserve as Reserve);
+        await rebalanceTrialCategory(createdReserve, reserve as Reserve);
     };
 
     const onReserveDelete = async (id: string) => {
@@ -164,17 +236,6 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         setCurrentReserve(null);
     };
 
-    const hotelRooms = useMemo(() => {
-        const rooms =
-            data?.map(({ reserves, id, title, ...room }) => ({
-                id,
-                title: `${title}`,
-                ...room,
-            })) ?? [];
-
-        return rooms;
-    }, [data, sort]);
-
     const hotelReserves = useMemo(() => buildTimelineReserveItems(data ?? []), [data]);
 
     const { displayReserves, handleItemMove: handleReserveItemMove, dialogProps, hasPendingMove: hasPendingReserveMove } = useReserveDragMove({
@@ -182,6 +243,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
         hotelReserves,
         updateReserve,
         isSaving: isReserveUpdating,
+        hotelTitle: hotel.title,
     });
 
     const {

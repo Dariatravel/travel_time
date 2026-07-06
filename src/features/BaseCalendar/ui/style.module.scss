@@ -176,6 +176,33 @@
     white-space: nowrap;
 }
 
+.fixedReserveItem {
+    width: 100%;
+    background-color: #fee2e2;
+    color: #991b1b;
+    border: 1px solid #ef4444;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    font-weight: 600;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.movableReserveItem {
+    width: 100%;
+    background-color: #ffffff;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .closureItem {
     width: 100%;
     background: repeating-linear-gradient(
