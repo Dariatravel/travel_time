@@ -126,6 +126,14 @@ export const useReserveDragMove = ({
                 return `${guestLabel}: ${formatReservePeriod(toReserveUnix(item.start), toReserveUnix(item.end))}`;
             });
 
+            if (conflictLabels.length > 0) {
+                showToast(
+                    `Нельзя переместить бронь: в номере ${newRoom.title} уже есть бронь на эти даты`,
+                    'error',
+                );
+                return;
+            }
+
             const optimisticItems = applyMoveToTimelineItems(
                 hotelReserves,
                 reserve.id,
@@ -145,9 +153,6 @@ export const useReserveDragMove = ({
                 conflictLabels,
             });
 
-            if (conflictLabels.length > 0) {
-                showToast('Есть пересечение. Подтвердите перемещение в окне.', 'error');
-            }
         },
         [hotelReserves, hotelRooms, hotelTitle, isSaving, pendingMove],
     );

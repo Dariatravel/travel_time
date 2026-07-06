@@ -8,7 +8,6 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { isTrialHotelTitle } from '@/features/BaseCalendar/lib/trialBookingLayout';
 import { buildFallbackReserveHistory } from '@/features/ReserveInfo/lib/formatReserveHistory';
 import {
     getReserveFormDefaultDates,
@@ -431,32 +430,26 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             }
 
             try {
-                const shouldSkipRoomOverlapCheck =
-                    !reserveId && isTrialHotelTitle(currentReserve?.hotel?.title);
+                const overlaps = await getReserveOverlaps({
+                    roomId,
+                    start: data.start as number,
+                    end: data.end as number,
+                    excludeReserveId: reserveId,
+                });
 
-                if (!shouldSkipRoomOverlapCheck) {
-                    const overlaps = await getReserveOverlaps({
-                        roomId,
-                        start: data.start as number,
-                        end: data.end as number,
-                        excludeReserveId: reserveId,
-                    });
+                if (overlaps.length > 0) {
+                    const overlapMessage = overlaps
+                        .map(
+                            (reserve) =>
+                                `• ${reserve.guest || 'Без имени'}: ${formatOverlapDate(reserve.start)} - ${formatOverlapDate(reserve.end)}`,
+                        )
+                        .join('\n');
 
-                    if (overlaps.length > 0) {
-                        const overlapMessage = overlaps
-                            .map(
-                                (reserve) =>
-                                    `• ${reserve.guest || 'Без имени'}: ${formatOverlapDate(reserve.start)} - ${formatOverlapDate(reserve.end)}`,
-                            )
-                            .join('\n');
-                        const shouldContinue = window.confirm(
-                            `В выбранном номере уже есть бронь на эти даты:\n\n${overlapMessage}\n\nВсё равно сохранить?`,
-                        );
-
-                        if (!shouldContinue) {
-                            return;
-                        }
-                    }
+                    showToast(
+                        `Нельзя сохранить бронь: в выбранном номере уже есть бронь на эти даты:\n${overlapMessage}`,
+                        'error',
+                    );
+                    return;
                 }
             } catch (error) {
                 showToast(
@@ -473,7 +466,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
             await onAccept(data);
         },
-        [currentReserve?.hotel?.title, currentReserve?.reserve?.id, deserializeData, onAccept],
+        [currentReserve?.reserve?.id, deserializeData, onAccept],
     );
 
     const onError: SubmitErrorHandler<ReserveFormValues> = useCallback((formErrors) => {
