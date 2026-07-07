@@ -8,13 +8,12 @@ import styles from './style.module.scss';
 
 export interface FormButtonsProps {
     onClose: () => void;
-    onAccept?: () => void; // Опциональный, для случаев когда форма сама обрабатывает submit
+    onAccept?: () => void; // Опциональный, для случаев без HTML-form submit
     isLoading?: boolean;
     isEdit?: boolean;
     deleteText?: string;
     onDelete?: () => void;
     className?: string;
-    formId?: string;
 }
 
 export const FormButtons: FC<FormButtonsProps> = ({
@@ -25,11 +24,10 @@ export const FormButtons: FC<FormButtonsProps> = ({
     onDelete,
     onAccept,
     className,
-    formId,
 }: FormButtonsProps) => {
-    const submitButtonProps = formId
-        ? { type: 'submit' as const, form: formId }
-        : { type: 'button' as const, onClick: onAccept };
+    const submitButtonProps = onAccept
+        ? { type: 'button' as const, onClick: onAccept }
+        : { type: 'submit' as const };
 
     return (
         <div className={cn(className, styles.container)}>

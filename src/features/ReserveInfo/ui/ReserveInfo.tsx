@@ -297,6 +297,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         setValue,
         formState: { errors },
         handleSubmit,
+        trigger,
     } = form;
 
     // Оптимизация: отслеживаем только нужные поля вместо всех
@@ -474,10 +475,14 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
         [currentReserve?.reserve?.id, deserializeData, onAccept],
     );
 
-    const onError: SubmitErrorHandler<ReserveFormValues> = useCallback((formErrors) => {
-        const firstError = getFirstFormErrorMessage(formErrors);
-        showToast(firstError || 'Заполните все обязательные поля', 'error');
-    }, []);
+    const onError: SubmitErrorHandler<ReserveFormValues> = useCallback(
+        async (formErrors) => {
+            await trigger();
+            const firstError = getFirstFormErrorMessage(formErrors);
+            showToast(firstError || 'Заполните все обязательные поля', 'error');
+        },
+        [trigger],
+    );
     const submitReserveForm = handleSubmit(onAcceptForm, onError);
 
     const onReserveDelete = useCallback(() => {
@@ -797,7 +802,6 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         isEdit={isEdit}
                         isLoading={loading}
                         onClose={onClose}
-                        onAccept={submitReserveForm}
                     />
                     {isEdit && (
                         <ReserveHistory
