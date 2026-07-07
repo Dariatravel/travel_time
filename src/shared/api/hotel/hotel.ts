@@ -314,7 +314,7 @@ const getSelectedHotelCalendarsViaBackend = async (
     hotelIds: string[],
     filter?: TravelFilterType,
 ): Promise<HotelRoomsReservesDTO[]> => {
-    if (!isYandexBackendProxyClientEnabled() || hotelIds.length === 0) {
+    if (hotelIds.length === 0) {
         return [];
     }
 
@@ -392,15 +392,16 @@ export async function getAllHotels(
 
             const response = await query;
             const backendRows =
-                (!response?.data || response.data.length === 0) &&
-                filter?.hotels &&
-                filter.hotels.length > 0
-                    ? await getSelectedHotelCalendarsViaBackend(filteredHotelIds, filter)
+                !response?.data || response.data.length === 0
+                    ? await getSelectedHotelCalendarsViaBackend(
+                          filteredHotelIds.slice(from, to + 1),
+                          filter,
+                      )
                     : [];
             const orderedRows = backendRows.length
                 ? backendRows
                 : getOrderedHotelRows(response?.data ?? [], filter);
-            const paginatedRows = orderedRows.slice(from, to + 1);
+            const paginatedRows = backendRows.length ? orderedRows : orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
@@ -434,7 +435,7 @@ export async function getAllHotels(
 
             return {
                 data,
-                count: orderedRows.length,
+                count: backendRows.length ? filteredHotelIds.length : orderedRows.length,
             };
         }
 
@@ -792,12 +793,13 @@ export const getHotelDetail = async (
     allowedRooms?: string[],
 ): Promise<HotelRoomsReservesDTO> => {
     try {
-        if (isYandexBackendProxyClientEnabled()) {
-            try {
-                return await getHotelCalendarViaYandexBackend(hotelId, allowedRooms);
-            } catch (error) {
-                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+        try {
+            return await getHotelCalendarViaYandexBackend(hotelId, allowedRooms);
+        } catch (error) {
+            if (isYandexBackendProxyClientEnabled()) {
+                throw error;
             }
+            console.warn('Yandex backend calendar failed, falling back to Supabase', error);
         }
 
         // Загружаем базовую информацию об отеле и его номерах

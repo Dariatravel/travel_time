@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
 import {
     createSupabaseServerClient,
     createSupabaseServiceRoleClient,
@@ -104,10 +103,6 @@ const hasValidPeriod = (
     filter.start_time < filter.end_time;
 
 export async function POST(request: NextRequest) {
-    if (!isYandexBackendProxyEnabled()) {
-        return disabledResponse();
-    }
-
     const authorization = request.headers.get('authorization');
     if (!authorization) {
         return NextResponse.json({ error: 'Authorization header is required' }, { status: 401 });
