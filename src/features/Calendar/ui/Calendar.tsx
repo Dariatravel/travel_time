@@ -1,6 +1,10 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
 import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
 import {
+    buildTimelineClosureItems,
+    type TimelineCalendarItem,
+} from '@/features/BaseCalendar/lib/timelineBlocks';
+import {
     buildTrialCategoryReserveUpdates,
     flattenRoomReserves,
     getTrialCategoryForReserveRoom,
@@ -10,6 +14,7 @@ import { useReserveDragMove } from '@/features/BaseCalendar/lib/useReserveDragMo
 import { ReserveMoveConfirmDialog } from '@/features/BaseCalendar/ui/ReserveMoveConfirmDialog';
 import { ReserveModal } from '@/features/ReserveInfo/ui/ReserveModal';
 import { getReserveDraftFromTimelineClick } from '@/features/ReserveInfo/lib/reserveDateForm';
+import { useRoomClosuresByHotel } from '@/shared/api/closure/roomClosure';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { HotelDTO, HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import {
@@ -69,6 +74,9 @@ export const Calendar = ({
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
+    const { data: roomClosures = [], isLoading: isClosureLoading } = useRoomClosuresByHotel(
+        hotel.id,
+    );
 
     const {
         isPending: isReserveCreating,
@@ -256,10 +264,18 @@ export const Calendar = ({
         hotelTitle: hotel.title,
     });
 
-    const timelineItems = useMemo(
-        () => displayReserves.map((item) => ({ ...item, itemKind: 'reserve' as const })),
-        [displayReserves],
-    );
+    const timelineItems = useMemo((): TimelineCalendarItem[] => {
+        const visibleRoomIds = new Set(hotelRooms.map((room) => room.id));
+        const reserveItems = displayReserves.map((item) => ({
+            ...item,
+            itemKind: 'reserve' as const,
+        }));
+        const closureItems = buildTimelineClosureItems(
+            roomClosures.filter((closure) => visibleRoomIds.has(closure.room_id)),
+        );
+
+        return [...reserveItems, ...closureItems];
+    }, [displayReserves, hotelRooms, roomClosures]);
 
     const onReserveAdd = (groupId: Id, time: number, e: React.SyntheticEvent) => {
         const room = hotelRooms?.find((group) => group.id === groupId);
@@ -297,7 +313,7 @@ export const Calendar = ({
 
     const sidebarWidth = useMemo(() => (isPhone ? 78 : isMobile ? 92 : 190), [isMobile, isPhone]);
 
-    const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isLoading;
+    const isLoadingCalendar = isRoomCreating || isUpdatingOrder || isClosureLoading || isLoading;
     const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
     const shouldDimCalendar = (reserveLoading || isLoadingCalendar) && !isReserveOpen;
 
