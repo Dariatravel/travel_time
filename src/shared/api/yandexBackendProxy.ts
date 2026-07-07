@@ -11,7 +11,37 @@ const getAuthorizationHeader = async () => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
 
-    return token ? `Bearer ${token}` : undefined;
+    if (token) {
+        return `Bearer ${token}`;
+    }
+
+    if (typeof window === 'undefined') {
+        return undefined;
+    }
+
+    for (const key of Object.keys(window.localStorage)) {
+        if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) {
+            continue;
+        }
+
+        try {
+            const storedSession = JSON.parse(window.localStorage.getItem(key) ?? 'null');
+            const storedToken =
+                typeof storedSession?.access_token === 'string'
+                    ? storedSession.access_token
+                    : typeof storedSession?.currentSession?.access_token === 'string'
+                      ? storedSession.currentSession.access_token
+                      : undefined;
+
+            if (storedToken) {
+                return `Bearer ${storedToken}`;
+            }
+        } catch {
+            // Ignore unrelated localStorage values with a matching key shape.
+        }
+    }
+
+    return undefined;
 };
 
 const fetchBackendJson = async <T>(path: string, init?: RequestInit): Promise<T> => {
