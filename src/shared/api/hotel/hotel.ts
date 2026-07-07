@@ -135,6 +135,76 @@ const excludeHiddenFreeHotels = (
     return hotels.filter((hotel) => !hiddenSet.has(hotel.hotel_id));
 };
 
+const hasValidSearchPeriod = (
+    filter?: { start?: number; end?: number },
+): filter is { start: number; end: number } =>
+    typeof filter?.start === 'number' &&
+    typeof filter?.end === 'number' &&
+    filter.start < filter.end;
+
+const isMissingRoomClosuresTableError = (error: { code?: string; message?: string }) =>
+    error.code === '42P01' ||
+    error.code === 'PGRST205' ||
+    error.message?.includes('room_closures') === true;
+
+const getClosedRoomIdsForPeriod = async (
+    roomIds: string[],
+    start: number,
+    end: number,
+) => {
+    if (roomIds.length === 0) {
+        return new Set<string>();
+    }
+
+    const { data, error } = await supabase
+        .from('room_closures')
+        .select('room_id')
+        .in('room_id', roomIds)
+        .lt('start', end)
+        .gt('end', start);
+
+    if (error) {
+        if (isMissingRoomClosuresTableError(error)) {
+            return new Set<string>();
+        }
+
+        throw error;
+    }
+
+    return new Set((data ?? []).map((closure) => closure.room_id));
+};
+
+const excludeClosedFreeRooms = async (
+    hotels: FreeHotelsDTO[],
+    filter?: { start?: number; end?: number },
+) => {
+    if (!hasValidSearchPeriod(filter)) {
+        return hotels;
+    }
+
+    const { start, end } = filter;
+    const roomIds = Array.from(
+        new Set(hotels.flatMap((hotel) => hotel.rooms.map((room) => room.room_id))),
+    );
+    const closedRoomIds = await getClosedRoomIdsForPeriod(roomIds, start, end);
+
+    if (closedRoomIds.size === 0) {
+        return hotels;
+    }
+
+    return hotels
+        .map((hotel) => {
+            const rooms = hotel.rooms.filter((room) => !closedRoomIds.has(room.room_id));
+
+            return {
+                ...hotel,
+                rooms,
+                free_room_count: rooms.length,
+            };
+        })
+        .filter((hotel) => hotel.rooms.length > 0);
+};
+
 const getChessmateStatusFilteredRows = <T extends { title?: string | null }>(
     rows: T[],
     filter?: TravelFilterType,
@@ -935,7 +1005,12 @@ export async function getHotelsWithFreeRooms(
             getHiddenFromSearchHotelIds(),
         ]);
 
-        return excludeHiddenFreeHotels((data ?? []) as FreeHotelsDTO[], hiddenHotelIds);
+        const visibleHotels = excludeHiddenFreeHotels(
+            (data ?? []) as FreeHotelsDTO[],
+            hiddenHotelIds,
+        );
+
+        return excludeClosedFreeRooms(visibleHotels, filter);
     } catch (error) {
         console.error(
             'Ошибка при получении отелей с свободными номерами:',
