@@ -1,7 +1,6 @@
 import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
 import { getCached, setCached } from '@/app/api/yandex-backend/_lib/memoryCache';
 import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
 import {
@@ -52,10 +51,6 @@ export async function GET(
     request: NextRequest,
     { params }: { params: Promise<{ hotelId: string }> },
 ) {
-    if (!isYandexBackendProxyEnabled()) {
-        return disabledResponse();
-    }
-
     const { hotelId } = await params;
     const allowedRooms = parseAllowedRooms(request);
     const authorization = request.headers.get('authorization');
