@@ -309,6 +309,34 @@ const getOrderedHotelRows = <T extends { title?: string | null }>(
     return sortByChessmateHotelHeaderStatus(getChessmateStatusFilteredRows(rows, filter));
 };
 
+const getSelectedHotelCalendarsViaBackend = async (
+    hotelIds: string[],
+    filter?: TravelFilterType,
+): Promise<HotelRoomsReservesDTO[]> => {
+    if (!isYandexBackendProxyClientEnabled() || hotelIds.length === 0) {
+        return [];
+    }
+
+    const hotels = await Promise.all(
+        hotelIds.map(async (hotelId) => {
+            try {
+                return await getHotelCalendarViaYandexBackend(
+                    hotelId,
+                    filter?.freeHotels?.get(hotelId),
+                );
+            } catch (error) {
+                console.warn('Failed to load selected hotel calendar via backend', hotelId, error);
+                return null;
+            }
+        }),
+    );
+
+    return getOrderedHotelRows(
+        hotels.filter((hotel): hotel is HotelRoomsReservesDTO => Boolean(hotel?.rooms?.length)),
+        filter,
+    );
+};
+
 /**
  * Получение отелей с комнатами из view hotels_with_rooms с поддержкой пагинации и фильтрации, здесь возвращаются только отели, в которых есть номера
  * @param filter - фильтр для поиска
@@ -362,13 +390,25 @@ export async function getAllHotels(
                 .order('title', { ascending: true });
 
             const response = await query;
-            const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
+            const backendRows =
+                (!response?.data || response.data.length === 0) &&
+                filter?.hotels &&
+                filter.hotels.length > 0
+                    ? await getSelectedHotelCalendarsViaBackend(filteredHotelIds, filter)
+                    : [];
+            const orderedRows = backendRows.length
+                ? backendRows
+                : getOrderedHotelRows(response?.data ?? [], filter);
             const paginatedRows = orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
             const data: HotelRoomsReservesDTO[] =
                 paginatedRows?.map((hotel: any) => {
+                    if (backendRows.length) {
+                        return hotel as HotelRoomsReservesDTO;
+                    }
+
                     let filteredRooms = hotel.rooms || [];
 
                     // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
