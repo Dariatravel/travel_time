@@ -38,6 +38,7 @@ import {
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormField } from '@/shared/ui/FormField';
 import { FormMessage } from '@/shared/ui/FormMessage';
+import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import cn from 'classnames';
 import { useUnit } from 'effector-react';
@@ -337,6 +338,12 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                 setFreeHotelsData(result);
             } catch (error) {
                 console.error('Ошибка при получении свободных отелей:', error);
+                freeRoomData = {
+                    freeHotels_id: [],
+                    freeHotels: new Map(),
+                };
+                setFreeHotelsData([]);
+                showToast('Не удалось рассчитать свободные номера. Попробуйте обновить страницу.', 'error');
             } finally {
                 // Сбрасываем состояние загрузки
                 setLoading(false);
