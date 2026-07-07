@@ -19,7 +19,6 @@ import { useUnit } from 'effector-react';
 import { Building2, Calendar, Key, UserCog } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
-import { ToastContainer } from 'react-toastify';
 
 export default function Main() {
     const [isHotelOpen, setIsHotelOpen] = useState<boolean>(false);
@@ -150,7 +149,6 @@ export default function Main() {
             <div className="max-w-6xl mx-auto mt-6">
                 <RecentActivityFeed />
             </div>
-            <ToastContainer />
         </div>
     );
 }
