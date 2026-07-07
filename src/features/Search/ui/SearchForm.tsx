@@ -101,7 +101,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             chessmateStatus: undefined,
             dateFrom: undefined,
             dateTo: undefined,
-            quantity: undefined,
+            quantity: 1,
         },
     });
 
@@ -152,6 +152,8 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         } else if (filter?.quantity) {
             formValues.quantity = filter.quantity;
             filterValues.quantity = filter.quantity;
+        } else {
+            formValues.quantity = 1;
         }
 
         if (urlDateFrom) {
