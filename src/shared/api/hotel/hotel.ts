@@ -75,16 +75,19 @@ export type RoomForm = Omit<Room, 'hotel_id' | 'price'> & {
     price: string;
 };
 
+export type FreeHotelRoomDTO = {
+    room_id: string;
+    room_price?: number;
+    room_title?: string;
+    reserves?: ReserveDTO[];
+    [key: string]: unknown;
+};
+
 export interface FreeHotelsDTO {
     free_room_count: number;
     hotel_id: string;
     hotel_title: string;
-    rooms: {
-        room_id: string;
-        room_price: number;
-        room_title: string;
-        reserves: ReserveDTO[];
-    }[];
+    rooms: FreeHotelRoomDTO[];
 }
 
 export type InfiniteHotelsQueryOptions = {
@@ -133,6 +136,87 @@ const excludeHiddenFreeHotels = (
 
     const hiddenSet = new Set(hiddenHotelIds);
     return hotels.filter((hotel) => !hiddenSet.has(hotel.hotel_id));
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+    typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const parseFreeHotelRooms = (rooms: unknown): FreeHotelRoomDTO[] => {
+    let parsedRooms = rooms;
+
+    if (typeof parsedRooms === 'string') {
+        try {
+            parsedRooms = JSON.parse(parsedRooms);
+        } catch {
+            return [];
+        }
+    }
+
+    if (!Array.isArray(parsedRooms)) {
+        return [];
+    }
+
+    return parsedRooms
+        .map((room): FreeHotelRoomDTO | null => {
+            if (!isRecord(room)) {
+                return null;
+            }
+
+            const roomId = room.room_id ?? room.id;
+
+            if (typeof roomId !== 'string' || roomId.length === 0) {
+                return null;
+            }
+
+            return {
+                ...room,
+                room_id: roomId,
+                room_title:
+                    typeof room.room_title === 'string'
+                        ? room.room_title
+                        : typeof room.title === 'string'
+                          ? room.title
+                          : '',
+                room_price:
+                    typeof room.room_price === 'number'
+                        ? room.room_price
+                        : typeof room.price === 'number'
+                          ? room.price
+                          : undefined,
+                reserves: Array.isArray(room.reserves) ? (room.reserves as ReserveDTO[]) : [],
+            };
+        })
+        .filter((room): room is FreeHotelRoomDTO => room !== null);
+};
+
+const normalizeFreeHotels = (rows: unknown): FreeHotelsDTO[] => {
+    if (!Array.isArray(rows)) {
+        return [];
+    }
+
+    return rows
+        .map((row): FreeHotelsDTO | null => {
+            if (!isRecord(row)) {
+                return null;
+            }
+
+            const hotelId = row.hotel_id;
+
+            if (typeof hotelId !== 'string' || hotelId.length === 0) {
+                return null;
+            }
+
+            const rooms = parseFreeHotelRooms(row.rooms);
+
+            return {
+                free_room_count:
+                    typeof row.free_room_count === 'number' ? row.free_room_count : rooms.length,
+                hotel_id: hotelId,
+                hotel_title: typeof row.hotel_title === 'string' ? row.hotel_title : '',
+                rooms,
+            };
+        })
+        .filter((hotel): hotel is FreeHotelsDTO => hotel !== null && hotel.rooms.length > 0);
 };
 
 const hasValidSearchPeriod = (
@@ -1005,10 +1089,7 @@ export async function getHotelsWithFreeRooms(
             getHiddenFromSearchHotelIds(),
         ]);
 
-        const visibleHotels = excludeHiddenFreeHotels(
-            (data ?? []) as FreeHotelsDTO[],
-            hiddenHotelIds,
-        );
+        const visibleHotels = excludeHiddenFreeHotels(normalizeFreeHotels(data), hiddenHotelIds);
 
         return excludeClosedFreeRooms(visibleHotels, filter);
     } catch (error) {
