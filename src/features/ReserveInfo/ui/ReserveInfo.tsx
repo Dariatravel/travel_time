@@ -802,6 +802,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         isEdit={isEdit}
                         isLoading={loading}
                         onClose={onClose}
+                        onAccept={submitReserveForm}
                     />
                     {isEdit && (
                         <ReserveHistory
