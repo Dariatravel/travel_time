@@ -11,6 +11,7 @@ import { Building2, Calendar, HomeIcon, LayoutDashboard, UserCog } from 'lucide-
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
+import { ToastContainer } from 'react-toastify';
 import { MainScrollProvider } from './MainScrollContext';
 import styles from './layout.module.scss';
 
@@ -79,6 +80,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                     </div>
                 </div>
             </div>
+            <ToastContainer />
         </>
     );
 }

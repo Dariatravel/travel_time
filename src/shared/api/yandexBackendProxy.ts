@@ -1,6 +1,6 @@
 import type { HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import type { FreeHotelsDTO } from '@/shared/api/hotel/hotel';
-import type { ReserveDTO } from '@/shared/api/reserve/reserve';
+import type { Reserve, ReserveDTO } from '@/shared/api/reserve/reserve';
 import supabase from '@/shared/config/supabase';
 
 export const isYandexBackendProxyClientEnabled = () => {
@@ -87,6 +87,17 @@ export const getAvailableHotelsViaYandexBackend = (
             'Content-Type': 'application/json',
         },
         body: JSON.stringify(filter),
+    });
+};
+
+export const createReserveViaYandexBackend = (reserve: Reserve) => {
+    return fetchBackendJson<{ data: ReserveDTO; queued: boolean }>('/api/yandex-backend/reserves', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Idempotency-Key': `${reserve.room_id}:${reserve.start}:${reserve.end}:${Date.now()}`,
+        },
+        body: JSON.stringify(reserve),
     });
 };
 

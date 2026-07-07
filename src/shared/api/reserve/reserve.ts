@@ -10,6 +10,7 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { getDate } from '@/shared/lib/getDate';
 import {
+    createReserveViaYandexBackend,
     isYandexBackendProxyClientEnabled,
     updateReserveViaYandexBackend,
 } from '@/shared/api/yandexBackendProxy';
@@ -243,6 +244,15 @@ const assertNoReserveOverlap = async (
 
 export const createReserveApi = async (reserve: Reserve) => {
     try {
+        if (isYandexBackendProxyClientEnabled()) {
+            try {
+                const response = await createReserveViaYandexBackend(reserve);
+                return response.data;
+            } catch (error) {
+                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+            }
+        }
+
         await assertNoReserveOverlap(reserve);
 
         const insertReserve = (includeFixedFlag: boolean) =>
