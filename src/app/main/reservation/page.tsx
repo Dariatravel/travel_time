@@ -30,7 +30,7 @@ import { useUnit } from 'effector-react/compat';
 import { MapPin } from 'lucide-react';
 import 'my-react-calendar-timeline/style.css';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useMainScrollElement } from '../MainScrollContext';
 import './calendar.scss';
 import cx from './page.module.css';
@@ -70,8 +70,25 @@ const HotelCard = ({
         allowedRooms,
     );
 
-    // Используем детальные данные если они загружены, иначе базовые из списка
-    const hotelData = hotelDetail || hotel;
+    const allowedRoomSet = useMemo(
+        () => (allowedRooms ? new Set(allowedRooms) : undefined),
+        [allowedRooms],
+    );
+
+    // Используем детальные данные если они загружены, иначе базовые из списка.
+    // При поиске дополнительно фильтруем здесь, чтобы старый placeholder/cache не вернул занятые номера.
+    const hotelData = useMemo(() => {
+        const sourceHotel = hotelDetail || hotel;
+
+        if (!allowedRoomSet) {
+            return sourceHotel;
+        }
+
+        return {
+            ...sourceHotel,
+            rooms: (sourceHotel.rooms ?? []).filter((room) => allowedRoomSet.has(room.id)),
+        };
+    }, [allowedRoomSet, hotel, hotelDetail]);
     const shouldShowCalendarLoader =
         isHotelDetailLoading && !hotelDetail && !(hotel.rooms?.length > 0);
     const chessmateHeaderStatus = getChessmateHotelHeaderStatus(hotelData?.title);
