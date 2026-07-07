@@ -202,23 +202,6 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     } = useGetHotelsForRoom(shouldLoadHotels);
 
     const user = useUnit($user);
-    const getReserveDefaults = ({
-        price,
-        prepayment,
-        guest,
-        phone,
-        comment,
-        quantity,
-    }: Partial<ReserveDTO>) => {
-        return {
-            price,
-            prepayment: prepayment ?? 0,
-            guest,
-            phone: phone ?? '',
-            comment: comment ?? '', // Если нет комментария, пустая строка
-            quantity: quantity ?? 2,
-        };
-    };
     // Мемоизируем getDefaultValues, чтобы не пересчитывать при каждом рендере
     const getDefaultValues = useCallback(
         (reserveContext?: Nullable<CurrentReserveType>): Partial<ReserveFormValues> => {
@@ -248,6 +231,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                       : undefined,
                 price: room?.price ?? 0,
                 quantity: room?.quantity ?? 2,
+                prepayment: 0,
                 comment: '', // По умолчанию пустая строка
                 created_by: reserveContext?.reserve?.created_by,
                 edited_by: reserveContext?.reserve?.edited_by,
@@ -257,14 +241,16 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             };
 
             if (!!reserve) {
-                const reserveDefaults = getReserveDefaults(reserve);
                 defaults = {
                     ...defaults,
-                    ...reserveDefaults,
                     // Даты уже установлены выше из reserve.start и reserve.end, не перезаписываем их
                     date: [startDate, endDate],
-                    quantity: reserveDefaults.quantity ?? defaults.quantity,
-                    comment: reserveDefaults.comment ?? defaults.comment ?? '', // Гарантируем строку
+                    price: reserve.price ?? defaults.price,
+                    prepayment: reserve.prepayment ?? defaults.prepayment ?? 0,
+                    guest: reserve.guest ?? defaults.guest,
+                    phone: reserve.phone ?? defaults.phone ?? '',
+                    quantity: reserve.quantity ?? defaults.quantity,
+                    comment: reserve.comment ?? defaults.comment ?? '', // Гарантируем строку
                 };
             }
 
