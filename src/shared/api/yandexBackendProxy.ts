@@ -1,4 +1,5 @@
 import type { HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
+import type { FreeHotelsDTO } from '@/shared/api/hotel/hotel';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 import supabase from '@/shared/config/supabase';
 
@@ -45,6 +46,18 @@ export const getHotelCalendarViaYandexBackend = (
     return fetchBackendJson<HotelRoomsReservesDTO>(
         `/api/yandex-backend/hotels/${hotelId}/calendar${query ? `?${query}` : ''}`,
     );
+};
+
+export const getAvailableHotelsViaYandexBackend = (
+    filter: Record<string, unknown>,
+) => {
+    return fetchBackendJson<FreeHotelsDTO[]>('/api/yandex-backend/hotels/available', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(filter),
+    });
 };
 
 export const updateReserveViaYandexBackend = (reserve: ReserveDTO) => {

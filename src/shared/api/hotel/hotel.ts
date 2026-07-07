@@ -9,6 +9,7 @@ import {
     sortByChessmateHotelHeaderStatus,
 } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import {
+    getAvailableHotelsViaYandexBackend,
     getHotelCalendarViaYandexBackend,
     isYandexBackendProxyClientEnabled,
 } from '@/shared/api/yandexBackendProxy';
@@ -1123,6 +1124,15 @@ export async function getHotelsWithFreeRooms(
             min_price_filter: priceFilters.min_price,
             max_price_filter: priceFilters.max_price,
         };
+
+        try {
+            return await getAvailableHotelsViaYandexBackend(default_filter);
+        } catch (error) {
+            if (isYandexBackendProxyClientEnabled()) {
+                throw error;
+            }
+            console.warn('Yandex availability backend failed, falling back to Supabase', error);
+        }
 
         const [{ data }, hiddenHotelIds] = await Promise.all([
             supabase.rpc('get_available_hotels', default_filter),

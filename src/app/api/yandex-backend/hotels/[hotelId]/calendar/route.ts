@@ -4,7 +4,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
 import { getCached, setCached } from '@/app/api/yandex-backend/_lib/memoryCache';
 import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
-import { createSupabaseServerClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
+import {
+    createSupabaseServerClient,
+    createSupabaseServiceRoleClient,
+} from '@/app/api/yandex-backend/_lib/supabaseServer';
 import type { HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 import type { RoomReserves } from '@/shared/api/room/room';
@@ -77,7 +80,19 @@ export async function GET(
     }
 
     try {
-        const supabase = createSupabaseServerClient(authorization);
+        const authClient = createSupabaseServerClient(authorization);
+        const {
+            data: { user },
+            error: authError,
+        } = await authClient.auth.getUser();
+
+        if (authError || !user) {
+            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+        }
+
+        // The public view can return zero rows under RLS even for valid app users.
+        // This route is already authenticated, so use the server-only service role for calendar data.
+        const supabase = createSupabaseServiceRoleClient();
 
         const result = await withRetry(async () => {
             const { data: hotelData, error: hotelError } = await supabase
