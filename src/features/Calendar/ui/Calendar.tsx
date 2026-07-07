@@ -60,23 +60,50 @@ export const Calendar = ({
 }: CalendarProps) => {
     const { isMobile, isPhone } = useScreenSize();
     const queryClient = useQueryClient();
-
-    // Сортируем номера по полю order
-    const data = useMemo(() => {
-        const rooms = hotel.rooms || [];
-        return [...rooms].sort((a, b) => {
-            const orderA = a.order ?? 999;
-            const orderB = b.order ?? 999;
-            return orderA - orderB;
-        });
-    }, [hotel.rooms]);
-
     const [currentReserve, setCurrentReserve] = useState<Nullable<CurrentReserveType>>(null);
     const [isRoomOpen, setIsRoomOpen] = useState<boolean>(false);
     const [isReserveOpen, setIsReserveOpen] = useState<boolean>(false);
     const { data: roomClosures = [], isLoading: isClosureLoading } = useRoomClosuresByHotel(
         hotel.id,
     );
+
+    const hasSearchPeriod =
+        visibleTimeStart != null &&
+        visibleTimeEnd != null &&
+        visibleTimeStart < visibleTimeEnd;
+
+    // Сортируем номера и при поиске по датам дополнительно оставляем только реально свободные строки.
+    const data = useMemo(() => {
+        const rooms = hotel.rooms || [];
+        const visibleRooms = hasSearchPeriod
+            ? rooms.filter((room) => {
+                  const hasReserveOverlap = (room.reserves ?? []).some(
+                      (reserve) =>
+                          typeof reserve.start === 'number' &&
+                          typeof reserve.end === 'number' &&
+                          reserve.start < visibleTimeEnd &&
+                          reserve.end > visibleTimeStart,
+                  );
+
+                  if (hasReserveOverlap) {
+                      return false;
+                  }
+
+                  return !roomClosures.some(
+                      (closure) =>
+                          closure.room_id === room.id &&
+                          closure.start < visibleTimeEnd &&
+                          closure.end > visibleTimeStart,
+                  );
+              })
+            : rooms;
+
+        return [...visibleRooms].sort((a, b) => {
+            const orderA = a.order ?? 999;
+            const orderB = b.order ?? 999;
+            return orderA - orderB;
+        });
+    }, [hasSearchPeriod, hotel.rooms, roomClosures, visibleTimeEnd, visibleTimeStart]);
 
     const {
         isPending: isReserveCreating,
