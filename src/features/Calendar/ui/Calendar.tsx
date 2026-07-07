@@ -67,43 +67,16 @@ export const Calendar = ({
         hotel.id,
     );
 
-    const hasSearchPeriod =
-        visibleTimeStart != null &&
-        visibleTimeEnd != null &&
-        visibleTimeStart < visibleTimeEnd;
-
-    // Сортируем номера и при поиске по датам дополнительно оставляем только реально свободные строки.
+    // Сортируем номера по полю order. Доступность по датам рассчитывается поиском,
+    // а календарь должен показывать пустые ячейки, чтобы менеджер видел свободные даты.
     const data = useMemo(() => {
         const rooms = hotel.rooms || [];
-        const visibleRooms = hasSearchPeriod
-            ? rooms.filter((room) => {
-                  const hasReserveOverlap = (room.reserves ?? []).some(
-                      (reserve) =>
-                          typeof reserve.start === 'number' &&
-                          typeof reserve.end === 'number' &&
-                          reserve.start < visibleTimeEnd &&
-                          reserve.end > visibleTimeStart,
-                  );
-
-                  if (hasReserveOverlap) {
-                      return false;
-                  }
-
-                  return !roomClosures.some(
-                      (closure) =>
-                          closure.room_id === room.id &&
-                          closure.start < visibleTimeEnd &&
-                          closure.end > visibleTimeStart,
-                  );
-              })
-            : rooms;
-
-        return [...visibleRooms].sort((a, b) => {
+        return [...rooms].sort((a, b) => {
             const orderA = a.order ?? 999;
             const orderB = b.order ?? 999;
             return orderA - orderB;
         });
-    }, [hasSearchPeriod, hotel.rooms, roomClosures, visibleTimeEnd, visibleTimeStart]);
+    }, [hotel.rooms]);
 
     const {
         isPending: isReserveCreating,
