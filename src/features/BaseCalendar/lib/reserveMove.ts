@@ -34,8 +34,8 @@ export const computeMovedReserveDates = (
     dragTimeMs: number,
 ): { start: number; end: number } => {
     const durationDays = getReserveDurationDays(reserve.start, reserve.end);
-    const start = moment(dragTimeMs).startOf('day').hour(12).unix();
-    const end = moment.unix(start).add(durationDays, 'days').hour(11).unix();
+    const start = moment(dragTimeMs).startOf('day').hour(14).unix();
+    const end = moment.unix(start).add(durationDays, 'days').hour(12).unix();
 
     return { start, end };
 };

@@ -57,6 +57,32 @@ const toReserveUnix = (value: ReserveDTO['start'] | undefined) => {
     return typeof value === 'number' ? value : undefined;
 };
 
+const toReserveDayIndex = (value: ReserveDTO['start'] | undefined) => {
+    const unix = toReserveUnix(value);
+    return unix == null ? undefined : Math.floor(unix / 86_400);
+};
+
+const hasReserveNightOverlap = (
+    reserve: Partial<Pick<ReserveDTO, 'start' | 'end'>>,
+    period: Partial<Pick<ReserveDTO, 'start' | 'end'>>,
+) => {
+    const reserveStartDay = toReserveDayIndex(reserve.start);
+    const reserveEndDay = toReserveDayIndex(reserve.end);
+    const periodStartDay = toReserveDayIndex(period.start);
+    const periodEndDay = toReserveDayIndex(period.end);
+
+    if (
+        reserveStartDay == null ||
+        reserveEndDay == null ||
+        periodStartDay == null ||
+        periodEndDay == null
+    ) {
+        return false;
+    }
+
+    return reserveStartDay < periodEndDay && reserveEndDay > periodStartDay;
+};
+
 const assertNoReserveOverlap = async (
     supabase: ReturnType<typeof createSupabaseServiceRoleClient>,
     reserve: Partial<ReserveDTO>,
@@ -80,8 +106,10 @@ const assertNoReserveOverlap = async (
 
     if (error) throw error;
 
-    if ((data ?? []).length > 0) {
-        const conflictMessage = (data ?? [])
+    const overlaps = (data ?? []).filter((item) => hasReserveNightOverlap(item, reserve));
+
+    if (overlaps.length > 0) {
+        const conflictMessage = overlaps
             .map((item) => item.guest || 'Без имени')
             .join(', ');
 
@@ -112,8 +140,10 @@ const assertNoRoomClosureOverlap = async (
 
     if (error) throw error;
 
-    if ((data ?? []).length > 0) {
-        const conflictMessage = (data ?? [])
+    const overlaps = (data ?? []).filter((item) => hasReserveNightOverlap(item, reserve));
+
+    if (overlaps.length > 0) {
+        const conflictMessage = overlaps
             .map((item) => item.reason || 'Закрыто')
             .join(', ');
 

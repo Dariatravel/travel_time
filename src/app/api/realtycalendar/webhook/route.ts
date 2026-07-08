@@ -68,7 +68,7 @@ const parseBookingDate = (value: string | undefined, endOfStay: boolean) => {
     if (!year || !month || !day) return null;
 
     const date = new Date(year, month - 1, day);
-    date.setHours(endOfStay ? 11 : 12, 0, 0, 0);
+    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
 
     return Math.floor(date.getTime() / 1000);
 };

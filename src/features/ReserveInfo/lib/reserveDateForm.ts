@@ -43,8 +43,8 @@ export const resolveReserveDateRangeSelection = (
 };
 
 export const serializeReserveFormDates = (date: [Date, Date]) => {
-    const start = moment(date[0]).startOf('day').hour(12).unix();
-    const end = moment(date[1]).startOf('day').hour(11).unix();
+    const start = moment(date[0]).startOf('day').hour(14).unix();
+    const end = moment(date[1]).startOf('day').hour(12).unix();
 
     return { start, end };
 };
