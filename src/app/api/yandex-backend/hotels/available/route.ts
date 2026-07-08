@@ -103,7 +103,7 @@ const hasValidPeriod = (
 const normalizeRpcFilter = (filter: AvailabilityFilter) => ({
     start_time: filter.start_time ?? null,
     end_time: filter.end_time ?? null,
-    hotel_type_filter: filter.hotel_type_filter ?? filter.room_type_filter ?? null,
+    room_type_filter: filter.room_type_filter ?? filter.hotel_type_filter ?? null,
     min_quantity_filter: filter.min_quantity_filter ?? null,
     city_filter: filter.city_filter ?? null,
     room_features_filter: filter.room_features_filter ?? null,
