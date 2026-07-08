@@ -384,33 +384,29 @@ export async function getAllHotels(
                 return { data: [], count: 0 };
             }
 
-            const query = supabase
+            const paginatedHotelIds = filteredHotelIds.slice(from, to + 1);
+            const backendRows = await getSelectedHotelCalendarsViaBackend(paginatedHotelIds, filter);
+
+            if (backendRows.length > 0) {
+                return {
+                    data: backendRows,
+                    count: filteredHotelIds.length,
+                };
+            }
+
+            const response = await supabase
                 .from('hotels_with_rooms_new')
                 .select('*, rooms(*)', { count: 'exact' })
                 .in('id', filteredHotelIds)
                 .order('title', { ascending: true });
 
-            const response = await query;
-            const backendRows =
-                !response?.data || response.data.length === 0
-                    ? await getSelectedHotelCalendarsViaBackend(
-                          filteredHotelIds.slice(from, to + 1),
-                          filter,
-                      )
-                    : [];
-            const orderedRows = backendRows.length
-                ? backendRows
-                : getOrderedHotelRows(response?.data ?? [], filter);
-            const paginatedRows = backendRows.length ? orderedRows : orderedRows.slice(from, to + 1);
+            const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
+            const paginatedRows = orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
             const data: HotelRoomsReservesDTO[] =
                 paginatedRows?.map((hotel: any) => {
-                    if (backendRows.length) {
-                        return hotel as HotelRoomsReservesDTO;
-                    }
-
                     let filteredRooms = hotel.rooms || [];
 
                     // Если есть фильтр freeHotels (из getHotelsWithFreeRooms), фильтруем номера
@@ -435,7 +431,7 @@ export async function getAllHotels(
 
             return {
                 data,
-                count: backendRows.length ? filteredHotelIds.length : orderedRows.length,
+                count: orderedRows.length,
             };
         }
 
