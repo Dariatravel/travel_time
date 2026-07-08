@@ -94,7 +94,7 @@ export const useLogin = () => useMutation({ mutationFn: login });
 export const useRegister = () => useMutation({ mutationFn: register });
 export const useSignOut = () => useMutation({ mutationFn: signOut });
 export const useUser = () => useQuery({ queryFn: getUser, queryKey: ['USER'] });
-export const useGetUsers = () => useQuery({ queryFn: getListUsers, queryKey: ['USER'] });
+export const useGetUsers = () => useQuery({ queryFn: getListUsers, queryKey: ['USERS', 'list'] });
 
 export const useGetSession = () => {
     return useQuery<{ session: AuthSession | null }>({

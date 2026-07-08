@@ -1354,20 +1354,18 @@ export const useDeleteHotel = (
 };
 
 export const createImageApi = async (fileName: string, file: File) => {
-    try {
-        await supabase.storage
-            .from('images') // Замените на имя вашего bucket
-            .upload(fileName, file);
-    } catch (err) {
-        console.error('Error fetching posts:', err);
-        showToast(`Ошибка при обновлении брони ${err}`, 'error');
+    const { error } = await supabase.storage.from('images').upload(fileName, file);
+
+    if (error) {
+        console.error('Ошибка при загрузке изображения:', error);
+        showToast(`Ошибка при загрузке изображения: ${error.message}`, 'error');
+        throw new Error(error.message);
     }
 };
 export const useCreateImage = (onSuccess?: () => void, onError?: (e: Error) => void) => {
     return useMutation({
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-expect-error
-        mutationFn: (fileName: string, file: File) => createImageApi(fileName, file),
+        mutationFn: ({ fileName, file }: { fileName: string; file: File }) =>
+            createImageApi(fileName, file),
         onSuccess,
         onError,
     });

@@ -1,10 +1,28 @@
 import { QueryClient } from '@tanstack/react-query'
 import { TravelFilterType } from '@/shared/models/hotels'
 
+const toHotelsQueryKeyFilter = (filter?: TravelFilterType) => {
+  if (!filter) return filter
+
+  const filterWithoutLoading = { ...filter }
+  delete filterWithoutLoading.isLoading
+  const { freeHotels, hotels, ...rest } = filterWithoutLoading
+
+  return {
+    ...rest,
+    hotels: hotels?.map((hotel) => hotel.id).sort(),
+    freeHotels: freeHotels
+      ? Array.from(freeHotels.entries())
+          .map(([hotelId, roomIds]) => [hotelId, [...roomIds].sort()] as const)
+          .sort((a, b) => a[0].localeCompare(b[0]))
+      : undefined,
+  }
+}
+
 export const QUERY_KEYS = {
   // Список отелей с фильтрами (infinite query) - только базовая информация
   hotels: (filter?: TravelFilterType, options?: Record<string, unknown>) =>
-    ['hotels', 'list', filter, options] as const,
+    ['hotels', 'list', toHotelsQueryKeyFilter(filter), options] as const,
 
   // Конкретный отель со всеми номерами и бронями
   hotelDetail: (hotelId: string) => ['hotels', 'detail', hotelId] as const,

@@ -1,5 +1,4 @@
 import { Bounce, toast, ToastOptions } from "react-toastify";
-import { type } from "node:os";
 
 const toastOptions: ToastOptions = {
   autoClose: 3000,
