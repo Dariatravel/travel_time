@@ -655,6 +655,10 @@ export async function getReservesByHotels(
             });
         }
 
+        if (allowedRoomIds && allowedRoomIds.length === 0) {
+            return new Map();
+        }
+
         // Получаем номера для списка отелей с бронями
         const query = supabase
             .from('rooms')

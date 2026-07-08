@@ -7,13 +7,13 @@ import { useEffect } from 'react';
 import { devLog } from './logger';
 
 const getSession = async () => {
-    try {
-        const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
 
-        return data;
-    } catch (e) {
-        console.error(e);
+    if (error) {
+        throw error;
     }
+
+    return data;
 };
 
 export const useAuth = () => {
@@ -25,7 +25,8 @@ export const useAuth = () => {
 
     useEffect(() => {
         if (isFetching) return;
-        if (!data?.session) {
+        if (!data) return;
+        if (!data.session) {
             router.replace(routes.LOGIN);
             return;
         }
@@ -43,5 +44,5 @@ export const useAuth = () => {
             name: user?.user_metadata?.name,
             user_metadata: user?.user_metadata,
         });
-    }, [data?.session, isFetching, router]);
+    }, [data, isFetching, router]);
 };

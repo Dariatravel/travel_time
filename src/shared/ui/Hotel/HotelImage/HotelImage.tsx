@@ -20,8 +20,8 @@ export const HotelImage = ({ type, className, src, onClick, tagClassName }: Hote
                 className={styles.hotelIcon}
                 src={src}
                 alt={'Изображение отеля'}
-                layout={'fill'}
-                objectFit={'cover'}
+                fill
+                style={{ objectFit: 'cover' }}
             />
         </div>
     );

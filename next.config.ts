@@ -24,6 +24,11 @@ const nextConfig: NextConfig = {
                 protocol: 'https',
                 hostname: 'images.unsplash.com',
             },
+            {
+                protocol: 'https',
+                hostname: '*.supabase.co',
+                pathname: '/storage/v1/object/public/**',
+            },
         ],
     },
     // Оптимизация для Windows для предотвращения EPERM ошибок
