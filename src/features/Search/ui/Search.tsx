@@ -62,11 +62,11 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
     let start_time = undefined,
         end_time = undefined;
     if (date?.[0]) {
-        start_time = moment(date[0]).hour(12).unix();
+        start_time = moment(date[0]).hour(14).unix();
     }
 
     if (date?.[1]) {
-        end_time = moment(date[1]).hour(11).unix();
+        end_time = moment(date[1]).hour(12).unix();
     }
 
     const onSearch = async () => {

@@ -231,10 +231,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         const selectedHotelsFromForm = formData.hotels ?? [];
         const selectedHotelIds = selectedHotelsFromForm.map((hotel) => hotel.id);
         const start_time = formData.dateFrom
-            ? moment(formData.dateFrom).hour(12).unix()
+            ? moment(formData.dateFrom).hour(14).unix()
             : undefined;
         const end_time = formData.dateTo
-            ? moment(formData.dateTo).hour(11).unix()
+            ? moment(formData.dateTo).hour(12).unix()
             : undefined;
 
         const filter: Partial<TravelFilterType> = {

@@ -84,6 +84,8 @@ export const toTimelineBlockEntries = (
         itemKind,
     }));
 
+const toTimelineDayIndex = (value: ReserveTime) => Math.floor(toReserveUnix(value) / 86_400);
+
 export const hasTimelineBlockOverlap = (
     entries: TimelineBlockEntry[],
     roomId: string,
@@ -94,9 +96,10 @@ export const hasTimelineBlockOverlap = (
     entries
         .filter((entry) => entry.room_id === roomId && entry.id !== excludeId)
         .some((entry) => {
-            const entryStart = toReserveUnix(entry.start);
-            const entryEnd = toReserveUnix(entry.end);
-            return startUnix < entryEnd && entryStart < endUnix;
+            return (
+                toTimelineDayIndex(entry.start) < Math.floor(endUnix / 86_400) &&
+                toTimelineDayIndex(entry.end) > Math.floor(startUnix / 86_400)
+            );
         });
 
 export const formatClosurePeriod = (startUnix: number, endUnix: number): string => {
@@ -125,8 +128,8 @@ export const getTimelineItemLabel = (item: Pick<TimelineCalendarItem, 'itemKind'
 export const normalizeTimelineVisualItem = (item: { start: Moment | number | Date; end: Moment | number | Date }) => ({
     ...item,
     start: moment.isMoment(item.start)
-        ? item.start.clone().hour(12).minute(0).second(0).millisecond(0)
-        : getDateFromUnix(toReserveUnix(item.start)).hour(12).minute(0).second(0).millisecond(0),
+        ? item.start.clone().hour(14).minute(0).second(0).millisecond(0)
+        : getDateFromUnix(toReserveUnix(item.start)).hour(14).minute(0).second(0).millisecond(0),
     end: moment.isMoment(item.end)
         ? item.end.clone().hour(12).minute(0).second(0).millisecond(0)
         : getDateFromUnix(toReserveUnix(item.end)).hour(12).minute(0).second(0).millisecond(0),

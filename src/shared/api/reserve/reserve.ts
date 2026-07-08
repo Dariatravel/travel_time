@@ -196,6 +196,19 @@ const toReserveUpdatePayload = (
 const toReserveUnix = (value: ReserveDTO['start']) =>
     typeof value === 'number' ? value : Math.floor(value.getTime() / 1000);
 
+const toReserveDayIndex = (value: ReserveDTO['start']) =>
+    Math.floor(toReserveUnix(value) / 86_400);
+
+const hasReserveNightOverlap = (
+    reserve: Pick<ReserveDTO, 'start' | 'end'>,
+    period: Pick<ReserveDTO, 'start' | 'end'>,
+) => {
+    return (
+        toReserveDayIndex(reserve.start) < toReserveDayIndex(period.end) &&
+        toReserveDayIndex(reserve.end) > toReserveDayIndex(period.start)
+    );
+};
+
 const formatOverlapDate = (value: ReserveDTO['start']) =>
     new Date(toReserveUnix(value) * 1000).toLocaleDateString('ru-RU', {
         day: '2-digit',
@@ -228,11 +241,13 @@ const assertNoReserveOverlap = async (
         throw new Error(error.message);
     }
 
-    if ((data ?? []).length === 0) {
+    const overlaps = (data ?? []).filter((item) => hasReserveNightOverlap(item, reserve));
+
+    if (overlaps.length === 0) {
         return;
     }
 
-    const conflictMessage = (data ?? [])
+    const conflictMessage = overlaps
         .map(
             (item) =>
                 `${item.guest || 'Без имени'}: ${formatOverlapDate(item.start)} - ${formatOverlapDate(item.end)}`,
@@ -458,7 +473,9 @@ export const getReserveOverlaps = async ({
         throw new Error(error.message);
     }
 
-    return (data ?? []) as unknown as ReserveOverlap[];
+    return (data ?? []).filter((item) =>
+        hasReserveNightOverlap(item, { start, end }),
+    ) as unknown as ReserveOverlap[];
 };
 
 export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {

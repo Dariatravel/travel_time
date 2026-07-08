@@ -76,7 +76,7 @@ const toNoonUnixFromIcalDate = (value: string, endOfStay: boolean) => {
 
     const [, year, month, day] = dateMatch;
     const date = new Date(Number(year), Number(month) - 1, Number(day));
-    date.setHours(endOfStay ? 11 : 12, 0, 0, 0);
+    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
 
     return Math.floor(date.getTime() / 1000);
 };
