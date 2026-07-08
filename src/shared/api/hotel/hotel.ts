@@ -1002,9 +1002,7 @@ export async function getHotelsWithAvailability(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            // Фильтр типа теперь относится к типу номера (rooms.type),
-            // поэтому параметр функции называется room_type_filter.
-            room_type_filter: filter?.type ?? null,
+            hotel_type_filter: filter?.type ?? null,
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
@@ -1115,7 +1113,7 @@ export async function getHotelsWithFreeRooms(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            room_type_filter: filter?.type ?? null,
+            hotel_type_filter: filter?.type ?? null,
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,

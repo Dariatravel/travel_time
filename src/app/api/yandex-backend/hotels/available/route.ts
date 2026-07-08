@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 type AvailabilityFilter = {
     start_time?: number | null;
     end_time?: number | null;
+    hotel_type_filter?: string | null;
     room_type_filter?: string | null;
     min_quantity_filter?: number | null;
     city_filter?: string[] | null;
@@ -99,6 +100,21 @@ const hasValidPeriod = (
     typeof filter.end_time === 'number' &&
     filter.start_time < filter.end_time;
 
+const normalizeRpcFilter = (filter: AvailabilityFilter) => ({
+    start_time: filter.start_time ?? null,
+    end_time: filter.end_time ?? null,
+    hotel_type_filter: filter.hotel_type_filter ?? filter.room_type_filter ?? null,
+    min_quantity_filter: filter.min_quantity_filter ?? null,
+    city_filter: filter.city_filter ?? null,
+    room_features_filter: filter.room_features_filter ?? null,
+    features_filter: filter.features_filter ?? null,
+    eat_filter: filter.eat_filter ?? null,
+    beach_filter: filter.beach_filter ?? null,
+    beach_distance_filter: filter.beach_distance_filter ?? null,
+    min_price_filter: filter.min_price_filter ?? null,
+    max_price_filter: filter.max_price_filter ?? null,
+});
+
 export async function POST(request: NextRequest) {
     const filter = (await request.json().catch(() => null)) as AvailabilityFilter | null;
     if (!filter || !isRecord(filter)) {
@@ -107,8 +123,9 @@ export async function POST(request: NextRequest) {
 
     try {
         const supabase = createSupabaseServiceRoleClient();
+        const rpcFilter = normalizeRpcFilter(filter);
         const [{ data, error }, hiddenHotelsResponse] = await Promise.all([
-            supabase.rpc('get_available_hotels', filter),
+            supabase.rpc('get_available_hotels', rpcFilter),
             supabase.from('hotels').select('id').eq('is_search_visible', false),
         ]);
 
