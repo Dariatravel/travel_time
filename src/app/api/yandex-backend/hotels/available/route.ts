@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import {
-    createSupabaseServerClient,
-    createSupabaseServiceRoleClient,
-} from '@/app/api/yandex-backend/_lib/supabaseServer';
+import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 import type { FreeHotelsDTO, FreeHotelRoomDTO } from '@/shared/api/hotel/hotel';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 
@@ -103,24 +100,9 @@ const hasValidPeriod = (
     filter.start_time < filter.end_time;
 
 export async function POST(request: NextRequest) {
-    const authorization = request.headers.get('authorization');
-    if (!authorization) {
-        return NextResponse.json({ error: 'Authorization header is required' }, { status: 401 });
-    }
-
     const filter = (await request.json().catch(() => null)) as AvailabilityFilter | null;
     if (!filter || !isRecord(filter)) {
         return NextResponse.json({ error: 'Invalid availability filter' }, { status: 400 });
-    }
-
-    const authClient = createSupabaseServerClient(authorization);
-    const {
-        data: { user },
-        error: authError,
-    } = await authClient.auth.getUser();
-
-    if (authError || !user) {
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
     try {
