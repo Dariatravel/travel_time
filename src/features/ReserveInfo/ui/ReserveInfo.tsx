@@ -233,10 +233,10 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                 quantity: room?.quantity ?? 2,
                 prepayment: 0,
                 comment: '', // По умолчанию пустая строка
-                created_by: reserveContext?.reserve?.created_by,
-                edited_by: reserveContext?.reserve?.edited_by,
-                created_at: reserveContext?.reserve?.created_at,
-                edited_at: reserveContext?.reserve?.edited_at,
+                created_by: reserveContext?.reserve?.created_by ?? undefined,
+                edited_by: reserveContext?.reserve?.edited_by ?? undefined,
+                created_at: reserveContext?.reserve?.created_at ?? undefined,
+                edited_at: reserveContext?.reserve?.edited_at ?? undefined,
                 is_fixed: reserveContext?.reserve?.is_fixed ?? false,
             };
 
