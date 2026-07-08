@@ -115,6 +115,24 @@ const normalizeRpcFilter = (filter: AvailabilityFilter) => ({
     max_price_filter: filter.max_price_filter ?? null,
 });
 
+const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) {
+        return error.message;
+    }
+
+    if (isRecord(error)) {
+        const details = [error.message, error.details, error.hint, error.code]
+            .filter((value): value is string => typeof value === 'string' && value.length > 0)
+            .join(' ');
+
+        if (details) {
+            return details;
+        }
+    }
+
+    return 'Failed to calculate available hotels';
+};
+
 export async function POST(request: NextRequest) {
     const filter = (await request.json().catch(() => null)) as AvailabilityFilter | null;
     if (!filter || !isRecord(filter)) {
@@ -124,16 +142,21 @@ export async function POST(request: NextRequest) {
     try {
         const supabase = createSupabaseServiceRoleClient();
         const rpcFilter = normalizeRpcFilter(filter);
-        const [{ data, error }, hiddenHotelsResponse] = await Promise.all([
-            supabase.rpc('get_available_hotels', rpcFilter),
-            supabase.from('hotels').select('id').eq('is_search_visible', false),
-        ]);
+        const { data, error } = await supabase.rpc('get_available_hotels', rpcFilter);
 
         if (error) throw error;
-        if (hiddenHotelsResponse.error) throw hiddenHotelsResponse.error;
+
+        const hiddenHotelsResponse = await supabase
+            .from('hotels')
+            .select('id')
+            .eq('is_search_visible', false);
+
+        if (hiddenHotelsResponse.error) {
+            console.warn('Unable to apply hidden hotel filter', hiddenHotelsResponse.error);
+        }
 
         const hiddenHotelIds = new Set(
-            (hiddenHotelsResponse.data ?? []).map((hotel) => hotel.id),
+            hiddenHotelsResponse.error ? [] : (hiddenHotelsResponse.data ?? []).map((hotel) => hotel.id),
         );
         let hotels = normalizeAvailabilityRows(data).filter(
             (hotel) => !hiddenHotelIds.has(hotel.hotel_id),
@@ -152,7 +175,10 @@ export async function POST(request: NextRequest) {
                     .lt('start', filter.end_time)
                     .gt('end', filter.start_time);
 
-                if (closuresError) throw closuresError;
+                if (closuresError) {
+                    console.warn('Unable to apply room closure filter', closuresError);
+                    return NextResponse.json(hotels);
+                }
 
                 const closedRoomIds = new Set((closures ?? []).map((closure) => closure.room_id));
                 if (closedRoomIds.size > 0) {
@@ -175,8 +201,6 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json(hotels);
     } catch (error) {
-        const message =
-            error instanceof Error ? error.message : 'Failed to calculate available hotels';
-        return NextResponse.json({ error: message }, { status: 502 });
+        return NextResponse.json({ error: getErrorMessage(error) }, { status: 502 });
     }
 }
