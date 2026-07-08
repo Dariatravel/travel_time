@@ -2,6 +2,20 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
+const getSupabaseProjectRef = () => {
+    const upstreamUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!upstreamUrl) {
+        return undefined;
+    }
+
+    try {
+        return new URL(upstreamUrl).hostname.split('.')[0];
+    } catch {
+        return undefined;
+    }
+};
+
 const getSupabaseUrl = () => {
     const upstreamUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 
@@ -18,4 +32,10 @@ const getSupabaseUrl = () => {
     return upstreamUrl;
 };
 
-export default createClient(getSupabaseUrl(), supabaseAnonKey!);
+const supabaseProjectRef = getSupabaseProjectRef();
+
+export default createClient(getSupabaseUrl(), supabaseAnonKey!, {
+    auth: {
+        storageKey: supabaseProjectRef ? `sb-${supabaseProjectRef}-auth-token` : undefined,
+    },
+});
