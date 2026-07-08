@@ -100,6 +100,39 @@ const hasValidPeriod = (
     typeof filter.end_time === 'number' &&
     filter.start_time < filter.end_time;
 
+const ROOM_CLOSURE_QUERY_CHUNK_SIZE = 100;
+
+const getClosedRoomIdsForPeriod = async (
+    supabase: ReturnType<typeof createSupabaseServiceRoleClient>,
+    roomIds: string[],
+    start: number,
+    end: number,
+) => {
+    const closedRoomIds = new Set<string>();
+
+    for (let index = 0; index < roomIds.length; index += ROOM_CLOSURE_QUERY_CHUNK_SIZE) {
+        const chunk = roomIds.slice(index, index + ROOM_CLOSURE_QUERY_CHUNK_SIZE);
+        const { data, error } = await supabase
+            .from('room_closures')
+            .select('room_id')
+            .in('room_id', chunk)
+            .lt('start', end)
+            .gt('end', start);
+
+        if (error) {
+            throw error;
+        }
+
+        (data ?? []).forEach((closure) => {
+            if (typeof closure.room_id === 'string') {
+                closedRoomIds.add(closure.room_id);
+            }
+        });
+    }
+
+    return closedRoomIds;
+};
+
 const normalizeRpcFilter = (filter: AvailabilityFilter) => ({
     start_time: filter.start_time ?? null,
     end_time: filter.end_time ?? null,
@@ -168,19 +201,13 @@ export async function POST(request: NextRequest) {
             );
 
             if (roomIds.length > 0) {
-                const { data: closures, error: closuresError } = await supabase
-                    .from('room_closures')
-                    .select('room_id')
-                    .in('room_id', roomIds)
-                    .lt('start', filter.end_time)
-                    .gt('end', filter.start_time);
+                const closedRoomIds = await getClosedRoomIdsForPeriod(
+                    supabase,
+                    roomIds,
+                    filter.start_time,
+                    filter.end_time,
+                );
 
-                if (closuresError) {
-                    console.warn('Unable to apply room closure filter', closuresError);
-                    return NextResponse.json(hotels);
-                }
-
-                const closedRoomIds = new Set((closures ?? []).map((closure) => closure.room_id));
                 if (closedRoomIds.size > 0) {
                     hotels = hotels
                         .map((hotel) => {

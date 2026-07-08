@@ -241,22 +241,34 @@ const getClosedRoomIdsForPeriod = async (
         return new Set<string>();
     }
 
-    const { data, error } = await supabase
-        .from('room_closures')
-        .select('room_id')
-        .in('room_id', roomIds)
-        .lt('start', end)
-        .gt('end', start);
+    const closedRoomIds = new Set<string>();
+    const chunkSize = 100;
 
-    if (error) {
-        if (isMissingRoomClosuresTableError(error)) {
-            return new Set<string>();
+    for (let index = 0; index < roomIds.length; index += chunkSize) {
+        const chunk = roomIds.slice(index, index + chunkSize);
+        const { data, error } = await supabase
+            .from('room_closures')
+            .select('room_id')
+            .in('room_id', chunk)
+            .lt('start', end)
+            .gt('end', start);
+
+        if (error) {
+            if (isMissingRoomClosuresTableError(error)) {
+                return new Set<string>();
+            }
+
+            throw error;
         }
 
-        throw error;
+        (data ?? []).forEach((closure) => {
+            if (typeof closure.room_id === 'string') {
+                closedRoomIds.add(closure.room_id);
+            }
+        });
     }
 
-    return new Set((data ?? []).map((closure) => closure.room_id));
+    return closedRoomIds;
 };
 
 const excludeClosedFreeRooms = async (
