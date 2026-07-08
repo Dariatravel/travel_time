@@ -8,7 +8,7 @@ export const isYandexBackendProxyClientEnabled = () => {
 };
 
 const getAuthorizationHeader = async () => {
-    const { data } = await supabase.auth.getSession();
+    const { data } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
     const token = data.session?.access_token;
 
     if (token) {
@@ -19,25 +19,38 @@ const getAuthorizationHeader = async () => {
         return undefined;
     }
 
-    for (const key of Object.keys(window.localStorage)) {
-        if (!key.startsWith('sb-') || !key.endsWith('-auth-token')) {
-            continue;
+    const findAccessToken = (value: unknown): string | undefined => {
+        if (typeof value === 'string') {
+            return value;
+        }
+        if (!value || typeof value !== 'object') {
+            return undefined;
         }
 
+        const record = value as Record<string, unknown>;
+        if (typeof record.access_token === 'string') {
+            return record.access_token;
+        }
+        if (record.currentSession) {
+            return findAccessToken(record.currentSession);
+        }
+        if (record.session) {
+            return findAccessToken(record.session);
+        }
+
+        return undefined;
+    };
+
+    for (const key of Object.keys(window.localStorage)) {
         try {
             const storedSession = JSON.parse(window.localStorage.getItem(key) ?? 'null');
-            const storedToken =
-                typeof storedSession?.access_token === 'string'
-                    ? storedSession.access_token
-                    : typeof storedSession?.currentSession?.access_token === 'string'
-                      ? storedSession.currentSession.access_token
-                      : undefined;
+            const storedToken = findAccessToken(storedSession);
 
-            if (storedToken) {
+            if (storedToken && storedToken.includes('.')) {
                 return `Bearer ${storedToken}`;
             }
         } catch {
-            // Ignore unrelated localStorage values with a matching key shape.
+            // Ignore unrelated localStorage values.
         }
     }
 
