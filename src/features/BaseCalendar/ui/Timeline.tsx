@@ -235,6 +235,11 @@ export const Timeline = ({
                                 : {}),
                         },
                     })}
+                    onClick={() => {
+                        if (isClosure) {
+                            handleItemOpen();
+                        }
+                    }}
                     onDoubleClick={handleItemOpen}
                     onTouchStart={(event) => {
                         const touch = event.touches[0];
