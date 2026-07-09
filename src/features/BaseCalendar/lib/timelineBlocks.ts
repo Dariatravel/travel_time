@@ -13,6 +13,7 @@ export type TimelineBlockKind = 'reserve' | 'closure';
 export type TimelineCalendarItem = TimelineReserveItem & {
     itemKind: TimelineBlockKind;
     reason?: string | null;
+    canMove?: boolean;
 };
 
 export type TimelineBlockEntry = {
@@ -38,6 +39,7 @@ export const buildTimelineClosureItems = (
         end: getDateFromUnix(closure.end),
         itemKind: 'closure' as const,
         reason: closure.reason,
+        canMove: true,
         guest: closure.reason?.trim() || 'Закрыто',
         phone: '',
         price: 0,
