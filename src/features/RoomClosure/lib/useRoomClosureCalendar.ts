@@ -55,7 +55,8 @@ export const useRoomClosureCalendar = ({
 }: UseRoomClosureCalendarParams) => {
     const user = useUnit($user);
     const userName = user ? `${user.name} ${user.surname}`.trim() : undefined;
-    const { data: roomClosures = [] } = useRoomClosuresByHotel(hotelId);
+    const { data: roomClosures = [], isLoading: isRoomClosuresLoading } =
+        useRoomClosuresByHotel(hotelId);
 
     const [canvasAction, setCanvasAction] = useState<CanvasAction>('booking');
     const [closureDraft, setClosureDraft] = useState<ClosureDraft | null>(null);
@@ -180,7 +181,7 @@ export const useRoomClosureCalendar = ({
     );
 
     const closureLoading =
-        isClosureCreating || isClosureUpdating || isReserveMoveSaving;
+        isClosureCreating || isClosureUpdating || isClosureDeleting || isReserveMoveSaving;
     const editingClosureRoomTitle = editingClosure
         ? hotelRooms.find((room) => room.id === editingClosure.room_id)?.title
         : undefined;
@@ -193,6 +194,8 @@ export const useRoomClosureCalendar = ({
         onClosureAdd,
         onClosureItemClick,
         closureMoveDialogProps,
+        isRoomClosuresLoading,
+        isClosureLoading: closureLoading,
         closureQuickModal: {
             isOpen: !!closureDraft,
             roomTitle: closureDraft?.roomTitle ?? '',
