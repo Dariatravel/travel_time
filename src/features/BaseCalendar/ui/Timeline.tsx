@@ -305,9 +305,7 @@ export const Timeline = ({
                             onGroupClick(group);
                         }
                     }}
-                >
-                    <div className={styles.groupContent}>{group.title}</div>
-                </DraggableGroup>
+                />
             );
         },
         [isPhone, onGroupClick, timelineId],
