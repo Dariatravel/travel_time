@@ -4,6 +4,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { IcalSyncFeed } from '@/app/api/realtycalendar/_lib/feeds';
 import { toMoscowStayUnix } from '@/app/api/realtycalendar/_lib/moscowTime';
+import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 export const EXTERNAL_SOURCE = 'realtycalendar_ical';
 export const DEFAULT_GUEST = 'Занято (RealtyCalendar)';
@@ -166,7 +167,7 @@ export const syncIcalFeeds = async (
     const pruneMissing = options.pruneMissing === true;
     const validatedFeeds = validateIcalFeeds(feeds);
 
-    return Promise.all(
+    const results = await Promise.all(
         validatedFeeds.map(async (feed) => {
             const response = await fetch(feed.url, {
                 headers: { accept: 'text/calendar,text/plain,*/*' },
@@ -258,4 +259,12 @@ export const syncIcalFeeds = async (
             };
         }),
     );
+
+    // Сбрасываем серверный кэш календарей, если брони реально менялись,
+    // чтобы шахматка обновилась сразу, не дожидаясь истечения TTL.
+    if (!dryRun && results.some((result) => result.upserted > 0 || result.pruned > 0)) {
+        deleteCacheByPrefix('hotel-calendar:');
+    }
+
+    return results;
 };
