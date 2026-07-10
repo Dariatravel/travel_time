@@ -3,6 +3,8 @@ import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { IcalSyncFeed } from '@/app/api/realtycalendar/_lib/feeds';
+import { toMoscowStayUnix } from '@/app/api/realtycalendar/_lib/moscowTime';
+import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 export const EXTERNAL_SOURCE = 'realtycalendar_ical';
 export const DEFAULT_GUEST = 'Занято (RealtyCalendar)';
@@ -75,10 +77,8 @@ const toNoonUnixFromIcalDate = (value: string, endOfStay: boolean) => {
     if (!dateMatch) return null;
 
     const [, year, month, day] = dateMatch;
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
 
-    return Math.floor(date.getTime() / 1000);
+    return toMoscowStayUnix(Number(year), Number(month), Number(day), endOfStay);
 };
 
 const hashEventUid = (seed: string) => {
@@ -167,7 +167,7 @@ export const syncIcalFeeds = async (
     const pruneMissing = options.pruneMissing === true;
     const validatedFeeds = validateIcalFeeds(feeds);
 
-    return Promise.all(
+    const results = await Promise.all(
         validatedFeeds.map(async (feed) => {
             const response = await fetch(feed.url, {
                 headers: { accept: 'text/calendar,text/plain,*/*' },
@@ -259,4 +259,12 @@ export const syncIcalFeeds = async (
             };
         }),
     );
+
+    // Сбрасываем серверный кэш календарей, если брони реально менялись,
+    // чтобы шахматка обновилась сразу, не дожидаясь истечения TTL.
+    if (!dryRun && results.some((result) => result.upserted > 0 || result.pruned > 0)) {
+        deleteCacheByPrefix('hotel-calendar:');
+    }
+
+    return results;
 };
