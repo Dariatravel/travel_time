@@ -234,18 +234,26 @@ export const Timeline = ({
                                   }
                                 : {}),
                         },
+                        // ВАЖНО: onDoubleClick/onTouchStart/onTouchEnd передаются аргументом
+                        // getItemProps — библиотека склеивает их со своими обработчиками.
+                        // Раньше они висели на div после спреда и ЗАТИРАЛИ обработчики
+                        // библиотеки: на тач-устройствах ломались выбор и перетаскивание.
+                        onDoubleClick: handleItemOpen,
+                        onTouchStart: (event: React.TouchEvent) => {
+                            const touch = event.touches[0];
+                            if (!touch) return;
+                            touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+                            hasTouchMovedRef.current = false;
+                        },
+                        onTouchEnd: () => {
+                            if (hasTouchMovedRef.current) return;
+                            handleItemOpen();
+                        },
                     })}
                     onClick={() => {
                         if (isClosure) {
                             handleItemOpen();
                         }
-                    }}
-                    onDoubleClick={handleItemOpen}
-                    onTouchStart={(event) => {
-                        const touch = event.touches[0];
-                        if (!touch) return;
-                        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-                        hasTouchMovedRef.current = false;
                     }}
                     onTouchMove={(event) => {
                         const touch = event.touches[0];
@@ -255,10 +263,6 @@ export const Timeline = ({
                         if (deltaX > 10 || deltaY > 10) {
                             hasTouchMovedRef.current = true;
                         }
-                    }}
-                    onTouchEnd={() => {
-                        if (hasTouchMovedRef.current) return;
-                        handleItemOpen();
                     }}
                 >
                     {itemContext.useResizeHandle ? <div {...leftResizeProps} /> : ''}

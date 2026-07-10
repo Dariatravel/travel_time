@@ -15,6 +15,7 @@ import {
     resolveReserveDateRangeSelection,
 } from '@/features/ReserveInfo/lib/reserveDateForm';
 import { FormButtons, TravelDialog } from '@/shared';
+import { ClearableSelect } from '@/shared/ui/ClearableSelect/ClearableSelect';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormMessage } from '@/shared/ui/FormMessage';
 import { FC, useEffect, useMemo, useState } from 'react';
@@ -25,6 +26,8 @@ type ClosureEditModalProps = {
     isOpen: boolean;
     closure: RoomClosureDTO | null;
     roomTitle?: string;
+    /** Номера отеля — для смены номера у закрытия (как в карточке брони). */
+    rooms?: { id: string; title: string }[];
     userName?: string;
     isLoading?: boolean;
     isDeleting?: boolean;
@@ -37,6 +40,7 @@ export const ClosureEditModal: FC<ClosureEditModalProps> = ({
     isOpen,
     closure,
     roomTitle,
+    rooms,
     userName,
     isLoading = false,
     isDeleting = false,
@@ -46,6 +50,7 @@ export const ClosureEditModal: FC<ClosureEditModalProps> = ({
 }) => {
     const [date, setDate] = useState<[Date, Date]>([new Date(), new Date()]);
     const [reason, setReason] = useState('');
+    const [roomId, setRoomId] = useState('');
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -55,6 +60,7 @@ export const ClosureEditModal: FC<ClosureEditModalProps> = ({
 
         setDate(getRoomClosureDefaultDates(closure.start, closure.end));
         setReason(closure.reason ?? '');
+        setRoomId(closure.room_id);
         setError(null);
     }, [isOpen, closure]);
 
@@ -83,7 +89,7 @@ export const ClosureEditModal: FC<ClosureEditModalProps> = ({
 
         const input = buildRoomClosureInput(
             {
-                room_id: closure.room_id,
+                room_id: roomId || closure.room_id,
                 date,
                 reason,
                 edited_by: userName,
@@ -108,7 +114,28 @@ export const ClosureEditModal: FC<ClosureEditModalProps> = ({
             title={<FormTitle>Закрытие дат</FormTitle>}
             description={
                 <div className={cx.form}>
-                    {roomTitle && <div className={cx.roomTitle}>Номер: {roomTitle}</div>}
+                    {rooms && rooms.length > 0 ? (
+                        <div>
+                            <Label>Номер</Label>
+                            <ClearableSelect
+                                value={roomId}
+                                onValueChange={(value) => {
+                                    if (value) {
+                                        setRoomId(value);
+                                        setError(null);
+                                    }
+                                }}
+                                options={rooms.map((room) => ({
+                                    value: room.id,
+                                    label: room.title,
+                                }))}
+                                placeholder="Выберите номер"
+                                clearable={false}
+                            />
+                        </div>
+                    ) : (
+                        roomTitle && <div className={cx.roomTitle}>Номер: {roomTitle}</div>
+                    )}
                     <div className={cx.nightCount}>Текущий период: {periodLabel}</div>
                     <Datepicker
                         label="Новый период"
