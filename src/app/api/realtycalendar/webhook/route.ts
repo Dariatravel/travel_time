@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { toMoscowStayUnix } from '@/app/api/realtycalendar/_lib/moscowTime';
 import { REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM } from '@/app/api/realtycalendar/_lib/roomMapping';
 import { logRealtyCalendarWebhookEvent } from '@/app/api/realtycalendar/_lib/webhookLog';
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
@@ -67,10 +68,7 @@ const parseBookingDate = (value: string | undefined, endOfStay: boolean) => {
     const [year, month, day] = value.split('-').map(Number);
     if (!year || !month || !day) return null;
 
-    const date = new Date(year, month - 1, day);
-    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
-
-    return Math.floor(date.getTime() / 1000);
+    return toMoscowStayUnix(year, month, day, endOfStay);
 };
 
 const overlaps = (left: { start: number; end: number }, right: { start: number; end: number }) => {

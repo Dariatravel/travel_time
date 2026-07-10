@@ -3,6 +3,7 @@ import { createHash } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import type { IcalSyncFeed } from '@/app/api/realtycalendar/_lib/feeds';
+import { toMoscowStayUnix } from '@/app/api/realtycalendar/_lib/moscowTime';
 
 export const EXTERNAL_SOURCE = 'realtycalendar_ical';
 export const DEFAULT_GUEST = 'Занято (RealtyCalendar)';
@@ -75,10 +76,8 @@ const toNoonUnixFromIcalDate = (value: string, endOfStay: boolean) => {
     if (!dateMatch) return null;
 
     const [, year, month, day] = dateMatch;
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
 
-    return Math.floor(date.getTime() / 1000);
+    return toMoscowStayUnix(Number(year), Number(month), Number(day), endOfStay);
 };
 
 const hashEventUid = (seed: string) => {
