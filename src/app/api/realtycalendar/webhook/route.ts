@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { toMoscowStayUnix } from '@/app/api/realtycalendar/_lib/moscowTime';
 import { REALTYCALENDAR_ROOM_TO_TRAVEL_ROOM } from '@/app/api/realtycalendar/_lib/roomMapping';
 import { logRealtyCalendarWebhookEvent } from '@/app/api/realtycalendar/_lib/webhookLog';
+import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 
 export const dynamic = 'force-dynamic';
@@ -67,10 +69,7 @@ const parseBookingDate = (value: string | undefined, endOfStay: boolean) => {
     const [year, month, day] = value.split('-').map(Number);
     if (!year || !month || !day) return null;
 
-    const date = new Date(year, month - 1, day);
-    date.setHours(endOfStay ? 12 : 14, 0, 0, 0);
-
-    return Math.floor(date.getTime() / 1000);
+    return toMoscowStayUnix(year, month, day, endOfStay);
 };
 
 const overlaps = (left: { start: number; end: number }, right: { start: number; end: number }) => {
@@ -221,6 +220,10 @@ export async function POST(request: NextRequest) {
             if (error) {
                 return NextResponse.json({ error: error.message }, { status: 500 });
             }
+
+            // Сбрасываем серверный кэш календарей, чтобы удаление сразу
+            // отразилось в шахматке, не дожидаясь истечения TTL.
+            deleteCacheByPrefix('hotel-calendar:');
         }
 
         await logRealtyCalendarWebhookEvent(supabase, {
@@ -345,6 +348,10 @@ export async function POST(request: NextRequest) {
     if (insertError) {
         return NextResponse.json({ error: insertError.message }, { status: 500 });
     }
+
+    // Сбрасываем серверный кэш календарей, чтобы новая внешняя бронь сразу
+    // отразилась в шахматке, не дожидаясь истечения TTL.
+    deleteCacheByPrefix('hotel-calendar:');
 
     await logRealtyCalendarWebhookEvent(supabase, {
         action,

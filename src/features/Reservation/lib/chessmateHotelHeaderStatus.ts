@@ -151,7 +151,9 @@ export const getChessmateHotelHeaderStatusOrder = (title?: string | null) => {
     return status ? CHESSMATE_STATUS_ORDER[status] : CHESSMATE_STATUS_ORDER.request;
 };
 
-export const sortByChessmateHotelHeaderStatus = <T extends { title?: string | null }>(
+export const sortByChessmateHotelHeaderStatus = <
+    T extends { title?: string | null; id?: string | null },
+>(
     rows: T[],
 ) => {
     return [...rows].sort((left, right) => {
@@ -163,6 +165,14 @@ export const sortByChessmateHotelHeaderStatus = <T extends { title?: string | nu
             return statusDiff;
         }
 
-        return (left.title ?? '').localeCompare(right.title ?? '', 'ru');
+        const titleDiff = (left.title ?? '').localeCompare(right.title ?? '', 'ru');
+
+        if (titleDiff !== 0) {
+            return titleDiff;
+        }
+
+        // Tie-breaker по id: при одинаковых названиях порядок должен быть
+        // одинаковым между запросами страниц, иначе возможны дубли при скролле.
+        return (left.id ?? '').localeCompare(right.id ?? '');
     });
 };
