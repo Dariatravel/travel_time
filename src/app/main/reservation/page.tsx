@@ -462,8 +462,8 @@ export default function Home() {
             <div className="flex flex-1 flex-col items-center justify-center gap-4">
                 {/* <PageTitle title={'Все отели'} hotels={0} /> */}
                 <NoDataAvailable
-                    title="Не найдено ни одной брони"
-                    description="Попробуйте изменить условия поиска"
+                    title="Свободных номеров не найдено"
+                    description="Попробуйте изменить даты или условия поиска"
                 />
             </div>,
         );
