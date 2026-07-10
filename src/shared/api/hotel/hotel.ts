@@ -801,13 +801,11 @@ export const getHotelDetail = async (
     allowedRooms?: string[],
 ): Promise<HotelRoomsReservesDTO> => {
     try {
-        try {
+        // Бэкенд-прокси пробуем только когда он включён: при выключенном прокси
+        // каждая карточка отеля делала лишний заведомо провальный HTTP-запрос
+        // перед обращением к Supabase.
+        if (isYandexBackendProxyClientEnabled()) {
             return await getHotelCalendarViaYandexBackend(hotelId, allowedRooms);
-        } catch (error) {
-            if (isYandexBackendProxyClientEnabled()) {
-                throw error;
-            }
-            console.warn('Yandex backend calendar failed, falling back to Supabase', error);
         }
 
         // Загружаем базовую информацию об отеле и его номерах
