@@ -261,7 +261,15 @@ export default function Home() {
         useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
-    const hotelsWithRooms = hotels?.filter((hotel) => hotel?.rooms?.length > 0);
+    // Страховка от дублей между страницами: если данные изменились между
+    // подгрузками, один отель мог попасть в две страницы — оставляем первое вхождение.
+    const seenHotelIds = new Set<string>();
+    const uniqueHotels = hotels.filter((hotel) => {
+        if (!hotel?.id || seenHotelIds.has(hotel.id)) return false;
+        seenHotelIds.add(hotel.id);
+        return true;
+    });
+    const hotelsWithRooms = uniqueHotels.filter((hotel) => hotel?.rooms?.length > 0);
 
     // Виртуализатор: scroll element = .content на узком layout, иначе window (documentElement)
     const virtualizer = useVirtualizer({

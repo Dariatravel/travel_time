@@ -6,6 +6,7 @@ import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import {
     getChessmateHotelHeaderStatus,
+    getChessmateHotelHeaderStatusOrder,
     sortByChessmateHotelHeaderStatus,
 } from '@/features/Reservation/lib/chessmateHotelHeaderStatus';
 import {
@@ -322,6 +323,61 @@ const getOrderedHotelRows = <T extends { title?: string | null }>(
     return sortByChessmateHotelHeaderStatus(getChessmateStatusFilteredRows(rows, filter));
 };
 
+/**
+ * Глобальная сортировка id отелей для пагинации результатов поиска:
+ * зелёные (active) → жёлтые (access) → белые (request/без статуса),
+ * внутри одного статуса — по названию, затем по id.
+ *
+ * Без этого каждая страница сортировалась по статусу отдельно, и при скролле
+ * цвета перемешивались (после белых снова шли зелёные), а бэкенд-путь и
+ * Supabase-фолбэк резали страницы в разном порядке — один и тот же отель
+ * мог попасть на две страницы (дубли в списке).
+ */
+const getChessmateOrderedHotelIds = async (
+    hotelIds: string[],
+    filter?: TravelFilterType,
+): Promise<string[]> => {
+    const uniqueIds = Array.from(new Set(hotelIds));
+
+    const { data, error } = await supabase.from('hotels').select('id, title').in('id', uniqueIds);
+
+    if (error || !data) {
+        console.warn('Не удалось получить названия отелей для сортировки по статусу', error);
+        return uniqueIds;
+    }
+
+    const titleById = new Map<string, string>(
+        data.map((hotel: { id: string; title: string }) => [hotel.id, hotel.title]),
+    );
+
+    const filteredIds = filter?.chessmateStatus
+        ? uniqueIds.filter(
+              (id) => getChessmateHotelHeaderStatus(titleById.get(id)) === filter.chessmateStatus,
+          )
+        : uniqueIds;
+
+    return [...filteredIds].sort((left, right) => {
+        const statusDiff =
+            getChessmateHotelHeaderStatusOrder(titleById.get(left)) -
+            getChessmateHotelHeaderStatusOrder(titleById.get(right));
+
+        if (statusDiff !== 0) {
+            return statusDiff;
+        }
+
+        const titleDiff = (titleById.get(left) ?? '').localeCompare(
+            titleById.get(right) ?? '',
+            'ru',
+        );
+
+        if (titleDiff !== 0) {
+            return titleDiff;
+        }
+
+        return left.localeCompare(right);
+    });
+};
+
 const getSelectedHotelCalendarsViaBackend = async (
     hotelIds: string[],
     filter?: TravelFilterType,
@@ -396,23 +452,39 @@ export async function getAllHotels(
                 return { data: [], count: 0 };
             }
 
-            const paginatedHotelIds = filteredHotelIds.slice(from, to + 1);
+            // Сортируем весь список id один раз (зелёные → жёлтые → белые),
+            // и обе ветки ниже режут страницы по одной и той же последовательности.
+            const orderedHotelIds = await getChessmateOrderedHotelIds(filteredHotelIds, filter);
+
+            if (orderedHotelIds.length === 0) {
+                return { data: [], count: 0 };
+            }
+
+            const paginatedHotelIds = orderedHotelIds.slice(from, to + 1);
             const backendRows = await getSelectedHotelCalendarsViaBackend(paginatedHotelIds, filter);
 
             if (backendRows.length > 0) {
                 return {
                     data: backendRows,
-                    count: filteredHotelIds.length,
+                    count: orderedHotelIds.length,
                 };
             }
 
             const response = await supabase
                 .from('hotels_with_rooms_new')
                 .select('*, rooms(*)', { count: 'exact' })
-                .in('id', filteredHotelIds)
-                .order('title', { ascending: true });
+                .in('id', orderedHotelIds)
+                .order('title', { ascending: true })
+                .order('id', { ascending: true });
 
-            const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
+            // Страницы режем по той же глобальной последовательности id, что и бэкенд-путь,
+            // иначе при смешении путей один отель мог оказаться на двух страницах.
+            const rowIndexById = new Map(orderedHotelIds.map((id, index) => [id, index]));
+            const orderedRows = [...(response?.data ?? [])].sort(
+                (a: any, b: any) =>
+                    (rowIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+                    (rowIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+            );
             const paginatedRows = orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
@@ -498,7 +570,10 @@ export async function getAllHotels(
             query.not('id', 'in', `(${hiddenHotelIds.join(',')})`);
         }
 
-        query.order('title', { ascending: true });
+        // Вторичная сортировка по id: при одинаковых названиях порядок из БД
+        // недетерминирован между запросами страниц, из-за чего при скролле
+        // возможны дубли/пропуски отелей.
+        query.order('title', { ascending: true }).order('id', { ascending: true });
 
         const response = await query;
         const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
@@ -572,7 +647,7 @@ export async function getAllHotelsWithEmptyRooms(
             query.in('id', filter?.freeHotels_id);
         }
 
-        query.order('title', { ascending: true }).range(from, to);
+        query.order('title', { ascending: true }).order('id', { ascending: true }).range(from, to);
         const response = await query;
 
         // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
