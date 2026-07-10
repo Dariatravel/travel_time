@@ -172,12 +172,18 @@ export const useRoomClosureCalendar = ({
 
     const onClosureItemClick = useCallback(
         (item: TimelineCalendarItem) => {
+            // После перетаскивания серого блока браузер посылает click —
+            // не открываем карточку поверх диалога подтверждения переноса.
+            if (hasPendingClosureMove) {
+                return;
+            }
+
             const closure = displayClosures.find((entry) => entry.id === item.id);
             if (closure) {
                 setEditingClosure(closure);
             }
         },
-        [displayClosures],
+        [displayClosures, hasPendingClosureMove],
     );
 
     const closureLoading =
@@ -211,6 +217,7 @@ export const useRoomClosureCalendar = ({
             isOpen: !!editingClosure,
             closure: editingClosure,
             roomTitle: editingClosureRoomTitle,
+            rooms: hotelRooms,
             userName,
             isLoading: closureLoading,
             isDeleting: isClosureDeleting,
