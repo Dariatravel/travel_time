@@ -8,7 +8,7 @@ import styles from './style.module.scss';
 
 export interface DraggableGroupProps {
     id: string;
-    children: React.ReactNode;
+    children?: React.ReactNode;
     title: string;
     className?: string;
     onClick?: () => void;
@@ -53,6 +53,7 @@ export const DraggableGroup = ({
                 </div>
                 <div
                     className={styles.groupTitle}
+                    title={title}
                     onClick={onClick}
                     style={{ cursor: onClick ? 'pointer' : 'default' }}
                 >
@@ -60,7 +61,9 @@ export const DraggableGroup = ({
                 </div>
             </div>
 
-            <div className={styles.groupContent}>{children}</div>
+            {/* Раньше сюда всегда передавалась копия названия — оно рендерилось
+                в строке дважды и вылезало за пределы строки сетки. */}
+            {children ? <div className={styles.groupContent}>{children}</div> : null}
             {insertPosition.afterId === id && <InsertionIndicator type="after" />}
         </div>
     );
