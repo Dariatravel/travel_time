@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
+import { HttpError, toErrorResponse } from '@/app/api/yandex-backend/_lib/httpError';
 import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 import {
     createSupabaseServerClient,
@@ -92,7 +93,7 @@ const assertNoReserveOverlap = async (
     const end = toReserveUnix(reserve.end);
 
     if (!roomId || start == null || end == null) {
-        throw new Error('Reserve room and dates are required');
+        throw new HttpError(400, 'Reserve room and dates are required');
     }
 
     const { data, error } = await supabase
@@ -113,7 +114,7 @@ const assertNoReserveOverlap = async (
             .map((item) => item.guest || 'Без имени')
             .join(', ');
 
-        throw new Error(`Наложение броней запрещено. Конфликт: ${conflictMessage}`);
+        throw new HttpError(409, `Наложение броней запрещено. Конфликт: ${conflictMessage}`);
     }
 };
 
@@ -126,7 +127,7 @@ const assertNoRoomClosureOverlap = async (
     const end = toReserveUnix(reserve.end);
 
     if (!roomId || start == null || end == null) {
-        throw new Error('Reserve room and dates are required');
+        throw new HttpError(400, 'Reserve room and dates are required');
     }
 
     const { data, error } = await supabase
@@ -147,7 +148,7 @@ const assertNoRoomClosureOverlap = async (
             .map((item) => item.reason || 'Закрыто')
             .join(', ');
 
-        throw new Error(`Номер закрыт на выбранные даты. Конфликт: ${conflictMessage}`);
+        throw new HttpError(409, `Номер закрыт на выбранные даты. Конфликт: ${conflictMessage}`);
     }
 };
 
@@ -158,7 +159,7 @@ const assertCanAccessRoom = async (
     role?: string,
 ) => {
     if (!roomId) {
-        throw new Error('Reserve room is required');
+        throw new HttpError(400, 'Reserve room is required');
     }
 
     const { data, error } = await supabase
@@ -168,13 +169,13 @@ const assertCanAccessRoom = async (
         .single();
 
     if (error) throw error;
-    if (!data) throw new Error('Room not found');
+    if (!data) throw new HttpError(404, 'Room not found');
 
     const hotel = Array.isArray(data.hotels) ? data.hotels[0] : data.hotels;
     const isStaff = role === 'admin' || role === 'operator';
 
     if (!isStaff && hotel?.user_id !== userId) {
-        throw new Error('Forbidden');
+        throw new HttpError(403, 'Forbidden');
     }
 };
 
@@ -191,7 +192,9 @@ export async function POST(request: NextRequest) {
     }
 
     try {
-        const body = (await request.json()) as Partial<ReserveDTO>;
+        const body = (await request.json().catch(() => {
+            throw new HttpError(400, 'Invalid JSON payload');
+        })) as Partial<ReserveDTO>;
         const authClient = createSupabaseServerClient(authorization);
         const {
             data: { user },
@@ -238,7 +241,6 @@ export async function POST(request: NextRequest) {
             idempotencyKey,
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to create reserve';
-        return NextResponse.json({ error: message }, { status: 502 });
+        return toErrorResponse(error, 'Failed to create reserve');
     }
 }
