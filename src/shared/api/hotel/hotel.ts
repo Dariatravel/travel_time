@@ -2,6 +2,7 @@ import { TABLE_NAMES } from '@/shared/api/const';
 import { ReserveDTO, TravelOption, getReservesByHotels } from '@/shared/api/reserve/reserve';
 import { Room, RoomDTO, RoomReserves } from '@/shared/api/room/room';
 import { QUERY_KEYS, invalidateHotelChessmateQueries } from '@/shared/config/reactQuery';
+import { parsePriceFilters } from '@/shared/lib/priceFilters';
 import supabase from '@/shared/config/supabase';
 import { TravelFilterType } from '@/shared/models/hotels';
 import {
@@ -1026,43 +1027,6 @@ export const useGetHotelsForSearch = () => {
  * @param priceFilters - массив строк типа ["up-to-3000", "over-10000"]
  * @returns объект с min_price и max_price числами или null
  */
-function parsePriceFilters(priceFilters: string[] | null): {
-    min_price: number | null;
-    max_price: number | null;
-} {
-    if (!priceFilters || priceFilters.length === 0) {
-        return { min_price: null, max_price: null };
-    }
-
-    let minPrice: number | null = null;
-    let maxPrice: number | null = null;
-
-    priceFilters.forEach((filter) => {
-        // Обработка фильтров типа "up-to-XXXX" (максимальная цена)
-        if (filter.startsWith('up-to-')) {
-            const value = parseInt(filter.replace('up-to-', ''), 10);
-            if (!isNaN(value)) {
-                // Для max_price берём минимальное значение из всех "up-to"
-                if (maxPrice === null || value < maxPrice) {
-                    maxPrice = value;
-                }
-            }
-        }
-        // Обработка фильтров типа "over-XXXX" (минимальная цена)
-        else if (filter.startsWith('over-')) {
-            const value = parseInt(filter.replace('over-', ''), 10);
-            if (!isNaN(value)) {
-                // Для min_price берём максимальное значение из всех "over"
-                if (minPrice === null || value > minPrice) {
-                    minPrice = value;
-                }
-            }
-        }
-    });
-
-    return { min_price: minPrice, max_price: maxPrice };
-}
-
 export async function getHotelsWithAvailability(
     filter: {
         start?: number;
