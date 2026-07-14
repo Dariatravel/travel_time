@@ -93,6 +93,9 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     const { isMobile, isTablet } = useDeviceDetection();
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
     const [isInitialized, setIsInitialized] = useState(false);
+    // Автопоиск из URL: инициализация формы (reset) и запуск поиска разнесены
+    // по разным рендерам, иначе handleSubmit прочитает форму до применения reset.
+    const [pendingAutoSearch, setPendingAutoSearch] = useState(false);
 
     const methods = useForm<SearchFormSchema>({
         resolver: zodResolver(searchFormSchema) as Resolver<SearchFormSchema>,
@@ -207,12 +210,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         setIsInitialized(true);
 
-        // Если есть фильтры в URL, автоматически выполняем поиск
+        // Если есть фильтры в URL — планируем автопоиск на следующий рендер,
+        // когда reset(formValues) уже применён к форме (см. эффект ниже).
         if (Object.keys(filterValues).length > 0) {
-            // Используем setTimeout, чтобы форма успела обновиться
-            setTimeout(() => {
-                handleSubmit(onSearch)();
-            }, 100);
+            setPendingAutoSearch(true);
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [hotels, isInitialized]); // Зависимость от hotels и isInitialized
@@ -465,6 +466,16 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             onSearchCb();
         }
     };
+
+    // Автопоиск из URL выполняется здесь, а не в init-эффекте: к этому рендеру
+    // reset(formValues) уже применён, поэтому handleSubmit читает актуальную форму.
+    // Флаг сбрасывается сразу, чтобы поиск сработал ровно один раз.
+    useEffect(() => {
+        if (!pendingAutoSearch) return;
+        setPendingAutoSearch(false);
+        void handleSubmit(onSearch)();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [pendingAutoSearch]);
 
     const hotelOptions = sortHotelOptionsByLabel(
         hotels?.map((hotel) => adaptToMultipleSelectorOption(hotel)) ?? [],
