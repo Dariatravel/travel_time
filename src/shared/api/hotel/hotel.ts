@@ -228,11 +228,6 @@ const hasValidSearchPeriod = (
     typeof filter?.end === 'number' &&
     filter.start < filter.end;
 
-const isMissingRoomClosuresTableError = (error: { code?: string; message?: string }) =>
-    error.code === '42P01' ||
-    error.code === 'PGRST205' ||
-    error.message?.includes('room_closures') === true;
-
 const getClosedRoomIdsForPeriod = async (
     roomIds: string[],
     start: number,
@@ -255,10 +250,6 @@ const getClosedRoomIdsForPeriod = async (
             .gt('end', start);
 
         if (error) {
-            if (isMissingRoomClosuresTableError(error)) {
-                return new Set<string>();
-            }
-
             throw error;
         }
 
