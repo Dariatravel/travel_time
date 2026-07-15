@@ -27,13 +27,13 @@ import {
     adaptToMultipleSelectorOption,
     sortHotelOptionsByLabel,
 } from '@/shared/lib/adaptHotel';
+import { localDateToMoscowStayUnix } from '@/shared/lib/moscowTime';
 import { changeTravelFilter, TravelFilterType } from '@/shared/models/hotels';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import cn from 'classnames';
 import { useUnit } from 'effector-react';
 import { cloneDeep } from 'lodash';
 import { Search } from 'lucide-react';
-import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import { FC, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -62,11 +62,11 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
     let start_time = undefined,
         end_time = undefined;
     if (date?.[0]) {
-        start_time = moment(date[0]).hour(14).unix();
+        start_time = localDateToMoscowStayUnix(date[0], false);
     }
 
     if (date?.[1]) {
-        end_time = moment(date[1]).hour(12).unix();
+        end_time = localDateToMoscowStayUnix(date[1], true);
     }
 
     const onSearch = async () => {

@@ -1,4 +1,5 @@
 import { getDateFromUnix } from '@/shared/lib/date';
+import { localDateToMoscowStayUnix } from '@/shared/lib/moscowTime';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
 import moment, { Moment } from 'moment';
 
@@ -34,8 +35,9 @@ export const computeMovedReserveDates = (
     dragTimeMs: number,
 ): { start: number; end: number } => {
     const durationDays = getReserveDurationDays(reserve.start, reserve.end);
-    const start = moment(dragTimeMs).startOf('day').hour(14).unix();
-    const end = moment.unix(start).add(durationDays, 'days').hour(12).unix();
+    const startDay = moment(dragTimeMs).startOf('day');
+    const start = localDateToMoscowStayUnix(startDay.toDate(), false);
+    const end = localDateToMoscowStayUnix(startDay.clone().add(durationDays, 'days').toDate(), true);
 
     return { start, end };
 };
