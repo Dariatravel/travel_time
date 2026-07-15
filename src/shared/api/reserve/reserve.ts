@@ -287,7 +287,12 @@ export const deleteReserveApi = async (id: string) => {
             });
 
             if (backupError) {
-                console.warn('Failed to backup deleted reserve', backupError.message);
+                // Бэкап удаляемой брони обязателен: без него удаление означало бы
+                // безвозвратную потерю данных. Прерываем удаление — бронь остаётся,
+                // менеджер видит ошибку и может повторить.
+                throw new Error(
+                    `Не удалось сохранить резервную копию брони — удаление отменено: ${backupError.message}`,
+                );
             }
         }
 
