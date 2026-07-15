@@ -1,4 +1,5 @@
 import { getReserveFormNightCount } from '@/features/ReserveInfo/lib/reserveDateForm';
+import { parsePrepayment } from '@/shared/lib/parsePrepayment';
 import dayjs from 'dayjs';
 
 export type ReserveExportSheetRow = {
@@ -44,15 +45,6 @@ const formatUnixDate = (unix: number) => dayjs.unix(unix).format('DD.MM.YYYY');
 
 const formatIsoDateTime = (value?: string | null) =>
     value ? dayjs(value).format('DD.MM.YYYY HH:mm') : '';
-
-const parsePrepayment = (value: string | number | null | undefined) => {
-    if (value == null || value === '') {
-        return 0;
-    }
-
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : 0;
-};
 
 export const mapReserveToExportRow = (reserve: ReserveExportSource): ReserveExportSheetRow => {
     const checkIn = dayjs.unix(reserve.start).startOf('day').toDate();

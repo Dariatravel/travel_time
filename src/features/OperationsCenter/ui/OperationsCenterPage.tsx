@@ -24,6 +24,7 @@ import {
     type ReserveOverlap,
 } from '@/shared/api/reserve/reserve';
 import { PagesEnum, routes } from '@/shared/config/routes';
+import { parsePrepayment } from '@/shared/lib/parsePrepayment';
 import { isStaffRole } from '@/shared/lib/userRoles';
 import { $user } from '@/shared/models/auth';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -54,7 +55,7 @@ const formatOverlapPeriod = (reserve: ReserveOverlap) =>
     `${formatDate(Number(reserve.start))} - ${formatDate(Number(reserve.end))}`;
 
 const getPrepaymentLabel = (reserve: OperationReserve) => {
-    const prepayment = Number(reserve.prepayment ?? 0);
+    const prepayment = parsePrepayment(reserve.prepayment);
     const balance = reserve.price - prepayment;
 
     if (balance <= 0 && reserve.price > 0) return 'Оплачено';
