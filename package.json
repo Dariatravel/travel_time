@@ -7,6 +7,8 @@
         "dev:clean": "npm run clean && npm run dev",
         "build": "next build",
         "start": "next start",
+    "test": "vitest run",
+    "test:watch": "vitest",
         "lint": "next lint",
         "format": "prettier --write \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
         "format:check": "prettier --check \"src/**/*.{js,jsx,ts,tsx,css,md,json}\"",
@@ -87,7 +89,8 @@
         "sass": "^1.87.0",
         "tailwindcss-animate": "^1.0.7",
         "tw-animate-css": "^1.3.7",
-        "typescript": "^5"
+        "typescript": "^5",
+        "vitest": "^4.1.10"
     },
     "optionalDependencies": {
         "@tailwindcss/oxide-linux-x64-gnu": "^4.0.14",

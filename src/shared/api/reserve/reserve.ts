@@ -10,6 +10,10 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { getDate } from '@/shared/lib/getDate';
 import {
+    hasReserveNightOverlap,
+    toReserveUnix,
+} from '@/shared/lib/reserveOverlap';
+import {
     createReserveViaYandexBackend,
     isProxyUnavailableError,
     isYandexBackendProxyClientEnabled,
@@ -192,22 +196,6 @@ const toReserveUpdatePayload = (
     options?: { includeFixedFlag?: boolean },
 ) => {
     return toReserveInsertPayload(reserve, options);
-};
-
-const toReserveUnix = (value: ReserveDTO['start']) =>
-    typeof value === 'number' ? value : Math.floor(value.getTime() / 1000);
-
-const toReserveDayIndex = (value: ReserveDTO['start']) =>
-    Math.floor(toReserveUnix(value) / 86_400);
-
-const hasReserveNightOverlap = (
-    reserve: Pick<ReserveDTO, 'start' | 'end'>,
-    period: Pick<ReserveDTO, 'start' | 'end'>,
-) => {
-    return (
-        toReserveDayIndex(reserve.start) < toReserveDayIndex(period.end) &&
-        toReserveDayIndex(reserve.end) > toReserveDayIndex(period.start)
-    );
 };
 
 const formatOverlapDate = (value: ReserveDTO['start']) =>
