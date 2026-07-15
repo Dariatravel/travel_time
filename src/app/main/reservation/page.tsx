@@ -257,8 +257,17 @@ export default function Home() {
     /** На телефоне не догружаем весь каталог сразу — это перегружает память. */
     const PHONE_MAX_PAGES = 2;
 
+    /** Кнопка «Показать ещё» на телефоне поднимает потолок автоподгрузки. */
+    const [phoneExtraPages, setPhoneExtraPages] = useState(0);
+    const phonePagesLimit = PHONE_MAX_PAGES + phoneExtraPages;
+
     const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
         useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
+
+    // Новый поиск сбрасывает страницы запроса — возвращаем и потолок телефона.
+    useEffect(() => {
+        setPhoneExtraPages(0);
+    }, [filter]);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
     // Страховка от дублей между страницами: если данные изменились между
@@ -320,7 +329,7 @@ export default function Home() {
 
             if (!hasNextPage || isFetchingNextPage) return;
 
-            if (isPhone && (data?.pages.length ?? 0) >= PHONE_MAX_PAGES) return;
+            if (isPhone && (data?.pages.length ?? 0) >= phonePagesLimit) return;
 
             const virtualItems = virtualizer.getVirtualItems();
             if (virtualItems.length === 0) return;
@@ -363,6 +372,7 @@ export default function Home() {
         fetchNextPage,
         virtualizer,
         data?.pages.length,
+        phonePagesLimit,
     ]);
 
     /**
@@ -371,7 +381,7 @@ export default function Home() {
     useEffect(() => {
         if (!hasNextPage || isFetchingNextPage || hotelsWithRooms.length === 0) return;
 
-        if (isPhone && (data?.pages.length ?? 0) >= PHONE_MAX_PAGES) return;
+        if (isPhone && (data?.pages.length ?? 0) >= phonePagesLimit) return;
 
         const scrollEl = getScrollElement();
         if (!scrollEl) return;
@@ -388,6 +398,7 @@ export default function Home() {
         fetchNextPage,
         data?.pages.length,
         isPhone,
+        phonePagesLimit,
     ]);
 
     const onHotelClick = (hotel_id: string) => {
@@ -514,6 +525,19 @@ export default function Home() {
                     })}
                 </div>
             </div>
+            {isPhone && hasNextPage && (data?.pages.length ?? 0) >= phonePagesLimit && (
+                <Button
+                    variant="outline"
+                    className="mx-auto mb-4 w-full max-w-[400px]"
+                    disabled={isFetchingNextPage}
+                    onClick={() => {
+                        setPhoneExtraPages((pages) => pages + 1);
+                        void fetchNextPage();
+                    }}
+                >
+                    {isFetchingNextPage ? 'Загружаем…' : 'Показать ещё'}
+                </Button>
+            )}
             {(isFetchingNextPage || isFilterLoading || isFreeHotelsLoading) && <FullWidthLoader />}
         </div>,
     );
