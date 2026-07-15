@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { disabledResponse, isYandexBackendProxyEnabled } from '@/app/api/yandex-backend/_lib/featureFlag';
+import { HttpError, toErrorResponse } from '@/app/api/yandex-backend/_lib/httpError';
 import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 import { createSupabaseServerClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
@@ -112,7 +113,7 @@ const assertNoReserveOverlap = async (
             .map((item) => item.guest || 'Без имени')
             .join(', ');
 
-        throw new Error(`Наложение броней запрещено. Конфликт: ${conflictMessage}`);
+        throw new HttpError(409, `Наложение броней запрещено. Конфликт: ${conflictMessage}`);
     }
 };
 
@@ -133,7 +134,9 @@ export async function PATCH(
     }
 
     try {
-        const body = (await request.json()) as Partial<ReserveDTO>;
+        const body = (await request.json().catch(() => {
+            throw new HttpError(400, 'Invalid JSON payload');
+        })) as Partial<ReserveDTO>;
         const supabase = createSupabaseServerClient(authorization);
 
         await assertNoReserveOverlap(supabase, reserveId, body);
@@ -164,7 +167,6 @@ export async function PATCH(
             idempotencyKey,
         });
     } catch (error) {
-        const message = error instanceof Error ? error.message : 'Failed to update reserve';
-        return NextResponse.json({ error: message }, { status: 502 });
+        return toErrorResponse(error, 'Failed to update reserve');
     }
 }

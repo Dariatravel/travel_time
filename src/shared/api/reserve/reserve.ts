@@ -11,6 +11,7 @@ import supabase from '@/shared/config/supabase';
 import { getDate } from '@/shared/lib/getDate';
 import {
     createReserveViaYandexBackend,
+    isProxyUnavailableError,
     isYandexBackendProxyClientEnabled,
     updateReserveViaYandexBackend,
 } from '@/shared/api/yandexBackendProxy';
@@ -264,7 +265,15 @@ export const createReserveApi = async (reserve: Reserve) => {
                 const response = await createReserveViaYandexBackend(reserve);
                 return response.data;
             } catch (error) {
-                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+                // Фолбэк в Supabase запрещён: при ошибке сети или 5xx бронь могла
+                // уже создаться на сервере — повторная вставка даёт дубль.
+                if (!isProxyUnavailableError(error)) {
+                    throw error;
+                }
+                console.warn(
+                    'Yandex backend proxy is unavailable (404), falling back to Supabase',
+                    error,
+                );
             }
         }
 
@@ -490,7 +499,15 @@ export const updateReserveApi = async ({ id, ...reserve }: ReserveDTO) => {
             try {
                 return await updateReserveViaYandexBackend({ id, ...reserve });
             } catch (error) {
-                console.warn('Yandex backend proxy failed, falling back to Supabase', error);
+                // Фолбэк в Supabase запрещён: обновление могло уже примениться
+                // на сервере, а ошибка 409/сети не повод писать напрямую.
+                if (!isProxyUnavailableError(error)) {
+                    throw error;
+                }
+                console.warn(
+                    'Yandex backend proxy is unavailable (404), falling back to Supabase',
+                    error,
+                );
             }
         }
 
