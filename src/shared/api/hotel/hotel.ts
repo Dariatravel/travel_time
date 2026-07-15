@@ -470,22 +470,21 @@ export async function getAllHotels(
                 };
             }
 
+            // Загружаем только отели текущей страницы: раньше фолбэк качал весь
+            // отфильтрованный каталог с номерами на каждую страницу скролла.
             const response = await supabase
                 .from('hotels_with_rooms_new')
-                .select('*, rooms(*)', { count: 'exact' })
-                .in('id', orderedHotelIds)
-                .order('title', { ascending: true })
-                .order('id', { ascending: true });
+                .select('*, rooms(*)')
+                .in('id', paginatedHotelIds);
 
-            // Страницы режем по той же глобальной последовательности id, что и бэкенд-путь,
-            // иначе при смешении путей один отель мог оказаться на двух страницах.
-            const rowIndexById = new Map(orderedHotelIds.map((id, index) => [id, index]));
-            const orderedRows = [...(response?.data ?? [])].sort(
+            // Ряды упорядочиваем по той же глобальной последовательности id, что и
+            // бэкенд-путь, иначе при смешении путей порядок страниц разъезжается.
+            const rowIndexById = new Map(paginatedHotelIds.map((id, index) => [id, index]));
+            const paginatedRows = [...(response?.data ?? [])].sort(
                 (a: any, b: any) =>
                     (rowIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
                     (rowIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER),
             );
-            const paginatedRows = orderedRows.slice(from, to + 1);
 
             // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
             // Если есть фильтр freeHotels (например, по цене), фильтруем номера
@@ -515,69 +514,72 @@ export async function getAllHotels(
 
             return {
                 data,
-                count: orderedRows.length,
+                count: orderedHotelIds.length,
             };
         }
 
-        // Для случая без фильтров используем стандартный запрос
+        // Для случая без фильтров дат: серверная пагинация. Один лёгкий запрос
+        // (только id и title) даёт глобальный порядок по шахматному статусу,
+        // дальше каждая страница скролла — один запрос ровно на limit отелей.
+        // Раньше весь каталог с номерами качался заново на каждую страницу.
         const from = page * limit;
         const to = from + limit - 1;
 
-        const query = supabase
-            .from('hotels_with_rooms_new')
-            .select('*, rooms(*)', { count: 'exact' });
+        const catalogResponse = await supabase.from('hotels_with_rooms_new').select('id');
+
+        if (catalogResponse.error) {
+            throw catalogResponse.error;
+        }
+
+        let candidateIds: string[] | undefined = (catalogResponse.data ?? []).map(
+            (hotel: { id: string }) => hotel.id,
+        );
 
         if (filter?.freeHotels_id) {
-            const visibleFreeHotelIds = excludeHiddenHotelIds(filter.freeHotels_id, hiddenHotelIds);
-
-            if (!visibleFreeHotelIds || visibleFreeHotelIds.length === 0) {
-                return { data: [], count: 0 };
-            }
-
-            if (filter?.hotels && filter?.hotels?.length > 0) {
-                const hotels = filter?.hotels.map((hotel) => hotel.id);
-                const filteredByTitle = visibleFreeHotelIds.filter((id) => hotels.includes(id));
-
-                if (filteredByTitle.length === 0) {
-                    return { data: [], count: 0 };
-                }
-
-                query.in('id', filteredByTitle);
-            } else {
-                query.in('id', visibleFreeHotelIds);
-            }
+            const freeIdsSet = new Set(filter.freeHotels_id);
+            candidateIds = candidateIds.filter((id) => freeIdsSet.has(id));
         }
 
-        if (!filter?.freeHotels_id && filter?.hotels && filter?.hotels?.length > 0) {
-            const selectedHotelIds = excludeHiddenHotelIds(
-                filter.hotels.map((hotel) => hotel.id),
-                hiddenHotelIds,
-            );
-
-            if (!selectedHotelIds || selectedHotelIds.length === 0) {
-                return { data: [], count: 0 };
-            }
-
-            query.in('id', selectedHotelIds);
+        if (filter?.hotels && filter?.hotels?.length > 0) {
+            const selectedIdsSet = new Set(filter.hotels.map((hotel) => hotel.id));
+            candidateIds = candidateIds.filter((id) => selectedIdsSet.has(id));
         }
 
-        if (
-            !filter?.freeHotels_id &&
-            (!filter?.hotels || filter.hotels.length === 0) &&
-            hiddenHotelIds &&
-            hiddenHotelIds.length > 0
-        ) {
-            query.not('id', 'in', `(${hiddenHotelIds.join(',')})`);
+        candidateIds = excludeHiddenHotelIds(candidateIds, hiddenHotelIds);
+
+        if (!candidateIds || candidateIds.length === 0) {
+            return { data: [], count: 0 };
         }
 
-        // Вторичная сортировка по id: при одинаковых названиях порядок из БД
-        // недетерминирован между запросами страниц, из-за чего при скролле
-        // возможны дубли/пропуски отелей.
-        query.order('title', { ascending: true }).order('id', { ascending: true });
+        // Глобальная сортировка id (зелёные → жёлтые → белые, по названию, по id)
+        // и фильтр по chessmateStatus — единый порядок для всех страниц.
+        const orderedIds = await getChessmateOrderedHotelIds(candidateIds, filter);
 
-        const response = await query;
-        const orderedRows = getOrderedHotelRows(response?.data ?? [], filter);
-        const paginatedRows = orderedRows.slice(from, to + 1);
+        if (orderedIds.length === 0) {
+            return { data: [], count: 0 };
+        }
+
+        const pageIds = orderedIds.slice(from, to + 1);
+
+        if (pageIds.length === 0) {
+            return { data: [], count: orderedIds.length };
+        }
+
+        const response = await supabase
+            .from('hotels_with_rooms_new')
+            .select('*, rooms(*)')
+            .in('id', pageIds);
+
+        if (response.error) {
+            throw response.error;
+        }
+
+        const pageIndexById = new Map(pageIds.map((id, index) => [id, index]));
+        const paginatedRows = [...(response.data ?? [])].sort(
+            (a: any, b: any) =>
+                (pageIndexById.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+                (pageIndexById.get(b.id) ?? Number.MAX_SAFE_INTEGER),
+        );
 
         // Преобразуем HotelRoomsDTO в HotelRoomsReservesDTO (добавляем пустые брони)
         // Если есть фильтр freeHotels (например, по цене), фильтруем номера
@@ -614,7 +616,7 @@ export async function getAllHotels(
 
         return {
             data,
-            count: orderedRows.length,
+            count: orderedIds.length,
         };
     } catch (error) {
         console.error('Ошибка при получении отелей:', error);
