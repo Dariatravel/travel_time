@@ -45,6 +45,7 @@ import { useUnit } from 'effector-react';
 import { useUnit as useUnitCompat } from 'effector-react/compat';
 import { cloneDeep } from 'lodash';
 import { ChevronDown, Search } from 'lucide-react';
+import { localDateToMoscowStayUnix } from '@/shared/lib/moscowTime';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import { FC, useEffect, useState } from 'react';
@@ -231,10 +232,10 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         const selectedHotelsFromForm = formData.hotels ?? [];
         const selectedHotelIds = selectedHotelsFromForm.map((hotel) => hotel.id);
         const start_time = formData.dateFrom
-            ? moment(formData.dateFrom).hour(14).unix()
+            ? localDateToMoscowStayUnix(formData.dateFrom, false)
             : undefined;
         const end_time = formData.dateTo
-            ? moment(formData.dateTo).hour(12).unix()
+            ? localDateToMoscowStayUnix(formData.dateTo, true)
             : undefined;
 
         const filter: Partial<TravelFilterType> = {

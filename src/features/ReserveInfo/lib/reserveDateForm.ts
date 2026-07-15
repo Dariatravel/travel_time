@@ -1,4 +1,5 @@
 import { parseReserveTime } from '@/shared/lib/date';
+import { localDateToMoscowStayUnix } from '@/shared/lib/moscowTime';
 import moment from 'moment';
 import type { DateRange } from 'react-day-picker';
 
@@ -43,8 +44,8 @@ export const resolveReserveDateRangeSelection = (
 };
 
 export const serializeReserveFormDates = (date: [Date, Date]) => {
-    const start = moment(date[0]).startOf('day').hour(14).unix();
-    const end = moment(date[1]).startOf('day').hour(12).unix();
+    const start = localDateToMoscowStayUnix(date[0], false);
+    const end = localDateToMoscowStayUnix(date[1], true);
 
     return { start, end };
 };
