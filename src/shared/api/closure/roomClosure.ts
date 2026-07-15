@@ -42,11 +42,6 @@ export type RoomClosureFormPayload = {
     edited_by?: string;
 };
 
-const isMissingRoomClosuresTableError = (error: { code?: string; message?: string }) =>
-    error.code === '42P01' ||
-    error.code === 'PGRST205' ||
-    error.message?.includes('room_closures') === true;
-
 export const serializeRoomClosureDates = (date: [Date, Date]) => serializeReserveFormDates(date);
 
 export const validateRoomClosurePeriod = (start: Date, end: Date) =>
@@ -74,9 +69,6 @@ export async function getRoomClosuresByHotel(hotelId: string): Promise<RoomClosu
         .order('start', { ascending: true });
 
     if (error) {
-        if (isMissingRoomClosuresTableError(error)) {
-            return [];
-        }
         throw new Error(error.message);
     }
 

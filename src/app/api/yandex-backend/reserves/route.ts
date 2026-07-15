@@ -11,47 +11,22 @@ import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 
 export const dynamic = 'force-dynamic';
 
-const isMissingReserveFixedColumnError = (error: { code?: string; message?: string }) => {
-    const message = error.message?.toLowerCase() ?? '';
-
-    return (
-        message.includes('is_fixed') &&
-        (error.code === 'PGRST204' ||
-            message.includes('schema cache') ||
-            message.includes('column') ||
-            message.includes('could not find'))
-    );
-};
-
-const toReservePayload = (
-    reserve: Partial<ReserveDTO>,
-    { includeFixedFlag = true }: { includeFixedFlag?: boolean } = {},
-) => {
-    const payload = {
-        room_id: reserve.room_id,
-        start: reserve.start,
-        end: reserve.end,
-        guest: reserve.guest,
-        phone: reserve.phone,
-        price: reserve.price,
-        quantity: reserve.quantity,
-        prepayment: reserve.prepayment == null ? null : String(reserve.prepayment),
-        comment: reserve.comment ?? '',
-        created_at: reserve.created_at,
-        created_by: reserve.created_by,
-        edited_at: reserve.edited_at,
-        edited_by: reserve.edited_by,
-    };
-
-    if (!includeFixedFlag) {
-        return payload;
-    }
-
-    return {
-        ...payload,
-        is_fixed: reserve.is_fixed ?? false,
-    };
-};
+const toReservePayload = (reserve: Partial<ReserveDTO>) => ({
+    room_id: reserve.room_id,
+    start: reserve.start,
+    end: reserve.end,
+    guest: reserve.guest,
+    phone: reserve.phone,
+    price: reserve.price,
+    quantity: reserve.quantity,
+    prepayment: reserve.prepayment == null ? null : String(reserve.prepayment),
+    comment: reserve.comment ?? '',
+    created_at: reserve.created_at,
+    created_by: reserve.created_by,
+    edited_at: reserve.edited_at,
+    edited_by: reserve.edited_by,
+    is_fixed: reserve.is_fixed ?? false,
+});
 
 const toReserveUnix = (value: ReserveDTO['start'] | undefined) => {
     if (value instanceof Date) return Math.floor(value.getTime() / 1000);
@@ -216,20 +191,11 @@ export async function POST(request: NextRequest) {
         await assertNoReserveOverlap(supabase, body);
         await assertNoRoomClosureOverlap(supabase, body);
 
-        const insertReserve = (includeFixedFlag: boolean) =>
-            supabase
-                .from('reserves')
-                .insert(toReservePayload(body, { includeFixedFlag }))
-                .select('*')
-                .single();
-
-        let { data, error } = await insertReserve(true);
-
-        if (error && isMissingReserveFixedColumnError(error)) {
-            const retry = await insertReserve(false);
-            data = retry.data;
-            error = retry.error;
-        }
+        const { data, error } = await supabase
+            .from('reserves')
+            .insert(toReservePayload(body))
+            .select('*')
+            .single();
 
         if (error) throw error;
 

@@ -40,14 +40,6 @@ type RawActivityRow = {
     } | null;
 };
 
-const isMissingHistoryTableError = (error: { code?: string; message?: string }) => {
-    return (
-        error.code === '42P01' ||
-        error.code === 'PGRST205' ||
-        error.message?.includes('reserve_history') === true
-    );
-};
-
 const mapActivityRow = (row: RawActivityRow): RecentActivityEntry | null => {
     if (row.changed_by && SYSTEM_ACTORS.has(row.changed_by)) {
         return null;
@@ -98,9 +90,6 @@ export async function getRecentActivity(limit = DASHBOARD_ACTIVITY_FETCH_LIMIT) 
         .limit(limit);
 
     if (error) {
-        if (isMissingHistoryTableError(error)) {
-            return [];
-        }
         throw new Error(error.message);
     }
 
