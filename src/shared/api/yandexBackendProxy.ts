@@ -7,6 +7,24 @@ export const isYandexBackendProxyClientEnabled = () => {
     return process.env.NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY === 'true';
 };
 
+/** Ошибка прокси с HTTP-статусом ответа — чтобы клиент отличал конфликт (409) от недоступности (404). */
+export class YandexBackendProxyError extends Error {
+    constructor(
+        readonly status: number,
+        message: string,
+    ) {
+        super(message);
+        this.name = 'YandexBackendProxyError';
+    }
+}
+
+/**
+ * Прокси-роут отсутствует или выключен (404) — запрос точно не имел
+ * побочных эффектов, мутацию можно безопасно повторить напрямую в Supabase.
+ */
+export const isProxyUnavailableError = (error: unknown) =>
+    error instanceof YandexBackendProxyError && error.status === 404;
+
 const getAuthorizationHeader = async () => {
     const { data } = await supabase.auth.getSession().catch(() => ({ data: { session: null } }));
     const token = data.session?.access_token;
@@ -70,7 +88,10 @@ const fetchBackendJson = async <T>(path: string, init?: RequestInit): Promise<T>
 
     if (!response.ok) {
         const payload = await response.json().catch(() => null);
-        throw new Error(payload?.error ?? `Yandex backend proxy failed: ${response.status}`);
+        throw new YandexBackendProxyError(
+            response.status,
+            payload?.error ?? `Yandex backend proxy failed: ${response.status}`,
+        );
     }
 
     return response.json() as Promise<T>;
