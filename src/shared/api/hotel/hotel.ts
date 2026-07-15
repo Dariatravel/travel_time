@@ -331,7 +331,12 @@ const getChessmateOrderedHotelIds = async (
 ): Promise<string[]> => {
     const uniqueIds = Array.from(new Set(hotelIds));
 
-    const { data, error } = await supabase.from('hotels').select('id, title').in('id', uniqueIds);
+    // Названия ВСЕХ отелей одним лёгким запросом (id + title), без
+    // .in('id', uniqueIds). Раньше фильтр по всем id раздувал URL до ~8 КБ
+    // (200+ id) — в браузере запрос падал, функция уходила в fallback без
+    // сортировки, и в календаре/поиске зелёные/жёлтые/белые шли вперемешку.
+    // Строк мало (сотни), запрос дешёвый; сортируем только переданные id.
+    const { data, error } = await supabase.from('hotels').select('id, title').limit(5000);
 
     if (error || !data) {
         console.warn('Не удалось получить названия отелей для сортировки по статусу', error);
