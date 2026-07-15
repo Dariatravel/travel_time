@@ -31,6 +31,7 @@ import {
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
 import { getDate } from '@/shared/lib/getDate';
+import { parsePrepayment } from '@/shared/lib/parsePrepayment';
 import { $user } from '@/shared/models/auth';
 import { Datepicker } from '@/shared/ui/Datepicker/Datepicker';
 import { FormMessage } from '@/shared/ui/FormMessage';
@@ -292,8 +293,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     const date = watch('date');
     const price = watch('price');
     const prepayment = watch('prepayment');
-    const prepaymentAmount =
-        prepayment === '' || prepayment == null ? 0 : Number(prepayment) || 0;
+    const prepaymentAmount = parsePrepayment(prepayment);
 
     const {
         data: rooms,
@@ -369,7 +369,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
             const room_id = data.room_id?.id;
             const priceNumber = +price;
             const quantityNumber = +quantity;
-            const prepaymentNumber = prepayment == null || prepayment === '' ? 0 : +prepayment;
+            const prepaymentNumber = parsePrepayment(prepayment);
             const isEditReserve = !!currentReserve?.reserve?.id;
             const created_by = data?.created_by ?? userName;
             const created_at = data?.created_at ?? getDate();

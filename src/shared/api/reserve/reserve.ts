@@ -28,7 +28,9 @@ export type ReserveDTO = {
     start: number | Date; // Начало бронирования (Unix timestamp)
     end: number | Date; // Конец бронирования (Unix timestamp)
     title?: string; // Обязательное название брони
-    prepayment?: number; // Предоплата (опционально, используется для внутренних расчетов)
+    // Предоплата. В базе колонка text, поэтому из Supabase приходит строкой,
+    // формы дают число — для расчётов приводить через parsePrepayment().
+    prepayment?: number | string | null;
     guest: string; // Имя гостя
     phone: string; // Телефон гостя
     comment?: string; // Комментарий к брони
