@@ -763,6 +763,9 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                                             ? ''
                                                             : String(field.value)
                                                     }
+                                                    // Выделяем значение при фокусе: ввод суммы заменяет
+                                                    // дефолтный «0», а не приписывается к нему.
+                                                    onFocus={(event) => event.currentTarget.select()}
                                                     onChange={(event) => {
                                                         const nextValue = event.target.value;
                                                         field.onChange(
