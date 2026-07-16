@@ -703,6 +703,9 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                                 value={field.value || ''}
                                                 min={0}
                                                 placeholder="1"
+                                                // Выделяем значение при фокусе: ввод цифры заменяет
+                                                // дефолтную «1», а не приписывается к ней («14»).
+                                                onFocus={(e) => e.currentTarget.select()}
                                                 onChange={(e) =>
                                                     field.onChange(
                                                         !!e.target.value
