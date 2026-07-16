@@ -261,6 +261,9 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
                             value={quantity || ''}
                             min={0}
                             placeholder="1"
+                            // Выделяем значение при фокусе: ввод цифры заменяет
+                            // дефолтную «1», а не приписывается к ней («14»).
+                            onFocus={(e) => e.currentTarget.select()}
                             onChange={(e) =>
                                 setQuantity(!!e.target.value ? Number(e.target.value) : undefined)
                             }
