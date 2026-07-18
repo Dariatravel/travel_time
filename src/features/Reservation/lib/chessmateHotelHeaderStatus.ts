@@ -96,6 +96,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     пегас: 'active',
     'песчаный берег апартаменты': 'active',
     'пляжный комплекс 151': 'active',
+    'райский берег': 'active',
     'ранчо эли вэл': 'active',
     рита: 'access',
     'сан амра sun amra': 'access',
