@@ -33,8 +33,10 @@ export default function RootLayout({
 }: Readonly<{
     children: React.ReactNode;
 }>) {
+    // lang="ru": контент сайта русский; с lang="en" Chrome считал страницу
+    // английской и автопереводчик калечил слова («Полупансион» → «Полустанция»).
     return (
-        <html lang="en">
+        <html lang="ru">
             <head>
                 <meta
                     name="viewport"
