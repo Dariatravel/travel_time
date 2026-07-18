@@ -14,3 +14,9 @@ out
 .DS_Store
 *.pem
 *.tsbuildinfo
+# Приватные SSH-ключи не должны попадать в образ (см. инцидент с yes/yes.pub)
+yes
+yes.pub
+id_rsa
+id_ed25519
+*.key

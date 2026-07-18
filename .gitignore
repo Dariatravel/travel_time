@@ -43,3 +43,10 @@ next-env.d.ts
 .vercel
 .env*.local
 АВИТО/Статистика_с_2026-01-14_по_2026-02-18.xlsx
+
+# Приватные SSH-ключи — никогда не коммитить
+yes
+yes.pub
+id_rsa
+id_ed25519
+*.key
