@@ -66,15 +66,23 @@ const unescapeIcalText = (value) => {
         .trim();
 };
 
+// Фиксированная Москва, как toMoscowStayUnix в src/shared/lib/moscowTime.ts:
+// заезд 14:00 МСК, выезд 12:00 МСК — независимо от таймзоны машины, где
+// выполняется скрипт (GitHub-раннер живёт в UTC, локальная машина — в МСК).
+const MOSCOW_UTC_OFFSET_HOURS = 3;
+const CHECK_IN_HOUR_MSK = 14;
+const CHECK_OUT_HOUR_MSK = 12;
+
 const toNoonUnixFromIcalDate = (value, endOfStay) => {
     const dateMatch = value.match(/^(\d{4})(\d{2})(\d{2})/);
     if (!dateMatch) return null;
 
     const [, year, month, day] = dateMatch;
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    date.setHours(endOfStay ? 11 : 12, 0, 0, 0);
+    const hourMsk = endOfStay ? CHECK_OUT_HOUR_MSK : CHECK_IN_HOUR_MSK;
 
-    return Math.floor(date.getTime() / 1000);
+    return Math.floor(
+        Date.UTC(Number(year), Number(month) - 1, Number(day), hourMsk - MOSCOW_UTC_OFFSET_HOURS) / 1000,
+    );
 };
 
 const hashEventUid = (seed) => createHash('sha256').update(seed).digest('hex');
@@ -124,17 +132,41 @@ const parseIcalEvents = (icalText) => {
     });
 };
 
-const syncFeed = async (supabase, feed) => {
-    const response = await fetch(feed.url, {
-        headers: { accept: 'text/calendar,text/plain,*/*' },
-        cache: 'no-store',
-    });
+// Триггер запрета двойных броней (20260713_prevent_double_booking) отбивает
+// события, пересекающиеся с ручными бронями шахматки, кодом 23P01.
+// Ручная бронь главнее фида: такие события пропускаем, а не роняем синк.
+const isOverlapConflict = (error) =>
+    error?.code === '23P01' || String(error?.message ?? '').includes('Наложение броней запрещено');
 
-    if (!response.ok) {
-        throw new Error(`Failed to fetch ${feed.url}: ${response.status}`);
+const formatStayDate = (unix) => new Date(unix * 1000).toISOString().slice(0, 10);
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// RealtyCalendar подрезает частые запросы: 79 фидов подряд ловят сетевые сбои
+// и 429/5xx. Ретраим с нарастающей паузой, 404 отдаём сразу (фида просто нет).
+const fetchIcalText = async (url, attempts = 3) => {
+    for (let attempt = 1; ; attempt += 1) {
+        try {
+            const response = await fetch(url, {
+                headers: { accept: 'text/calendar,text/plain,*/*' },
+                cache: 'no-store',
+            });
+
+            if (response.ok) return await response.text();
+
+            if (response.status === 404 || attempt >= attempts) {
+                throw new Error(`Failed to fetch ${url}: ${response.status}`);
+            }
+        } catch (error) {
+            if (attempt >= attempts || /: 404$/.test(String(error?.message ?? ''))) throw error;
+        }
+
+        await sleep(attempt * 2000);
     }
+};
 
-    const events = parseIcalEvents(await response.text());
+const syncFeed = async (supabase, feed) => {
+    const events = parseIcalEvents(await fetchIcalText(feed.url));
     const syncedAt = new Date().toISOString();
     const payload = events.map((event) => ({
         room_id: feed.roomId,
@@ -155,25 +187,25 @@ const syncFeed = async (supabase, feed) => {
         external_synced_at: syncedAt,
     }));
 
-    if (payload.length > 0) {
-        const { error } = await supabase.from('reserves').upsert(payload, {
-            onConflict: 'external_source,room_id,external_uid',
-        });
-
-        if (error) throw new Error(error.message);
-    }
-
+    // Upsert здесь не работает: BEFORE INSERT триггер запрета двойных броней
+    // срабатывает до разрешения ON CONFLICT по UID и видит существующую строку
+    // того же события как чужое пересечение (23P01). Поэтому синхронизируем
+    // дифом: без изменений — пропускаем, изменилось — UPDATE по id (триггер
+    // исключает саму строку), новое — INSERT, пропавшее из фида — DELETE.
     const currentUids = new Set(events.map((event) => event.uid));
-    const { data: existingExternalReserves, error: selectError } = await supabase
+    const { data: roomReserves, error: selectError } = await supabase
         .from('reserves')
-        .select('id, external_uid')
-        .eq('external_source', EXTERNAL_SOURCE)
-        .eq('room_id', feed.roomId)
-        .eq('external_feed_url', feed.url);
+        .select('id, external_uid, external_source, external_feed_url, start, end, comment')
+        .eq('room_id', feed.roomId);
 
     if (selectError) throw new Error(selectError.message);
 
-    const staleReserveIds = (existingExternalReserves ?? [])
+    const allRows = roomReserves ?? [];
+    const feedRows = allRows.filter(
+        (reserve) => reserve.external_source === EXTERNAL_SOURCE && reserve.external_feed_url === feed.url,
+    );
+
+    const staleReserveIds = feedRows
         .filter((reserve) => !reserve.external_uid || !currentUids.has(reserve.external_uid))
         .map((reserve) => reserve.id);
 
@@ -182,11 +214,147 @@ const syncFeed = async (supabase, feed) => {
         if (error) throw new Error(error.message);
     }
 
+    const staleIdSet = new Set(staleReserveIds);
+    const liveRows = allRows.filter((reserve) => !staleIdSet.has(reserve.id));
+    const existingByUid = new Map(
+        feedRows
+            .filter((reserve) => reserve.external_uid && currentUids.has(reserve.external_uid))
+            .map((reserve) => [reserve.external_uid, reserve]),
+    );
+
+    // Ночи считаем как А1-триггер: полуоткрытый интервал floor(unix/86400).
+    const nightSpan = (start, end) => [Math.floor(start / 86400), Math.floor(end / 86400)];
+
+    // Все ночи события уже заняты другими строками (дубль события в фиде или
+    // бронь, созданная вебхуком) — вставлять нечего, это не расхождение.
+    const isCoveredByOthers = (row) => {
+        const [from, to] = nightSpan(row.start, row.end);
+        if (to <= from) return true;
+
+        const busyNights = new Set();
+        for (const other of liveRows) {
+            if (other.end < other.start) continue;
+            const [otherFrom, otherTo] = nightSpan(other.start, other.end);
+            for (let night = Math.max(otherFrom, from); night < Math.min(otherTo, to); night += 1) {
+                busyNights.add(night);
+            }
+        }
+
+        return busyNights.size >= to - from;
+    };
+
+    const conflicts = [];
+    let inserted = 0;
+    let updated = 0;
+    let unchanged = 0;
+    let covered = 0;
+
+    // Сравниваем по ночам (как весь проект), а не по секундам: точное время
+    // в строке может отличаться (12:00 UTC от старых прогонов, 14:00 МСК от
+    // вебхука), но бронь та же — перезаписывать её незачем.
+    const sameNights = (left, right) =>
+        Math.floor(left.start / 86400) === Math.floor(right.start / 86400) &&
+        Math.floor(left.end / 86400) === Math.floor(right.end / 86400);
+
+    for (const row of payload) {
+        const existing = existingByUid.get(row.external_uid);
+
+        if (existing) {
+            if (sameNights(existing, row)) {
+                if (existing.comment === row.comment) {
+                    unchanged += 1;
+                    continue;
+                }
+
+                // Даты не менялись — обновляем только комментарий, чтобы не
+                // дёргать триггер проверки пересечений (он реагирует на даты).
+                const { error } = await supabase
+                    .from('reserves')
+                    .update({
+                        comment: row.comment,
+                        edited_at: row.edited_at,
+                        edited_by: row.edited_by,
+                        external_synced_at: row.external_synced_at,
+                    })
+                    .eq('id', existing.id);
+
+                if (error) throw new Error(error.message);
+
+                updated += 1;
+                existing.comment = row.comment;
+                continue;
+            }
+
+            const { error } = await supabase
+                .from('reserves')
+                .update({
+                    start: row.start,
+                    end: row.end,
+                    comment: row.comment,
+                    edited_at: row.edited_at,
+                    edited_by: row.edited_by,
+                    external_synced_at: row.external_synced_at,
+                })
+                .eq('id', existing.id);
+
+            if (!error) {
+                updated += 1;
+                existing.start = row.start;
+                existing.end = row.end;
+                existing.comment = row.comment;
+                continue;
+            }
+
+            if (isOverlapConflict(error)) {
+                conflicts.push({
+                    roomId: row.room_id,
+                    externalUid: row.external_uid,
+                    start: row.start,
+                    end: row.end,
+                    message: error.message,
+                });
+                continue;
+            }
+
+            throw new Error(error.message);
+        }
+
+        if (isCoveredByOthers(row)) {
+            covered += 1;
+            continue;
+        }
+
+        const { error } = await supabase.from('reserves').insert(row);
+
+        if (!error) {
+            inserted += 1;
+            liveRows.push({ start: row.start, end: row.end });
+            continue;
+        }
+
+        if (isOverlapConflict(error)) {
+            conflicts.push({
+                roomId: row.room_id,
+                externalUid: row.external_uid,
+                start: row.start,
+                end: row.end,
+                message: error.message,
+            });
+            continue;
+        }
+
+        throw new Error(error.message);
+    }
+
     return {
         roomId: feed.roomId,
         parsed: events.length,
-        upserted: payload.length,
+        inserted,
+        updated,
+        unchanged,
+        covered,
         pruned: staleReserveIds.length,
+        conflicts,
     };
 };
 
@@ -204,19 +372,36 @@ const main = async () => {
 
     const feeds = buildFeeds(loadRoomMapping());
     const result = [];
+    const failures = [];
 
-    for (const feed of feeds) {
+    for (const [index, feed] of feeds.entries()) {
+        // Небольшая пауза между фидами: 79 запросов подряд RealtyCalendar
+        // начинает резать, а чужой сервис нагружать ни к чему.
+        if (index > 0) await sleep(300);
+
         try {
             result.push(await syncFeed(supabase, feed));
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             if (/Failed to fetch .*404/.test(message)) {
                 console.warn(`Skipping feed without iCal export: ${feed.roomId} (${message})`);
-                result.push({ roomId: feed.roomId, parsed: 0, upserted: 0, pruned: 0, skipped: true });
+                result.push({
+                    roomId: feed.roomId,
+                    parsed: 0,
+                    inserted: 0,
+                    updated: 0,
+                    unchanged: 0,
+                    covered: 0,
+                    pruned: 0,
+                    conflicts: [],
+                    skipped: true,
+                });
                 continue;
             }
 
-            throw error;
+            // Сбой одного фида не должен останавливать синхронизацию остальных.
+            console.error(`Feed failed: ${feed.roomId} (${message})`);
+            failures.push({ roomId: feed.roomId, message });
         }
     }
 
@@ -224,14 +409,37 @@ const main = async () => {
         (acc, item) => {
             acc.feeds += 1;
             acc.parsed += item.parsed;
-            acc.upserted += item.upserted;
+            acc.inserted += item.inserted;
+            acc.updated += item.updated;
+            acc.unchanged += item.unchanged;
+            acc.covered += item.covered;
             acc.pruned += item.pruned;
+            acc.conflicts += item.conflicts.length;
             return acc;
         },
-        { feeds: 0, parsed: 0, upserted: 0, pruned: 0 },
+        { feeds: 0, parsed: 0, inserted: 0, updated: 0, unchanged: 0, covered: 0, pruned: 0, conflicts: 0 },
     );
 
-    console.log(JSON.stringify({ status: 'ok', summary, sample: result.slice(0, 3) }, null, 2));
+    const allConflicts = result.flatMap((item) => item.conflicts);
+
+    for (const conflict of allConflicts) {
+        console.warn(
+            `Событие RealtyCalendar пропущено (пересекается с ручной бронью): room ${conflict.roomId}, ` +
+                `${formatStayDate(conflict.start)} – ${formatStayDate(conflict.end)}. ${conflict.message}`,
+        );
+    }
+
+    console.log(
+        JSON.stringify(
+            { status: failures.length > 0 ? 'partial' : 'ok', summary, failures, conflicts: allConflicts, sample: result.slice(0, 3) },
+            null,
+            2,
+        ),
+    );
+
+    if (failures.length > 0) {
+        process.exit(1);
+    }
 };
 
 main().catch((error) => {
