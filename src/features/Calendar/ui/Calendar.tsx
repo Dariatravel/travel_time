@@ -1,4 +1,5 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { MirrorRefreshButton } from '@/features/BaseCalendar/ui/MirrorRefreshButton';
 import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
 import {
     buildTrialCategoryReserveUpdates,
@@ -353,6 +354,7 @@ export const Calendar = ({
     return (
         <div style={{ position: 'relative' }} className="p-0">
             <div className={cn(cx.container, 'flex flex-col gap-2', isMobile && 'flex-col')}>
+                <MirrorRefreshButton hotelId={hotel.id} hotelTitle={hotel.title} />
                 <div className={cn(cx.calendarContainer, 'relative')}>
                     {(reserveLoading || isLoadingCalendar) && !isReserveOpen && <FullWidthLoader />}
                     <div

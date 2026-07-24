@@ -1,4 +1,5 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { MirrorRefreshButton } from '@/features/BaseCalendar/ui/MirrorRefreshButton';
 import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
 import {
     buildTrialCategoryReserveUpdates,
@@ -330,6 +331,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
             <div>
                 {isLoading && <FullWidthLoader />}
                 <div className={cx.hotelInfo}></div>
+                <MirrorRefreshButton hotelId={hotel.id} hotelTitle={hotel.title} />
                 <ClosureModeToolbar value={canvasAction} onChange={setCanvasAction} />
                 <div className={cx.calendar}>
                     <Timeline

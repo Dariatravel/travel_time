@@ -95,9 +95,11 @@ const HotelCard = ({
     const headerStatusClassName =
         chessmateHeaderStatus === 'active'
             ? 'bg-[#00ff00]'
-            : chessmateHeaderStatus === 'access'
-              ? 'bg-[#ffff00]'
-              : '';
+            : chessmateHeaderStatus === 'mirror'
+              ? 'bg-[#7cc5ff]'
+              : chessmateHeaderStatus === 'access'
+                ? 'bg-[#ffff00]'
+                : '';
     const titleStatusClassName = chessmateHeaderStatus ? 'text-zinc-900' : 'text-zinc-600';
 
     // Измеряем реальную высоту элемента: таймлайн и данные номеров могут менять высоту после первого рендера.
