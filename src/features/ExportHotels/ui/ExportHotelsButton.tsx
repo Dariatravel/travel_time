@@ -73,7 +73,7 @@ export const ExportHotelsButton: FC = () => {
                 phone: hotel.phone || '',
                 address: hotel.address || '',
                 telegram_url: hotel.telegram_url,
-                rooms_count: hotel?.rooms?.length || 0,
+                rooms_count: hotel?.rooms?.filter((room) => !room.is_service).length || 0,
             }));
 
             setExportHotels(hotels);

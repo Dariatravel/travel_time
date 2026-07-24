@@ -116,6 +116,11 @@ export const RoomInfo: FC<RoomInfoProps> = ({
         [currentReserve],
     );
 
+    // Служебную строку «Буфер для переноса» переименовывать и удалять нельзя
+    // (гарантия — триггер в БД; здесь блокируем интерфейс, чтобы не показывать
+    // заведомо запрещённые действия).
+    const isServiceRoom = Boolean(currentReserve?.room?.is_service);
+
     const form = useForm<RoomFormSchemaType>({
         resolver: zodResolver(RoomFormSchema),
         defaultValues: initialValues,
@@ -300,7 +305,7 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                                         id="title"
                                         placeholder="Введите название"
                                         className={cx.fields}
-                                        disabled={loading}
+                                        disabled={loading || isServiceRoom}
                                     />
                                     {error?.message && (
                                         <p className="text-sm text-red-500">{error.message}</p>
@@ -416,8 +421,12 @@ export const RoomInfo: FC<RoomInfoProps> = ({
                             onAccept={handleSubmit(onAcceptForm, onError)}
                             onClose={onClose}
                             isEdit={isEdit}
-                            onDelete={() =>
-                                currentReserve?.room?.id && onDelete(currentReserve?.room?.id)
+                            onDelete={
+                                isServiceRoom
+                                    ? undefined
+                                    : () =>
+                                          currentReserve?.room?.id &&
+                                          onDelete(currentReserve?.room?.id)
                             }
                             deleteText={'Удалить номер'}
                         />
