@@ -12,6 +12,7 @@ const normalizeHotelTitle = (title: string) =>
 // B "АКТУАЛЬНА" -> active, C "ЕСТЬ ДОСТУП" -> access, D "ПО ЗАПРОСУ" -> request.
 // Объекты с интеграцией RealtyCalendar всегда active (зелёные), даже если в таблице столбец C.
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
+    'барнаба',
     'рита',
     'александрия',
     'белая лошадь white horse',
