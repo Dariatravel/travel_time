@@ -21,6 +21,9 @@ export type RoomDTO = {
     comment?: string; // Комментарий к номеру
     room_features?: string[]; // Особенности номера
     order?: number;
+    // Служебная строка «Буфер для переноса»: видна в шахматке, но исключена
+    // из поиска и статистики. Используется для ручного переноса брони.
+    is_service?: boolean;
 };
 
 export type RoomReserves = {
@@ -36,6 +39,7 @@ export type RoomReserves = {
     comment?: string; // Комментарий к номеру
     room_features?: string[]; // Особенности номера
     order?: number; // Порядок отображения
+    is_service?: boolean; // Служебная строка «Буфер для переноса»
     reserves: ReserveDTO[]; // Список бронирований для этого номера
 };
 export type Room = Omit<RoomDTO, 'id'>;

@@ -118,6 +118,7 @@ type OperationReserveRow = {
 type OperationRoomRow = {
     id: string;
     title: string | null;
+    is_service: boolean | null;
     hotels: { title: string | null } | null;
 };
 
@@ -298,29 +299,51 @@ const getReserves = async (from: number, to: number) => {
     return ((data ?? []) as unknown as OperationReserveRow[]).map(mapReserve);
 };
 
-const getRooms = async () => {
-    const { data, error } = await supabase
-        .from('rooms')
-        .select(
-            `
+const ROOMS_SELECT_WITH_SERVICE = `
+            id,
+            title,
+            is_service,
+            hotels (
+                title
+            )
+        `;
+
+const ROOMS_SELECT_LEGACY = `
             id,
             title,
             hotels (
                 title
             )
-        `,
-        )
-        .order('order', { ascending: true, nullsFirst: false });
+        `;
+
+const getRooms = async () => {
+    const buildQuery = (select: string) =>
+        supabase
+            .from('rooms')
+            .select(select)
+            .order('order', { ascending: true, nullsFirst: false });
+
+    let { data, error } = await buildQuery(ROOMS_SELECT_WITH_SERVICE);
+
+    // Если миграция с колонкой is_service ещё не применена к базе (код мог
+    // задеплоиться раньше), PostgREST вернёт 42703 «колонки нет». Тогда падать
+    // нельзя — читаем без is_service; буфера в такой базе всё равно нет.
+    if (error && error.code === '42703') {
+        ({ data, error } = await buildQuery(ROOMS_SELECT_LEGACY));
+    }
 
     if (error) {
         throw new Error(error.message);
     }
 
-    return ((data ?? []) as unknown as OperationRoomRow[]).map((room) => ({
-        id: room.id,
-        title: room.title ?? 'Без номера',
-        hotelTitle: room.hotels?.title ?? 'Без отеля',
-    }));
+    return ((data ?? []) as unknown as OperationRoomRow[])
+        // Служебную строку «Буфер для переноса» никогда не предлагаем как свободный номер.
+        .filter((room) => room.is_service !== true)
+        .map((room) => ({
+            id: room.id,
+            title: room.title ?? 'Без номера',
+            hotelTitle: room.hotels?.title ?? 'Без отеля',
+        }));
 };
 
 const getIntegrationEvents = async () => {

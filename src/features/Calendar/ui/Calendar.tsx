@@ -1,4 +1,5 @@
 import { Timeline } from '@/features/BaseCalendar/ui/Timeline';
+import { buildTimelineGroups } from '@/features/BaseCalendar/lib/timelineGroups';
 import { buildTimelineReserveItems } from '@/features/BaseCalendar/lib/reserveMove';
 import {
     buildTrialCategoryReserveUpdates,
@@ -153,16 +154,7 @@ export const Calendar = ({
         devLog('Создаю ROOM', room);
     }, []);
 
-    const hotelRooms = useMemo(() => {
-        const rooms =
-            data?.map(({ reserves, id, title, ...room }) => ({
-                id,
-                title: `${title}`,
-                ...room,
-            })) ?? [];
-
-        return rooms;
-    }, [data]); // Убираем sort из зависимостей, так как он не используется
+    const hotelRooms = useMemo(() => buildTimelineGroups(data), [data]);
 
     const rebalanceTrialCategory = useCallback(
         async (createdReserve: ReserveDTO, requestedReserve: Reserve) => {

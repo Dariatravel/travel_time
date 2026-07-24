@@ -110,7 +110,8 @@ const MobileHotelCard: React.FC<{
     isDeleting: boolean;
 }> = ({ hotel, onEdit, onDelete, onViewRooms, isDeleting }) => {
     const getRoomsCount = (hotel: HotelRoomsDTO): string => {
-        const count = hotel.rooms?.length || 0;
+        // Служебную строку «Буфер для переноса» в счёт номеров не берём.
+        const count = hotel.rooms?.filter((room) => !room.is_service).length || 0;
         return `${getRoomsCountText(count)}`;
     };
     return (

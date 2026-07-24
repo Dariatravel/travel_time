@@ -27,7 +27,13 @@ export default function HotelCalendarPage() {
 
     return (
         <div>
-            <PageTitle title={hotel?.title} rooms={hotel?.rooms?.length ?? 0} />
+            <PageTitle
+                title={hotel?.title}
+                rooms={
+                    hotel?.rooms?.filter((room: { is_service?: boolean }) => !room.is_service)
+                        .length ?? 0
+                }
+            />
             {hotel && <HotelCalendar hotel={hotel} key={hotel.id} />}
         </div>
     );

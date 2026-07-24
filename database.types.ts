@@ -156,11 +156,13 @@ export type Database = {
           id: string
           image_path: string
           image_title: string
+          is_service: boolean
           order: number | null
           price: number
           quantity: number
           room_features: string[] | null
           title: string
+          type: string | null
         }
         Insert: {
           comment?: string | null
@@ -169,11 +171,13 @@ export type Database = {
           id?: string
           image_path: string
           image_title: string
+          is_service?: boolean
           order?: number | null
           price: number
           quantity: number
           room_features?: string[] | null
           title: string
+          type?: string | null
         }
         Update: {
           comment?: string | null
@@ -182,11 +186,13 @@ export type Database = {
           id?: string
           image_path?: string
           image_title?: string
+          is_service?: boolean
           order?: number | null
           price?: number
           quantity?: number
           room_features?: string[] | null
           title?: string
+          type?: string | null
         }
         Relationships: [
           {

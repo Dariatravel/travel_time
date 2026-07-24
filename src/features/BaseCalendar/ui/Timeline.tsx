@@ -282,19 +282,45 @@ export const Timeline = ({
 
     const groupRenderer = useCallback(
         ({ group }: { group: any }) => {
+            const isBuffer = group.is_service === true;
+            const handleClick = () => {
+                if (onGroupClick) {
+                    onGroupClick(group);
+                }
+            };
+
             if (isPhone) {
                 return (
                     <div
-                        className={styles.mobileGroupLabel}
-                        title={group.title}
-                        onClick={() => {
-                            if (onGroupClick) {
-                                onGroupClick(group);
-                            }
-                        }}
-                        style={{ cursor: onGroupClick ? 'pointer' : 'default' }}
+                        className={`${styles.mobileGroupLabel} ${isBuffer ? styles.serviceGroupLabel : ''}`}
+                        title={
+                            isBuffer ? 'Служебная строка для ручного переноса брони' : group.title
+                        }
+                        // Буфер некликабелен: его нельзя переименовать/удалить.
+                        onClick={isBuffer ? undefined : handleClick}
+                        style={{ cursor: !isBuffer && onGroupClick ? 'pointer' : 'default' }}
                     >
                         {group.title}
+                        {isBuffer && group.hasBufferBooking && (
+                            <span className={styles.bufferDot} title="В буфере есть бронь" />
+                        )}
+                    </div>
+                );
+            }
+
+            // Служебная строка «Буфер для переноса» не перетаскивается (без drag-ручки),
+            // не открывает форму номера (переименовать/удалить нельзя), красится
+            // отдельно и показывает индикатор, если в ней лежит бронь.
+            if (isBuffer) {
+                return (
+                    <div
+                        className={`${styles.timelineGroup} ${styles.serviceGroup}`}
+                        title="Служебная строка для ручного переноса брони"
+                    >
+                        <span className={styles.serviceGroupTitle}>{group.title}</span>
+                        {group.hasBufferBooking && (
+                            <span className={styles.bufferDot} title="В буфере есть бронь" />
+                        )}
                     </div>
                 );
             }
@@ -304,11 +330,7 @@ export const Timeline = ({
                     id={`${timelineId}-${group.id}`}
                     title={group.title}
                     className={styles.timelineGroup}
-                    onClick={() => {
-                        if (onGroupClick) {
-                            onGroupClick(group);
-                        }
-                    }}
+                    onClick={handleClick}
                 />
             );
         },
@@ -382,10 +404,13 @@ export const Timeline = ({
 
     const groupsForDnd = useMemo(
         () =>
-            hotelRooms.map((room) => ({
-                id: `${timelineId}-${room.id}`,
-                title: room.title,
-            })),
+            hotelRooms
+                // Служебную строку «Буфер для переноса» нельзя переупорядочивать.
+                .filter((room) => room.is_service !== true)
+                .map((room) => ({
+                    id: `${timelineId}-${room.id}`,
+                    title: room.title,
+                })),
         [hotelRooms, timelineId],
     );
 
