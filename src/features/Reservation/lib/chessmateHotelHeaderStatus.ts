@@ -1,4 +1,4 @@
-export type ChessmateHotelHeaderStatus = 'active' | 'access' | 'request';
+export type ChessmateHotelHeaderStatus = 'active' | 'mirror' | 'access' | 'request';
 
 const normalizeHotelTitle = (title: string) =>
     title
@@ -11,6 +11,14 @@ const normalizeHotelTitle = (title: string) =>
 // Source: "СЕЗОН 2026. Описание отелей, цены", sheet "ШАХМАТКИ".
 // B "АКТУАЛЬНА" -> active, C "ЕСТЬ ДОСТУП" -> access, D "ПО ЗАПРОСУ" -> request.
 // Объекты с интеграцией RealtyCalendar всегда active (зелёные), даже если в таблице столбец C.
+// «Голубые» шахматки — зеркало чужого календаря с кнопкой «Обновить занятость»
+// (см. src/app/api/mirror/*). Здесь только список для цвета/фильтра шапки;
+// привязка отель→источник лежит на сервере в mirrorSources.ts.
+const MIRROR_HOTEL_TITLES = new Set<string>([
+    'сан амра sun amra',
+    'студио сан амра',
+]);
+
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
     'барнаба',
     'рита',
@@ -125,14 +133,16 @@ export const CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS: {
     label: string;
 }[] = [
     { value: 'active', label: 'Актуальные' },
+    { value: 'mirror', label: 'Голубые (зеркало)' },
     { value: 'access', label: 'Есть доступ' },
     { value: 'request', label: 'Белые / по запросу' },
 ];
 
 const CHESSMATE_STATUS_ORDER: Record<ChessmateHotelHeaderStatus, number> = {
     active: 0,
-    access: 1,
-    request: 2,
+    mirror: 1,
+    access: 2,
+    request: 3,
 };
 
 export const getChessmateHotelHeaderStatus = (
@@ -141,6 +151,11 @@ export const getChessmateHotelHeaderStatus = (
     if (!title) return undefined;
 
     const normalizedTitle = normalizeHotelTitle(title);
+
+    // Голубые (зеркало) — приоритетнее прочих статусов.
+    if (MIRROR_HOTEL_TITLES.has(normalizedTitle)) {
+        return 'mirror';
+    }
 
     if (REALTYCALENDAR_INTEGRATED_HOTEL_TITLES.has(normalizedTitle)) {
         return 'active';

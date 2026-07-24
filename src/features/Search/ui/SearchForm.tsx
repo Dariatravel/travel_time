@@ -71,7 +71,7 @@ export const searchFormSchema = z.object({
     /** Категория отеля */
     category: z.string().optional(),
     /** Статус отеля по цвету шахматки */
-    chessmateStatus: z.enum(['active', 'access', 'request']).optional(),
+    chessmateStatus: z.enum(['active', 'mirror', 'access', 'request']).optional(),
     /** Дата начала бронирования */
     dateFrom: z.date().optional(),
     /** Дата окончания бронирования */
@@ -140,6 +140,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
 
         if (
             urlChessmateStatus === 'active' ||
+            urlChessmateStatus === 'mirror' ||
             urlChessmateStatus === 'access' ||
             urlChessmateStatus === 'request'
         ) {
