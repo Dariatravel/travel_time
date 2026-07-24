@@ -78,6 +78,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     лазурит: 'access',
     лайм: 'active',
     лемар: 'access',
+    'лето квартира 2к': 'active',
     лимон: 'access',
     мадлена: 'active',
     'мандариновый дворик дом под ключ': 'access',
