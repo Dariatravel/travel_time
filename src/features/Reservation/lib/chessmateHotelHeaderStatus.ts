@@ -138,11 +138,13 @@ export const CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS: {
     { value: 'request', label: 'Белые / по запросу' },
 ];
 
+// Голубые (mirror) идут в одной группе с зелёными (active) и сортируются
+// вперемешку по алфавиту — цвет их всё равно различает. Дальше жёлтые, белые.
 const CHESSMATE_STATUS_ORDER: Record<ChessmateHotelHeaderStatus, number> = {
     active: 0,
-    mirror: 1,
-    access: 2,
-    request: 3,
+    mirror: 0,
+    access: 1,
+    request: 2,
 };
 
 export const getChessmateHotelHeaderStatus = (
