@@ -7,6 +7,7 @@ type MirrorRefreshResult = {
     inserted?: number;
     skipped?: number;
     ourReserves?: number;
+    movedBookings?: number;
 };
 
 const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -43,7 +44,10 @@ export const useRefreshMirror = (hotelId?: string) => {
                     includeHotelList: true,
                 });
             }
-            showToast(`Занятость обновлена (добавлено меток: ${result?.inserted ?? 0})`, 'success');
+            showToast(
+                `Занятость обновлена: меток ${result?.inserted ?? 0}, переставлено броней ${result?.movedBookings ?? 0}`,
+                'success',
+            );
         },
         onError: (error: Error) => {
             showToast(error.message || 'Не удалось обновить занятость', 'error');
