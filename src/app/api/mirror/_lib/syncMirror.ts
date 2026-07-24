@@ -1,6 +1,9 @@
-// Оркестратор голубой шахматки: тянет занятость из чужого источника и
-// приводит нашу шахматку в зеркало — наши брони не трогаем, дописываем/
-// пересобираем только внешние метки (external_source='mirror_shelter').
+// Оркестратор голубой шахматки. Приводит нашу шахматку к зеркалу чужого
+// календаря:
+//  v2 — наши брони упаковываются вниз по строкам-номерам (ДАТЫ не меняются,
+//       только room_id, каждый переезд в свободную строку → без конфликтов А1);
+//  затем внешняя занятость по категории «занято N из M» дописывается метками
+//  «Занято» на свободные номера (external_source='mirror_shelter').
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -8,6 +11,7 @@ import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 import { computeMirrorMarkers, type OurReserve } from './computeMirrorReserves';
 import { getMirrorSource } from './mirrorSources';
+import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
 
 const MIRROR_SOURCE_TAG = 'mirror_shelter';
@@ -18,10 +22,20 @@ export type MirrorSyncResult = {
     dryRun: boolean;
     roomsTotal: number;
     ourReserves: number;
+    movedBookings: number;
     markersPlanned: number;
     inserted: number;
     skipped: number;
+    moves?: RepackMove[];
     markers?: Array<{ roomId: string; start: number; end: number }>;
+};
+
+type ReserveRow = {
+    id: string;
+    room_id: string;
+    start: number;
+    end: number;
+    external_source: string | null;
 };
 
 export const syncMirrorForHotel = async (
@@ -56,22 +70,43 @@ export const syncMirrorForHotel = async (
     // 2. Наши брони в этих номерах (всё, кроме наших же зеркальных меток).
     const { data: rows, error } = await supabase
         .from('reserves')
-        .select('room_id, start, end, external_source')
+        .select('id, room_id, start, end, external_source')
         .in('room_id', allRoomIds);
     if (error) {
         throw new Error(error.message);
     }
-    const ourReserves: OurReserve[] = (rows ?? [])
-        .filter((row) => row.external_source !== MIRROR_SOURCE_TAG)
-        .map((row) => ({ room_id: row.room_id, start: row.start, end: row.end }));
+    const ourRows = ((rows ?? []) as ReserveRow[]).filter(
+        (row) => row.external_source !== MIRROR_SOURCE_TAG,
+    );
 
-    // 3. Вычислить внешние метки (наши брони + метки = занятость у отельера).
+    // 3. v2: упаковка вниз по каждой категории — последовательность переездов
+    //    и итоговые позиции наших броней.
+    const allMoves: RepackMove[] = [];
+    const finalRoomByReserveId = new Map<string, string>();
+    for (const category of source.categories) {
+        const catRoomSet = new Set(category.roomIds);
+        const catBookings: RepackBooking[] = ourRows
+            .filter((row) => catRoomSet.has(row.room_id))
+            .map((row) => ({ id: row.id, roomId: row.room_id, start: row.start, end: row.end }));
+        const { moves, finalRoomById } = computePullDownRepack(category.roomIds, catBookings);
+        allMoves.push(...moves);
+        for (const [id, roomId] of finalRoomById) finalRoomByReserveId.set(id, roomId);
+    }
+
+    // Наши брони в ИТОГОВЫХ позициях (для расчёта меток).
+    const repackedReserves: OurReserve[] = ourRows.map((row) => ({
+        room_id: finalRoomByReserveId.get(row.id) ?? row.room_id,
+        start: row.start,
+        end: row.end,
+    }));
+
+    // 4. Внешние метки поверх упакованных броней.
     const markers = computeMirrorMarkers(
         source.categories.map((category) => ({
             roomIds: category.roomIds,
             occupancy: occByCategory.get(category.categoryId)!,
         })),
-        ourReserves,
+        repackedReserves,
     );
 
     if (dryRun) {
@@ -79,15 +114,19 @@ export const syncMirrorForHotel = async (
             hotelId,
             dryRun: true,
             roomsTotal: allRoomIds.length,
-            ourReserves: ourReserves.length,
+            ourReserves: ourRows.length,
+            movedBookings: allMoves.length,
             markersPlanned: markers.length,
             inserted: 0,
             skipped: 0,
+            moves: allMoves,
             markers,
         };
     }
 
-    // 4. Убрать прежние зеркальные метки этого отеля.
+    const syncedAt = new Date().toISOString();
+
+    // 5. Убрать прежние зеркальные метки (освобождает строки под перестановку).
     const { error: deleteError } = await supabase
         .from('reserves')
         .delete()
@@ -97,9 +136,23 @@ export const syncMirrorForHotel = async (
         throw new Error(deleteError.message);
     }
 
-    // 5. Вставить новые метки по одной; пересечения с нашими бронями (А1, 23P01)
-    //    пропускаем — наши брони главнее.
-    const syncedAt = new Date().toISOString();
+    // 6. Применить переезды В ТОМ ЖЕ ПОРЯДКЕ — каждый в свободную строку. Если
+    //    строка вдруг занята (закрытие номера и т.п.) — пропускаем эту бронь,
+    //    не роняя синк.
+    let movedBookings = 0;
+    for (const move of allMoves) {
+        const { error: moveError } = await supabase
+            .from('reserves')
+            .update({ room_id: move.toRoomId })
+            .eq('id', move.id);
+        if (!moveError) {
+            movedBookings += 1;
+        } else if (!(moveError.code === '23P01' || moveError.message?.includes('Наложение'))) {
+            throw new Error(moveError.message);
+        }
+    }
+
+    // 7. Вставить новые метки; пересечения с нашими бронями (А1) пропускаем.
     let inserted = 0;
     let skipped = 0;
     for (const marker of markers) {
@@ -130,14 +183,14 @@ export const syncMirrorForHotel = async (
         }
     }
 
-    // Сбросить серверный кэш календарей, чтобы шахматка обновилась сразу.
     deleteCacheByPrefix('hotel-calendar:');
 
     return {
         hotelId,
         dryRun: false,
         roomsTotal: allRoomIds.length,
-        ourReserves: ourReserves.length,
+        ourReserves: ourRows.length,
+        movedBookings,
         markersPlanned: markers.length,
         inserted,
         skipped,
