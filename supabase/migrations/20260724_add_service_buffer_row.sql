@@ -23,7 +23,9 @@ ALTER TABLE public.rooms
 COMMENT ON COLUMN public.rooms.is_service IS
     'Служебная строка «Буфер для переноса»: видна в шахматке, но исключена из поиска и статистики.';
 
--- 2) По одному буферу на КАЖДЫЙ отель (у кого его ещё нет).
+-- 2) По одному буферу на отель — но ТОЛЬКО у отелей с >1 реальным номером.
+--    ПРАВИЛО: в одно-номерных отелях/квартирах буфер не нужен (переставлять
+--    внутри нечего). См. также 20260725_no_buffer_for_single_room.sql.
 --    image_title/image_path в rooms — NOT NULL без дефолта, поэтому явные ''.
 --    order большим значением — как запасной ориентир; фронт всё равно ставит
 --    буфер последним по is_service, не полагаясь на order.
@@ -32,7 +34,10 @@ SELECT h.id, 'Буфер для переноса', 0, 0, '', '', 30000, 'service
 FROM public.hotels h
 WHERE NOT EXISTS (
     SELECT 1 FROM public.rooms r WHERE r.hotel_id = h.id AND r.is_service = true
-);
+)
+AND (
+    SELECT count(*) FROM public.rooms r2 WHERE r2.hotel_id = h.id AND r2.is_service IS NOT TRUE
+) > 1;
 
 -- 3) Поиск: основной RPC — исключаем служебные строки.
 --    r.is_service IS NOT TRUE сохраняет и отели без номеров (r.id IS NULL → NULL → TRUE).

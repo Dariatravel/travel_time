@@ -16,7 +16,8 @@ const normalizeHotelTitle = (title: string) =>
 // привязка отель→источник лежит на сервере в mirrorSources.ts.
 const MIRROR_HOTEL_TITLES = new Set<string>([
     'сан амра sun amra',
-    'студио сан амра',
+    // «Студио Сан Амра» — один номер, поэтому НЕ голубая (кнопка не нужна),
+    // а зелёная с автосинхронизацией из FrontDesk24 (крон mirror-sync-cron).
 ]);
 
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
@@ -110,6 +111,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'ранчо эли вэл': 'active',
     рита: 'access',
     'сан амра sun amra': 'access',
+    'студио сан амра': 'active',
     'сан пино sun pino': 'access',
     'санди хаус': 'active',
     'санни хоум': 'access',
