@@ -18,6 +18,8 @@ const MIRROR_HOTEL_TITLES = new Set<string>([
     'сан амра sun amra',
     // «Студио Сан Амра» — один номер, поэтому НЕ голубая (кнопка не нужна),
     // а зелёная с автосинхронизацией из FrontDesk24 (крон mirror-sync-cron).
+    // «Нора» — Shelter/FrontDesk24, категория «Стандарт» (4 номера = все наши 4).
+    'нора',
 ]);
 
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
