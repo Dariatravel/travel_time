@@ -1,16 +1,18 @@
 // Оркестратор голубой шахматки. Приводит нашу шахматку к зеркалу чужого
-// календаря:
-//  v2 — наши брони упаковываются вниз по строкам-номерам (ДАТЫ не меняются,
-//       только room_id, каждый переезд в свободную строку → без конфликтов А1);
-//  затем внешняя занятость по категории «занято N из M» дописывается метками
-//  «Занято» на свободные номера (external_source='mirror_shelter').
+// календаря. Два вида источника:
+//  • Shelter (по категориям): наши брони упаковываются вниз по строкам-номерам
+//    (ДАТЫ не меняются, только room_id), затем «занято N из M» дописывается
+//    метками на свободные номера (external_source='mirror_shelter');
+//  • Google-таблица (по-номерно): зеркалим занятость на конкретные номера,
+//    перестановка не нужна; метки external_source=<tag источника>.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 import { computeMirrorMarkers, type OurReserve } from './computeMirrorReserves';
-import { getMirrorSource } from './mirrorSources';
+import { NIGHT, readGoogleSheetOccupancy, type GoogleSheetSource } from './googleSheet';
+import { getMirrorSource, type ShelterMirrorSource } from './mirrorSources';
 import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
 
@@ -43,16 +45,162 @@ export const syncMirrorForHotel = async (
     hotelId: string,
     options: { dryRun?: boolean; horizonDays?: number } = {},
 ): Promise<MirrorSyncResult> => {
-    const dryRun = options.dryRun === true;
-    const horizonDays = options.horizonDays ?? 365;
-
     const source = getMirrorSource(hotelId);
     if (!source) {
         throw new Error('Для этого отеля не настроено зеркало занятости');
     }
-    if (source.system !== 'shelter') {
-        throw new Error('Пока поддерживается только источник Shelter');
+    if (source.system === 'googlesheet') {
+        return syncGoogleSheet(supabase, hotelId, source, options);
     }
+    return syncShelter(supabase, hotelId, source, options);
+};
+
+// ---------------------------------------------------------------------------
+// Google-таблица: по-номерно, без перестановки.
+// ---------------------------------------------------------------------------
+const syncGoogleSheet = async (
+    supabase: SupabaseClient,
+    hotelId: string,
+    source: GoogleSheetSource,
+    options: { dryRun?: boolean },
+): Promise<MirrorSyncResult> => {
+    const dryRun = options.dryRun === true;
+
+    // 1. Наши номера отеля: номер (из названия) → room_id.
+    const { data: roomRows, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id, title, is_service')
+        .eq('hotel_id', hotelId);
+    if (roomsError) {
+        throw new Error(roomsError.message);
+    }
+    const numToRoomId = new Map<number, string>();
+    for (const room of (roomRows ?? []) as Array<{
+        id: string;
+        title: string | null;
+        is_service: boolean | null;
+    }>) {
+        if (room.is_service) continue;
+        const match = /номер\s*(\d+)/i.exec(room.title ?? '');
+        if (match) numToRoomId.set(Number(match[1]), room.id);
+    }
+    const roomIds = [...numToRoomId.values()];
+
+    // 2. Занятость из таблицы (по-номерно).
+    const stays = await readGoogleSheetOccupancy(source);
+
+    // 3. Наши брони на этих номерах (кроме наших же меток этого источника).
+    const { data: rows, error } = await supabase
+        .from('reserves')
+        .select('id, room_id, start, end, external_source')
+        .in('room_id', roomIds);
+    if (error) {
+        throw new Error(error.message);
+    }
+    const ourRows = ((rows ?? []) as ReserveRow[]).filter((row) => row.external_source !== source.tag);
+    const ourNights = new Map<string, Set<number>>();
+    for (const row of ourRows) {
+        let set = ourNights.get(row.room_id);
+        if (!set) {
+            set = new Set();
+            ourNights.set(row.room_id, set);
+        }
+        for (let n = Math.floor(row.start / NIGHT); n < Math.floor(row.end / NIGHT); n += 1) set.add(n);
+    }
+
+    // 4. Метки: занятость с таблицы, пропуская пересечения с нашими бронями (А1).
+    const markers: Array<{ roomId: string; start: number; end: number }> = [];
+    let skipped = 0;
+    for (const stay of stays) {
+        const roomId = numToRoomId.get(stay.roomNumber);
+        if (!roomId) continue;
+        const nights: number[] = [];
+        for (let n = Math.floor(stay.start / NIGHT); n < Math.floor(stay.end / NIGHT); n += 1) nights.push(n);
+        const our = ourNights.get(roomId);
+        if (our && nights.some((n) => our.has(n))) {
+            skipped += 1;
+            continue;
+        }
+        markers.push({ roomId, start: stay.start, end: stay.end });
+    }
+
+    if (dryRun) {
+        return {
+            hotelId,
+            dryRun: true,
+            roomsTotal: roomIds.length,
+            ourReserves: ourRows.length,
+            movedBookings: 0,
+            markersPlanned: markers.length,
+            inserted: 0,
+            skipped,
+            markers,
+        };
+    }
+
+    const syncedAt = new Date().toISOString();
+    const { error: deleteError } = await supabase
+        .from('reserves')
+        .delete()
+        .eq('external_source', source.tag)
+        .in('room_id', roomIds);
+    if (deleteError) {
+        throw new Error(deleteError.message);
+    }
+
+    let inserted = 0;
+    for (const marker of markers) {
+        const { error: insertError } = await supabase.from('reserves').insert({
+            room_id: marker.roomId,
+            start: marker.start,
+            end: marker.end,
+            guest: source.guest,
+            phone: '',
+            price: 0,
+            quantity: 1,
+            comment: 'Занятость из таблицы отельера (зеркало)',
+            created_by: source.tag,
+            edited_at: syncedAt,
+            edited_by: source.tag,
+            external_source: source.tag,
+            external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
+            external_feed_url: `https://docs.google.com/spreadsheets/d/${source.sheetId}`,
+            external_synced_at: syncedAt,
+        });
+        if (!insertError) {
+            inserted += 1;
+        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
+            skipped += 1;
+        } else {
+            throw new Error(insertError.message);
+        }
+    }
+
+    deleteCacheByPrefix('hotel-calendar:');
+
+    return {
+        hotelId,
+        dryRun: false,
+        roomsTotal: roomIds.length,
+        ourReserves: ourRows.length,
+        movedBookings: 0,
+        markersPlanned: markers.length,
+        inserted,
+        skipped,
+    };
+};
+
+// ---------------------------------------------------------------------------
+// Shelter: по категориям, с упаковкой наших броний вниз (v2).
+// ---------------------------------------------------------------------------
+const syncShelter = async (
+    supabase: SupabaseClient,
+    hotelId: string,
+    source: ShelterMirrorSource,
+    options: { dryRun?: boolean; horizonDays?: number },
+): Promise<MirrorSyncResult> => {
+    const dryRun = options.dryRun === true;
+    const horizonDays = options.horizonDays ?? 365;
 
     const allRoomIds = source.categories.flatMap((category) => category.roomIds);
 
@@ -79,8 +227,7 @@ export const syncMirrorForHotel = async (
         (row) => row.external_source !== MIRROR_SOURCE_TAG,
     );
 
-    // 3. v2: упаковка вниз по каждой категории — последовательность переездов
-    //    и итоговые позиции наших броней.
+    // 3. v2: упаковка вниз по каждой категории.
     const allMoves: RepackMove[] = [];
     const finalRoomByReserveId = new Map<string, string>();
     for (const category of source.categories) {
@@ -93,7 +240,6 @@ export const syncMirrorForHotel = async (
         for (const [id, roomId] of finalRoomById) finalRoomByReserveId.set(id, roomId);
     }
 
-    // Наши брони в ИТОГОВЫХ позициях (для расчёта меток).
     const repackedReserves: OurReserve[] = ourRows.map((row) => ({
         room_id: finalRoomByReserveId.get(row.id) ?? row.room_id,
         start: row.start,
@@ -126,7 +272,7 @@ export const syncMirrorForHotel = async (
 
     const syncedAt = new Date().toISOString();
 
-    // 5. Убрать прежние зеркальные метки (освобождает строки под перестановку).
+    // Убрать прежние зеркальные метки (освобождает строки под перестановку).
     const { error: deleteError } = await supabase
         .from('reserves')
         .delete()
@@ -136,9 +282,7 @@ export const syncMirrorForHotel = async (
         throw new Error(deleteError.message);
     }
 
-    // 6. Применить переезды В ТОМ ЖЕ ПОРЯДКЕ — каждый в свободную строку. Если
-    //    строка вдруг занята (закрытие номера и т.п.) — пропускаем эту бронь,
-    //    не роняя синк.
+    // Применить переезды В ТОМ ЖЕ ПОРЯДКЕ — каждый в свободную строку.
     let movedBookings = 0;
     for (const move of allMoves) {
         const { error: moveError } = await supabase
@@ -152,7 +296,7 @@ export const syncMirrorForHotel = async (
         }
     }
 
-    // 7. Вставить новые метки; пересечения с нашими бронями (А1) пропускаем.
+    // Вставить новые метки; пересечения с нашими бронями (А1) пропускаем.
     let inserted = 0;
     let skipped = 0;
     for (const marker of markers) {

@@ -3,7 +3,7 @@
 // (не секрет): их и так отдаёт страница бронирования. Чтение занятости
 // категорийное — по каждой категории считаем «занято = номеров − свободно».
 
-export type MirrorSystem = 'shelter';
+import type { GoogleSheetSource } from './googleSheet';
 
 export type MirrorCategory = {
     /** id категории в системе-источнике (FrontDesk24 roomCategoryID). */
@@ -12,8 +12,8 @@ export type MirrorCategory = {
     roomIds: string[];
 };
 
-export type MirrorSource = {
-    system: MirrorSystem;
+export type ShelterMirrorSource = {
+    system: 'shelter';
     /** Публичный токен виджета бронирования с сайта отеля. */
     token: string;
     /** URL страницы бронирования — только для пометки external_feed_url. */
@@ -21,8 +21,28 @@ export type MirrorSource = {
     categories: MirrorCategory[];
 };
 
+// Источник занятости голубой шахматки: Shelter (по категориям) либо
+// Google-таблица отельера (по-номерно).
+export type MirrorSource = ShelterMirrorSource | GoogleSheetSource;
+
 // Ключ — наш hotel_id.
 export const MIRROR_SOURCES: Record<string, MirrorSource> = {
+    // «САНРАЙЗ гостевой дом» — Google-таблица (лист=месяц, столбец A=номер).
+    // Лист-номера 1,2 → наши №1,2 (этаж1); 21-26 → №3-8 (этаж2); 31-36 → №9-14 (этаж3).
+    '85a123c0-2b66-4dc2-826f-2999d6e6b3fe': {
+        system: 'googlesheet',
+        tag: 'googlesheet_sunrise',
+        sheetId: '16jmZEO_nWlZSY5hVS6F7rSzAxW9CRWlhppcV3XU-lms',
+        headerRow: 0,
+        year: 2026,
+        months: { 'Май': 5, 'Июнь': 6, 'Июль': 7, 'Август': 8, 'Сентябрь': 9 },
+        roomMap: {
+            '1': 1, '2': 2,
+            '21': 3, '22': 4, '23': 5, '24': 6, '25': 7, '26': 8,
+            '31': 9, '32': 10, '33': 11, '34': 12, '35': 13, '36': 14,
+        },
+        guest: 'Занято (Санрайз)',
+    },
     // «Сан Амра  Sun Amra» — категория FrontDesk24 53918 «Двухкомнатные» (6 номеров).
     '97e23cef-ee78-435c-868b-b8c8afda23fa': {
         system: 'shelter',

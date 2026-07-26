@@ -20,6 +20,9 @@ const MIRROR_HOTEL_TITLES = new Set<string>([
     // а зелёная с автосинхронизацией из FrontDesk24 (крон mirror-sync-cron).
     // «Нора» — Shelter/FrontDesk24, категория «Стандарт» (4 номера = все наши 4).
     'нора',
+    // «САНРАЙЗ гостевой дом» — Google-таблица отельера (по-номерно, 14 номеров).
+    // Кнопка «Обновить» читает таблицу; плюс крон обновляет её каждый час.
+    'санрайз гостевой дом',
 ]);
 
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
