@@ -33,6 +33,7 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
         system: 'googlesheet',
         tag: 'googlesheet_sunrise',
         sheetId: '16jmZEO_nWlZSY5hVS6F7rSzAxW9CRWlhppcV3XU-lms',
+        mode: 'merge',
         headerRow: 0,
         year: 2026,
         months: { 'Май': 5, 'Июнь': 6, 'Июль': 7, 'Август': 8, 'Сентябрь': 9 },
@@ -41,7 +42,25 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
             '21': 3, '22': 4, '23': 5, '24': 6, '25': 7, '26': 8,
             '31': 9, '32': 10, '33': 11, '34': 12, '35': 13, '36': 14,
         },
+        roomTitleRegex: 'номер\\s*(\\d+)',
         guest: 'Занято (Санрайз)',
+    },
+    // «ФЕМЕЛИ» — Google-таблица, цветовой формат (бронь = заливка фона).
+    // Пока домики 1-12 (люксы в таблице сведены в 2 блока — отложено).
+    'd895000d-f7d9-428e-8863-59dd5ef06d50': {
+        system: 'googlesheet',
+        tag: 'googlesheet_femeli',
+        sheetId: '1q81E0jCexPCLelZJRJKF6TxYq_hXNPToIwk9701PFK0',
+        mode: 'color',
+        headerRow: 0, // в color не используется (шапка = первая строка блока)
+        year: 2026,
+        months: {
+            'МАЙ': 5, 'ИЮНЬ': 6, 'ИЮЛЬ': 7, 'АВГУСТ': 8,
+            'СЕНТЯБРЬ': 9, 'ОКТЯБРЬ': 10, 'НОЯБРЬ': 11,
+        },
+        labelPrefix: 'ДОМИК',
+        roomTitleRegex: 'Домик\\s*(\\d+)',
+        guest: 'Занято (Фемели)',
     },
     // «Сан Амра  Sun Amra» — категория FrontDesk24 53918 «Двухкомнатные» (6 номеров).
     '97e23cef-ee78-435c-868b-b8c8afda23fa': {

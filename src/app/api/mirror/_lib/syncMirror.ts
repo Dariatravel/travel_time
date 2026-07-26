@@ -75,13 +75,14 @@ const syncGoogleSheet = async (
         throw new Error(roomsError.message);
     }
     const numToRoomId = new Map<number, string>();
+    const roomRe = new RegExp(source.roomTitleRegex, 'i');
     for (const room of (roomRows ?? []) as Array<{
         id: string;
         title: string | null;
         is_service: boolean | null;
     }>) {
         if (room.is_service) continue;
-        const match = /номер\s*(\d+)/i.exec(room.title ?? '');
+        const match = roomRe.exec(room.title ?? '');
         if (match) numToRoomId.set(Number(match[1]), room.id);
     }
     const roomIds = [...numToRoomId.values()];
