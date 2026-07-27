@@ -161,8 +161,16 @@ export const deleteRoomApi = async (id: string) => {
  * @returns Promise с результатом обновления
  */
 export const updateRoomOrder = async (hotelId: string, rooms: RoomDTO[]) => {
-    // Теперь сброс order не требуется, так как upsert обновляет все поля
-    const { data, error } = await supabase.from('rooms').upsert(rooms, { onConflict: 'id' });
+    // Убираем вычисляемые/служебные поля, которых нет в таблице rooms
+    // (напр. hasBufferBooking из buildTimelineGroups, reserves из join) —
+    // иначе upsert падает «Could not find the 'hasBufferBooking' column».
+    const sanitized = rooms.map((room) => {
+        const clean = { ...room } as Record<string, unknown>;
+        delete clean.hasBufferBooking;
+        delete clean.reserves;
+        return clean;
+    });
+    const { data, error } = await supabase.from('rooms').upsert(sanitized, { onConflict: 'id' });
 
     if (error) {
         throw new Error(`Ошибка при обновлении порядка номеров: ${error.message}`);
