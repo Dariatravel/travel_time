@@ -2,7 +2,7 @@ name: Mirror Occupancy Cron
 
 on:
   schedule:
-    - cron: '30 */6 * * *'
+    - cron: '30 */2 * * *'   # каждые 2 часа (Студио + Сан Амра + Нора)
   workflow_dispatch:
 
 jobs:

@@ -9,15 +9,55 @@ import { createClient } from '@supabase/supabase-js';
 const NIGHT = 86400;
 const MIRROR_SOURCE_TAG = 'mirror_shelter';
 const FD_AVAILABLE_DATES = 'https://pms.frontdesk24.ru/api/online/getAvailableDates';
+const FD_VARIANTS = 'https://pms.frontdesk24.ru/api/online/getVariants';
 const HORIZON_DAYS = 365;
+const FETCH_BATCH = 8;
 
-// Авто-источники (помечены как зелёные-автосинк). Токены — публичные (виджет).
+// Авто-источники Shelter/FrontDesk24. Фоновый крон (без лимита 30с у кнопки),
+// поэтому сюда вынесены и многономерные Сан Амра/Нора: читалка по кнопке на них
+// упиралась в таймаут (getVariants на каждый свободный день, ~200с). Токены —
+// публичные (виджет). Перестановку наших броней НЕ делаем: только дописываем
+// метки занятости на свободные номера.
 const AUTO_SOURCES = [
     {
         hotel: 'Студио Сан Амра',
         token: 'C16A5147-C3A7-47F6-8C2E-C4627A0B4DA1',
         widgetUrl: 'https://sun-amra.ru/book/',
         categories: [{ categoryId: 57715, roomIds: ['f328f032-b384-44f5-a522-b3bb2fee0be0'] }],
+    },
+    {
+        hotel: 'Сан Амра  Sun Amra',
+        token: 'C16A5147-C3A7-47F6-8C2E-C4627A0B4DA1',
+        widgetUrl: 'https://sun-amra.ru/book/',
+        categories: [
+            {
+                categoryId: 53918,
+                roomIds: [
+                    '352802ff-24e8-458f-b607-09ed6369e7dc',
+                    'f224b1b9-4bcd-4936-9d3e-0c0dc975edc9',
+                    '222565c4-6a5e-42ec-b576-72eb111706ad',
+                    'b8975d0e-3f36-49c0-9681-ccf7b984344a',
+                    'cbddcc7b-1973-4bca-8dff-dff6cc5c1b6c',
+                    '9260c303-e71b-4d7a-87a1-5eded6f78b72',
+                ],
+            },
+        ],
+    },
+    {
+        hotel: 'Нора',
+        token: '682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
+        widgetUrl: 'https://pms.frontdesk24.ru/onlineWidget/full.html?token=682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
+        categories: [
+            {
+                categoryId: 36753,
+                roomIds: [
+                    'd1210df3-28d7-4f03-9a86-ca1eb4a56ae5',
+                    'a55d7d23-a2bf-49e9-829c-c090a6233db9',
+                    'cdcfe88c-702a-4f05-8528-07db4aab130a',
+                    'fad57533-9f12-43ce-97fe-e5ccd8779f7d',
+                ],
+            },
+        ],
     },
 ];
 
@@ -28,13 +68,34 @@ const checkoutUnix = (d) => Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMont
 const nightOf = (unix) => Math.floor(unix / NIGHT);
 const dateOfNight = (night) => new Date(night * NIGHT * 1000);
 
-// getAvailableDates отдаёт СВОБОДНЫЕ даты по категориям (одним запросом).
-// Занято = дата в пределах календаря отеля, но НЕ свободна. Так мы НЕ теряем
-// полностью занятые дни (их getVariants вообще не перечисляет) и не помечаем
-// занятым «далёкое будущее без данных» (ограничиваем горизонт последней датой,
-// по которой у отеля вообще есть календарь).
-// Внимание: getAvailableDates даёт «свободно/нет», а не число свободных, поэтому
-// корректно только для категорий с ОДНИМ номером (наш авто-случай).
+// getVariants → число свободных номеров по категориям на конкретный день.
+const fetchAvailableRooms = async (token, dateFrom, dateTo) => {
+    const res = await fetch(FD_VARIANTS, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        cache: 'no-store',
+        body: JSON.stringify({
+            token,
+            language: 'ru',
+            dateFrom,
+            dateTo,
+            currency: 'RUB',
+            rooms: [{ adults: 2, children: [] }],
+            onlyRostourismProgram: 0,
+        }),
+    });
+    if (!res.ok) throw new Error(`FrontDesk24 getVariants: ${res.status}`);
+    const json = await res.json();
+    const out = new Map();
+    for (const item of json?.data?.[0] ?? []) out.set(item.id, item.availableRooms ?? 0);
+    return out;
+};
+
+// getAvailableDates отдаёт СВОБОДНЫЕ даты по категориям (одним запросом) + горизонт.
+// Занято = дата в горизонте, но НЕ свободна → всё занято; свободна → всего минус
+// число свободных (getVariants на этот день). getVariants НЕ перечисляет полностью
+// занятые категории, поэтому его считаем только по свободным дням. Многономерный
+// случай (Сан Амра/Нора) — потому крон, а не кнопка (нет лимита 30с).
 const readOccupancy = async (token, categories) => {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
@@ -62,25 +123,55 @@ const readOccupancy = async (token, categories) => {
         freeByCat.set(c.categoryId, new Set());
         maxNightByCat.set(c.categoryId, -1);
     }
+    const freeNights = new Set();
     for (const rec of json?.data ?? []) {
         const set = freeByCat.get(rec.roomCategoryID);
         if (!set) continue;
         const night = nightOf(checkinUnix(new Date(`${rec.date}T00:00:00Z`)));
         set.add(night);
+        freeNights.add(night);
         if (night > maxNightByCat.get(rec.roomCategoryID)) {
             maxNightByCat.set(rec.roomCategoryID, night);
         }
     }
 
+    // Число свободных номеров на свободные дни (батчами; сбой дня = «полностью
+    // свободно», т.е. недоучёт, а не падение всего крона).
+    const availByNight = new Map();
+    const nights = [...freeNights].sort((a, b) => a - b);
+    for (let i = 0; i < nights.length; i += FETCH_BATCH) {
+        const chunk = nights.slice(i, i + FETCH_BATCH);
+        const results = await Promise.all(
+            chunk.map(async (night) => {
+                const day = dateOfNight(night);
+                const next = new Date(day);
+                next.setUTCDate(next.getUTCDate() + 1);
+                try {
+                    return { night, avail: await fetchAvailableRooms(token, isoDate(day), isoDate(next)) };
+                } catch {
+                    return { night, avail: new Map() };
+                }
+            }),
+        );
+        for (const { night, avail } of results) availByNight.set(night, avail);
+    }
+
     const todayNight = nightOf(checkinUnix(today));
     const occ = new Map();
     for (const c of categories) {
-        const total = c.roomIds.length; // авто-случай: 1
+        const total = c.roomIds.length;
         const free = freeByCat.get(c.categoryId);
         const maxNight = maxNightByCat.get(c.categoryId);
         const byNight = new Map();
         for (let night = todayNight; night <= maxNight; night += 1) {
-            byNight.set(night, free.has(night) ? 0 : total);
+            let occupied;
+            if (free.has(night)) {
+                const availableRooms = availByNight.get(night)?.get(c.categoryId) ?? total;
+                occupied = Math.max(0, Math.min(total, total - availableRooms));
+            } else {
+                occupied = total;
+            }
+            byNight.set(night, occupied);
         }
         occ.set(c.categoryId, byNight);
     }
@@ -129,6 +220,7 @@ const main = async () => {
 
     const summary = [];
     for (const src of AUTO_SOURCES) {
+      try {
         const roomIds = src.categories.flatMap((c) => c.roomIds);
         const occ = await readOccupancy(src.token, src.categories);
 
@@ -180,6 +272,9 @@ const main = async () => {
         }
 
         summary.push({ hotel: src.hotel, markers: markers.length, inserted, skipped });
+      } catch (err) {
+        summary.push({ hotel: src.hotel, error: err instanceof Error ? err.message : String(err) });
+      }
     }
 
     console.log(JSON.stringify({ status: 'ok', summary }, null, 2));
