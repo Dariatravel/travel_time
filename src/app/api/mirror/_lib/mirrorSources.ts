@@ -19,6 +19,12 @@ export type ShelterMirrorSource = {
     /** URL страницы бронирования — только для пометки external_feed_url. */
     widgetUrl: string;
     categories: MirrorCategory[];
+    /**
+     * Кнопка «Обновить» не читает FrontDesk24 синхронно (для многономерных
+     * Сан Амра/Нора он медленный, ~200с > лимита 30с), а ЗАПУСКАЕТ фоновый
+     * mirror-крон. Сам крон обновляет их и по расписанию (каждые 2 часа).
+     */
+    asyncCron?: boolean;
 };
 
 // Источник занятости голубой шахматки: Shelter (по категориям) либо
@@ -67,6 +73,7 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
         system: 'shelter',
         token: 'C16A5147-C3A7-47F6-8C2E-C4627A0B4DA1',
         widgetUrl: 'https://sun-amra.ru/book/',
+        asyncCron: true, // FrontDesk24 медленный → кнопка запускает фоновый крон
         categories: [
             {
                 categoryId: 53918,
@@ -100,6 +107,7 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
         system: 'shelter',
         token: '682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
         widgetUrl: 'https://pms.frontdesk24.ru/onlineWidget/full.html?token=682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
+        asyncCron: true, // FrontDesk24 медленный → кнопка запускает фоновый крон
         categories: [
             {
                 categoryId: 36753,

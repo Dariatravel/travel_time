@@ -8,6 +8,8 @@ type MirrorRefreshResult = {
     skipped?: number;
     ourReserves?: number;
     movedBookings?: number;
+    /** Медленный отель: запущено фоновое обновление (крон), результат позже. */
+    started?: boolean;
 };
 
 const getAuthHeaders = async (): Promise<HeadersInit> => {
@@ -39,6 +41,14 @@ export const useRefreshMirror = (hotelId?: string) => {
             return refreshMirror(hotelId);
         },
         onSuccess: async (result) => {
+            // Медленный отель — крон запущен в фоне, данные появятся позже.
+            if (result?.started) {
+                showToast(
+                    'Обновление запущено — занятость появится через 1–2 минуты. Затем обновите страницу.',
+                    'success',
+                );
+                return;
+            }
             if (hotelId) {
                 await invalidateHotelChessmateQueries(queryClient, hotelId, {
                     includeHotelList: true,

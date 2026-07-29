@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+import { dispatchMirrorCron } from '@/app/api/mirror/_lib/dispatchCron';
+import { getMirrorSource } from '@/app/api/mirror/_lib/mirrorSources';
 import { syncMirrorForHotel } from '@/app/api/mirror/_lib/syncMirror';
 import {
     createSupabaseServerClient,
@@ -29,6 +31,15 @@ export async function POST(request: NextRequest) {
         const body = (await request.json()) as { hotelId?: string; dryRun?: boolean };
         if (!body?.hotelId) {
             return NextResponse.json({ error: 'hotelId обязателен' }, { status: 400 });
+        }
+
+        // Медленные Shelter-отели (Сан Амра/Нора): синхронно FrontDesk24 не
+        // укладывается в лимит 30с → кнопка ЗАПУСКАЕТ фоновый крон и сразу
+        // отвечает. Крон допишет занятость за пару минут (и сам идёт каждые 2ч).
+        const source = getMirrorSource(body.hotelId);
+        if (source?.system === 'shelter' && source.asyncCron && body.dryRun !== true) {
+            await dispatchMirrorCron();
+            return NextResponse.json({ result: { hotelId: body.hotelId, started: true } });
         }
 
         // Записи делает сервис-роль — надёжно и без зависимости от RLS.
