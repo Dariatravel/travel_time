@@ -27,12 +27,42 @@ export type ShelterMirrorSource = {
     asyncCron?: boolean;
 };
 
-// Источник занятости голубой шахматки: Shelter (по категориям) либо
-// Google-таблица отельера (по-номерно).
-export type MirrorSource = ShelterMirrorSource | GoogleSheetSource;
+export type IcalMirrorSource = {
+    system: 'ical';
+    /** тег меток: external_source. */
+    tag: string;
+    /** подпись метки-занятости. */
+    guest: string;
+    /**
+     * Категории: id публичного .ics ↔ префикс НАШИХ названий номеров этой
+     * категории (room_ids резолвим из БД, чтобы не хардкодить 30 uuid).
+     */
+    categories: Array<{ icalId: number; titlePrefix: string }>;
+};
+
+// Источник занятости голубой шахматки: Shelter (по категориям), Google-таблица
+// отельера (по-номерно) либо публичный iCal reservationsteps (по категориям).
+export type MirrorSource = ShelterMirrorSource | GoogleSheetSource | IcalMirrorSource;
 
 // Ключ — наш hotel_id.
 export const MIRROR_SOURCES: Record<string, MirrorSource> = {
+    // «Аврора Inn» — публичные iCal reservationsteps по 7 категориям (30 номеров).
+    // Голубая: обновляется по кнопке (и автоподтяжкой при подборе). Источник
+    // отдаёт только «категория занята целиком» — частичной занятости нет.
+    '2a437c49-d540-4416-8c21-a15e2bbed5b6': {
+        system: 'ical',
+        tag: 'ical_reservationsteps',
+        guest: 'Занято (Аврора, категория)',
+        categories: [
+            { icalId: 523508, titlePrefix: '2х местный стандарт с балконом' },
+            { icalId: 523509, titlePrefix: '2х местный комфорт с балконом' },
+            { icalId: 523510, titlePrefix: '2х местный стандарт с франц. балконом' },
+            { icalId: 587086, titlePrefix: '3х местный номер стандарт' },
+            { icalId: 523511, titlePrefix: '3х местный двухкомнатный с балконом' },
+            { icalId: 523512, titlePrefix: '4х местный семейный с балконом' },
+            { icalId: 618152, titlePrefix: '5-тиместный семейный номер с балконом' },
+        ],
+    },
     // «САНРАЙЗ гостевой дом» — Google-таблица (лист=месяц, столбец A=номер).
     // Лист-номера 1,2 → наши №1,2 (этаж1); 21-26 → №3-8 (этаж2); 31-36 → №9-14 (этаж3).
     '85a123c0-2b66-4dc2-826f-2999d6e6b3fe': {

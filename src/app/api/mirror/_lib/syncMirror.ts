@@ -12,7 +12,8 @@ import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 import { computeMirrorMarkers, type OurReserve } from './computeMirrorReserves';
 import { NIGHT, readGoogleSheetOccupancy, type GoogleSheetSource } from './googleSheet';
-import { getMirrorSource, type ShelterMirrorSource } from './mirrorSources';
+import { getMirrorSource, type IcalMirrorSource, type ShelterMirrorSource } from './mirrorSources';
+import { readIcalOccupancy } from './reservationstepsIcal';
 import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
 
@@ -52,7 +53,167 @@ export const syncMirrorForHotel = async (
     if (source.system === 'googlesheet') {
         return syncGoogleSheet(supabase, hotelId, source, options);
     }
+    if (source.system === 'ical') {
+        return syncIcal(supabase, hotelId, source, options);
+    }
     return syncShelter(supabase, hotelId, source, options);
+};
+
+// ---------------------------------------------------------------------------
+// Публичный iCal reservationsteps: по категориям, без перестановки.
+// Событие фида = «в категории нет свободных» → метки на ВСЕ её строки,
+// кроме тех, где на эти ночи уже стоит наша бронь.
+// ---------------------------------------------------------------------------
+const syncIcal = async (
+    supabase: SupabaseClient,
+    hotelId: string,
+    source: IcalMirrorSource,
+    options: { dryRun?: boolean; horizonDays?: number },
+): Promise<MirrorSyncResult> => {
+    const dryRun = options.dryRun === true;
+
+    const { data: roomRows, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id, title, is_service')
+        .eq('hotel_id', hotelId);
+    if (roomsError) {
+        throw new Error(roomsError.message);
+    }
+    const rooms = ((roomRows ?? []) as Array<{
+        id: string;
+        title: string | null;
+        is_service: boolean | null;
+    }>).filter((room) => !room.is_service);
+
+    const roomIdsByCategory = new Map<number, string[]>();
+    for (const category of source.categories) {
+        roomIdsByCategory.set(
+            category.icalId,
+            rooms
+                .filter(
+                    (room) =>
+                        room.title === category.titlePrefix ||
+                        (room.title ?? '').startsWith(`${category.titlePrefix} `),
+                )
+                .map((room) => room.id),
+        );
+    }
+    const allRoomIds = [...roomIdsByCategory.values()].flat();
+    if (allRoomIds.length === 0) {
+        throw new Error('Не найдены номера отеля для категорий источника');
+    }
+
+    const occupancy = await readIcalOccupancy(source.categories, options.horizonDays ?? 365);
+
+    const { data: rows, error } = await supabase
+        .from('reserves')
+        .select('id, room_id, start, end, external_source')
+        .in('room_id', allRoomIds);
+    if (error) {
+        throw new Error(error.message);
+    }
+    const ourRows = ((rows ?? []) as ReserveRow[]).filter((row) => row.external_source !== source.tag);
+    const ourNights = new Map<string, Set<number>>();
+    for (const row of ourRows) {
+        let nights = ourNights.get(row.room_id);
+        if (!nights) {
+            nights = new Set();
+            ourNights.set(row.room_id, nights);
+        }
+        for (let n = Math.floor(row.start / NIGHT); n < Math.floor(row.end / NIGHT); n += 1) {
+            nights.add(n);
+        }
+    }
+
+    const markers: Array<{ roomId: string; start: number; end: number; icalId: number }> = [];
+    let skipped = 0;
+    for (const category of occupancy) {
+        const roomIds = roomIdsByCategory.get(category.icalId) ?? [];
+        for (const interval of category.intervals) {
+            for (const roomId of roomIds) {
+                const ours = ourNights.get(roomId);
+                let clash = false;
+                if (ours) {
+                    for (let n = Math.floor(interval.start / NIGHT); n < Math.floor(interval.end / NIGHT); n += 1) {
+                        if (ours.has(n)) {
+                            clash = true;
+                            break;
+                        }
+                    }
+                }
+                if (clash) {
+                    skipped += 1;
+                    continue;
+                }
+                markers.push({ roomId, start: interval.start, end: interval.end, icalId: category.icalId });
+            }
+        }
+    }
+
+    if (dryRun) {
+        return {
+            hotelId,
+            dryRun: true,
+            roomsTotal: allRoomIds.length,
+            ourReserves: ourRows.length,
+            movedBookings: 0,
+            markersPlanned: markers.length,
+            inserted: 0,
+            skipped,
+            markers: markers.map(({ roomId, start, end }) => ({ roomId, start, end })),
+        };
+    }
+
+    const syncedAt = new Date().toISOString();
+    const { error: deleteError } = await supabase
+        .from('reserves')
+        .delete()
+        .eq('external_source', source.tag)
+        .in('room_id', allRoomIds);
+    if (deleteError) {
+        throw new Error(deleteError.message);
+    }
+
+    let inserted = 0;
+    for (const marker of markers) {
+        const { error: insertError } = await supabase.from('reserves').insert({
+            room_id: marker.roomId,
+            start: marker.start,
+            end: marker.end,
+            guest: source.guest,
+            phone: '',
+            price: 0,
+            quantity: 1,
+            comment: 'Категория продана целиком (зеркало, iCal)',
+            created_by: source.tag,
+            edited_at: syncedAt,
+            edited_by: source.tag,
+            external_source: source.tag,
+            external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
+            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
+            external_synced_at: syncedAt,
+        });
+        if (!insertError) {
+            inserted += 1;
+        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
+            skipped += 1;
+        } else {
+            throw new Error(insertError.message);
+        }
+    }
+
+    deleteCacheByPrefix('hotel-calendar:');
+
+    return {
+        hotelId,
+        dryRun: false,
+        roomsTotal: allRoomIds.length,
+        ourReserves: ourRows.length,
+        movedBookings: 0,
+        markersPlanned: markers.length,
+        inserted,
+        skipped,
+    };
 };
 
 // ---------------------------------------------------------------------------

@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         // Свежесть по каждому источнику — одним запросом (по тегам меток).
         const tags = new Set<string>([SHELTER_TAG]);
         for (const source of Object.values(MIRROR_SOURCES)) {
-            if (source.system === 'googlesheet') tags.add(source.tag);
+            if (source.system === 'googlesheet' || source.system === 'ical') tags.add(source.tag);
         }
         const { data: rows, error } = await supabase
             .from('reserves')
@@ -61,9 +61,9 @@ export async function POST(request: NextRequest) {
         const refreshed: string[] = [];
         let cronDispatched = false;
 
-        // Google-таблицы — быстрые, обновляем прямо здесь (по отелям).
+        // Google-таблицы и iCal — быстрые, обновляем прямо здесь (по отелям).
         for (const [hotelId, source] of Object.entries(MIRROR_SOURCES)) {
-            if (source.system !== 'googlesheet' || !isStale(source.tag)) continue;
+            if (source.system === 'shelter' || !isStale(source.tag)) continue;
             try {
                 await syncMirrorForHotel(supabase, hotelId);
                 refreshed.push(source.tag);
