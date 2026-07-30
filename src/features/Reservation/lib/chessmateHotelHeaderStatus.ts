@@ -45,7 +45,9 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     абаза: 'request',
     абырлаш: 'request',
     'адунеи гостевой дом': 'active',
-    'аврора inn': 'access',
+    // Аврора Inn — создана у нас 30.07.2026 (30 номеров по категориям
+    // reservationsteps), занятость авто-синкается из публичных iCal кроном.
+    'аврора inn': 'active',
     'аквамарин дом под ключ': 'active',
     александрия: 'access',
     амзара: 'request',

@@ -61,6 +61,26 @@ const AUTO_SOURCES = [
     },
 ];
 
+// Источники-iCal (reservationsteps/Bnovo): публичный .ics по категориям,
+// событие = интервал «в категории 0 свободных» → метки на ВСЕ строки категории.
+// Строки-номера резолвим из БД по префиксу названия (создание отеля — разово).
+const ICAL_SOURCES = [
+    {
+        hotel: 'Аврора Inn',
+        tag: 'ical_reservationsteps',
+        guest: 'Занято (Аврора, категория)',
+        categories: [
+            { icalId: 523508, titlePrefix: '2х местный стандарт с балконом' },
+            { icalId: 523509, titlePrefix: '2х местный комфорт с балконом' },
+            { icalId: 523510, titlePrefix: '2х местный стандарт с франц. балконом' },
+            { icalId: 587086, titlePrefix: '3х местный номер стандарт' },
+            { icalId: 523511, titlePrefix: '3х местный двухкомнатный с балконом' },
+            { icalId: 523512, titlePrefix: '4х местный семейный с балконом' },
+            { icalId: 618152, titlePrefix: '5-тиместный семейный номер с балконом' },
+        ],
+    },
+];
+
 const isoDate = (d) => d.toISOString().slice(0, 10);
 // Заезд 14:00 МСК = 11:00 UTC, выезд 12:00 МСК = 09:00 UTC.
 const checkinUnix = (d) => Math.floor(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 11) / 1000);
@@ -212,6 +232,120 @@ const computeMarkers = (categories, ourByRoom, occ) => {
     return markers;
 };
 
+// ---- iCal reservationsteps: чтение и запись меток по категориям ----
+const parseIcalEvents = (icsText) => {
+    const events = [];
+    for (const block of icsText.split('BEGIN:VEVENT').slice(1)) {
+        const m1 = /DTSTART[^:]*:(\d{8})/.exec(block);
+        const m2 = /DTEND[^:]*:(\d{8})/.exec(block);
+        if (!m1 || !m2) continue;
+        const parse = (s) => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
+        events.push({ from: parse(m1[1]), to: parse(m2[1]) });
+    }
+    return events;
+};
+
+const syncIcalSource = async (supabase, src) => {
+    // room_ids по категориям — из БД по префиксу названия.
+    const { data: hotels, error: hErr } = await supabase
+        .from('hotels')
+        .select('id')
+        .eq('title', src.hotel)
+        .limit(1);
+    if (hErr || !hotels?.length) throw new Error(`отель не найден: ${src.hotel}`);
+    const hotelId = hotels[0].id;
+    const { data: rooms, error: rErr } = await supabase
+        .from('rooms')
+        .select('id, title, is_service')
+        .eq('hotel_id', hotelId);
+    if (rErr) throw new Error(rErr.message);
+    const catRooms = new Map();
+    for (const c of src.categories) {
+        catRooms.set(
+            c.icalId,
+            (rooms ?? [])
+                .filter((r) => !r.is_service && (r.title === c.titlePrefix || r.title.startsWith(c.titlePrefix + ' ')))
+                .map((r) => r.id),
+        );
+    }
+    const allRoomIds = [...catRooms.values()].flat();
+
+    // наши брони (не метки этого источника) — их ночи не перекрываем
+    const { data: reserves, error: zErr } = await supabase
+        .from('reserves')
+        .select('room_id, start, end, external_source')
+        .in('room_id', allRoomIds);
+    if (zErr) throw new Error(zErr.message);
+    const ourNights = new Map(allRoomIds.map((r) => [r, new Set()]));
+    for (const z of reserves ?? []) {
+        if (z.external_source === src.tag) continue;
+        for (let n = nightOf(z.start); n < nightOf(z.end); n += 1) ourNights.get(z.room_id)?.add(n);
+    }
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+    const keep = (ev) => {
+        if (ev.to <= today) return false; // прошлое
+        if ((ev.to - ev.from) / 86400000 > 45) return false; // блок-закрытие продаж (31.12→…)
+        if (ev.from > new Date(today.getTime() + 365 * 86400000)) return false;
+        return true;
+    };
+
+    const markers = [];
+    for (const c of src.categories) {
+        const res = await fetch(`https://public-api.reservationsteps.ru/v1/api/ical/${c.icalId}`, { cache: 'no-store' });
+        if (!res.ok) continue; // категория недоступна — не роняем остальных
+        const events = parseIcalEvents(await res.text()).filter(keep);
+        for (const ev of events) {
+            const from = ev.from < today ? today : ev.from;
+            const start = checkinUnix(from);
+            const end = checkoutUnix(ev.to);
+            for (const roomId of catRooms.get(c.icalId) ?? []) {
+                // не перекрываем наши брони
+                let clash = false;
+                for (let n = nightOf(start); n < nightOf(end); n += 1) {
+                    if (ourNights.get(roomId)?.has(n)) { clash = true; break; }
+                }
+                if (!clash) markers.push({ roomId, start, end, icalId: c.icalId });
+            }
+        }
+    }
+
+    const { error: delErr } = await supabase
+        .from('reserves')
+        .delete()
+        .eq('external_source', src.tag)
+        .in('room_id', allRoomIds);
+    if (delErr) throw new Error(delErr.message);
+
+    const syncedAt = new Date().toISOString();
+    let inserted = 0;
+    let skipped = 0;
+    for (const m of markers) {
+        const { error: insErr } = await supabase.from('reserves').insert({
+            room_id: m.roomId,
+            start: m.start,
+            end: m.end,
+            guest: src.guest,
+            phone: '',
+            price: 0,
+            quantity: 1,
+            comment: 'Категория продана целиком (reservationsteps iCal)',
+            created_by: src.tag,
+            edited_at: syncedAt,
+            edited_by: src.tag,
+            external_source: src.tag,
+            external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
+            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
+            external_synced_at: syncedAt,
+        });
+        if (!insErr) inserted += 1;
+        else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
+        else throw new Error(insErr.message);
+    }
+    return { hotel: src.hotel, markers: markers.length, inserted, skipped };
+};
+
 const main = async () => {
     const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -275,6 +409,14 @@ const main = async () => {
       } catch (err) {
         summary.push({ hotel: src.hotel, error: err instanceof Error ? err.message : String(err) });
       }
+    }
+
+    for (const src of ICAL_SOURCES) {
+        try {
+            summary.push(await syncIcalSource(supabase, src));
+        } catch (err) {
+            summary.push({ hotel: src.hotel, error: err instanceof Error ? err.message : String(err) });
+        }
     }
 
     console.log(JSON.stringify({ status: 'ok', summary }, null, 2));
