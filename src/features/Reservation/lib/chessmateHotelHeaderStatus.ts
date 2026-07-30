@@ -133,6 +133,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'сухум дом под ключ': 'active',
     тис: 'access',
     'феникс дом под ключ': 'active',
+    'фламинго гостевой дом': 'active',
     'флора flora дом': 'active',
     эсма: 'access',
 };
