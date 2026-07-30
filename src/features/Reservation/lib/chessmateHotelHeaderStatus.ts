@@ -25,6 +25,10 @@ const MIRROR_HOTEL_TITLES = new Set<string>([
     'санрайз гостевой дом',
     // «ФЕМЕЛИ» — Google-таблица, цветовой формат (домики 1-12; люксы отложены).
     'фемели',
+    // «Аврора Inn» — iCal reservationsteps по категориям. Кнопка «Обновить»
+    // запускает фоновый mirror-крон (см. CRON_ONLY_MIRROR_HOTEL_TITLES
+    // в mirrorSources.ts); плюс крон обновляет её каждые 2 часа.
+    'аврора inn',
 ]);
 
 const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
@@ -45,9 +49,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     абаза: 'request',
     абырлаш: 'request',
     'адунеи гостевой дом': 'active',
-    // Аврора Inn — создана у нас 30.07.2026 (30 номеров по категориям
-    // reservationsteps), занятость авто-синкается из публичных iCal кроном.
-    'аврора inn': 'active',
+    // «Аврора Inn» — голубая (см. MIRROR_HOTEL_TITLES выше), запись из карты убрана.
     'аквамарин дом под ключ': 'active',
     александрия: 'access',
     амзара: 'request',

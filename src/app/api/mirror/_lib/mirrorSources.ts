@@ -123,3 +123,24 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
 };
 
 export const getMirrorSource = (hotelId: string): MirrorSource | undefined => MIRROR_SOURCES[hotelId];
+
+// Голубые отели, чьё зеркало обновляет ТОЛЬКО фоновый mirror-крон (например,
+// iCal-источники из ICAL_SOURCES в scripts/mirror-cron-sync.mjs). У них нет
+// записи в MIRROR_SOURCES (крон находит номера по названию отеля в БД),
+// поэтому кнопка «Обновить» для них просто запускает крон. Названия — в
+// нормализованном виде (как в chessmateHotelHeaderStatus).
+const CRON_ONLY_MIRROR_HOTEL_TITLES = new Set<string>([
+    // «Аврора Inn» — iCal reservationsteps по категориям (7 категорий, 30 номеров).
+    'аврора inn',
+]);
+
+const normalizeMirrorHotelTitle = (title: string) =>
+    title
+        .toLowerCase()
+        .replaceAll('ё', 'е')
+        .replace(/[“”"«»()\-.,]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+export const isCronOnlyMirrorHotelTitle = (title?: string | null): boolean =>
+    !!title && CRON_ONLY_MIRROR_HOTEL_TITLES.has(normalizeMirrorHotelTitle(title));

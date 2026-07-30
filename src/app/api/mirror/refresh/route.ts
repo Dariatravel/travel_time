@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { dispatchMirrorCron } from '@/app/api/mirror/_lib/dispatchCron';
-import { getMirrorSource } from '@/app/api/mirror/_lib/mirrorSources';
+import { getMirrorSource, isCronOnlyMirrorHotelTitle } from '@/app/api/mirror/_lib/mirrorSources';
 import { syncMirrorForHotel } from '@/app/api/mirror/_lib/syncMirror';
 import {
     createSupabaseServerClient,
@@ -44,6 +44,23 @@ export async function POST(request: NextRequest) {
 
         // Записи делает сервис-роль — надёжно и без зависимости от RLS.
         const supabase = createSupabaseServiceRoleClient();
+
+        // Отели без записи в MIRROR_SOURCES, чьё зеркало обновляет только
+        // фоновый крон (iCal-источники, например «Аврора Inn»): кнопка
+        // запускает крон и сразу отвечает — занятость допишется за пару минут.
+        if (!source && body.dryRun !== true) {
+            const { data: hotelRow } = await supabase
+                .from('hotels')
+                .select('title')
+                .eq('id', body.hotelId)
+                .single();
+
+            if (isCronOnlyMirrorHotelTitle(hotelRow?.title)) {
+                await dispatchMirrorCron();
+                return NextResponse.json({ result: { hotelId: body.hotelId, started: true } });
+            }
+        }
+
         const result = await syncMirrorForHotel(supabase, body.hotelId, {
             dryRun: body.dryRun === true,
         });
