@@ -18,6 +18,22 @@ const getAuthHeaders = async (): Promise<HeadersInit> => {
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
+/**
+ * Автоподтяжка протухших голубых шахматок при подборе (fire-and-forget).
+ * Ошибки глотаем: обновление зеркал не должно мешать самому поиску.
+ */
+export const refreshStaleMirrors = async (): Promise<void> => {
+    try {
+        await fetch('/api/mirror/refresh-stale', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(await getAuthHeaders()) },
+            body: JSON.stringify({}),
+        });
+    } catch {
+        // молча — фоновая операция
+    }
+};
+
 export const refreshMirror = async (hotelId: string): Promise<MirrorRefreshResult> => {
     const response = await fetch('/api/mirror/refresh', {
         method: 'POST',

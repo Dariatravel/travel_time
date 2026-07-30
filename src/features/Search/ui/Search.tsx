@@ -71,7 +71,8 @@ export const SearchFeature: FC<SearchFeatureProps> = ({ onSearchCb }: SearchFeat
 
     const onSearch = async () => {
         const filter: Partial<TravelFilterType> = {
-            type: category ?? undefined,
+            // Фильтр категорий стал множественным; здесь селект одиночный.
+            type: category ? [category] : undefined,
             start: start_time,
             end: end_time,
             quantity: quantity ?? undefined,

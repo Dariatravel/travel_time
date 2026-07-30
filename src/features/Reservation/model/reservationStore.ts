@@ -13,7 +13,7 @@ export const getHotelsWithFreeRoomsFx = createEffect(
     start?: number
     end?: number
     quantity?: number
-    type?: string
+    type?: string[]
   }) => {
     const result = await getHotelsWithFreeRooms({ start, end, quantity, type })
     return result

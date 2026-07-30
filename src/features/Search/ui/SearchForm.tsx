@@ -28,6 +28,7 @@ import {
     sortHotelOptionsByLabel,
 } from '@/shared/lib/adaptHotel';
 import { useDeviceDetection } from '@/shared/lib/useDeviceDetection';
+import { refreshStaleMirrors } from '@/shared/api/mirror/mirror';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
 import {
     $hotelsFilter,
@@ -68,10 +69,10 @@ export const searchFormSchema = z.object({
             }),
         )
         .default([]),
-    /** Категория отеля */
-    category: z.string().optional(),
-    /** Статус отеля по цвету шахматки */
-    chessmateStatus: z.enum(['active', 'mirror', 'access', 'request']).optional(),
+    /** Категории номеров (мультивыбор; пусто = все) */
+    category: z.array(z.string()).default([]),
+    /** Статусы шахматки по цвету (мультивыбор; пусто = все) */
+    chessmateStatus: z.array(z.enum(['active', 'mirror', 'access', 'request'])).default([]),
     /** Дата начала бронирования */
     dateFrom: z.date().optional(),
     /** Дата окончания бронирования */
@@ -102,8 +103,8 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         resolver: zodResolver(searchFormSchema) as Resolver<SearchFormSchema>,
         defaultValues: {
             hotels: [],
-            category: undefined,
-            chessmateStatus: undefined,
+            category: [],
+            chessmateStatus: [],
             dateFrom: undefined,
             dateTo: undefined,
             quantity: 1,
@@ -129,24 +130,34 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         const formValues: Partial<SearchFormSchema> = {};
         const filterValues: Partial<TravelFilterType> = {};
 
-        // Приоритет: URL параметры > filter store
+        // Приоритет: URL параметры > filter store (списки — через запятую)
         if (urlCategory) {
-            formValues.category = urlCategory;
-            filterValues.type = urlCategory;
-        } else if (filter?.type) {
+            const categories = urlCategory
+                .split(',')
+                .map((value) => value.trim())
+                .filter(Boolean);
+            if (categories.length > 0) {
+                formValues.category = categories;
+                filterValues.type = categories;
+            }
+        } else if (filter?.type && filter.type.length > 0) {
             formValues.category = filter.type;
             filterValues.type = filter.type;
         }
 
-        if (
-            urlChessmateStatus === 'active' ||
-            urlChessmateStatus === 'mirror' ||
-            urlChessmateStatus === 'access' ||
-            urlChessmateStatus === 'request'
-        ) {
-            formValues.chessmateStatus = urlChessmateStatus;
-            filterValues.chessmateStatus = urlChessmateStatus;
-        } else if (filter?.chessmateStatus) {
+        const CHESSMATE_STATUS_VALUES = ['active', 'mirror', 'access', 'request'] as const;
+        if (urlChessmateStatus) {
+            const statuses = urlChessmateStatus
+                .split(',')
+                .map((value) => value.trim())
+                .filter((value): value is ChessmateHotelHeaderStatus =>
+                    (CHESSMATE_STATUS_VALUES as readonly string[]).includes(value),
+                );
+            if (statuses.length > 0) {
+                formValues.chessmateStatus = statuses;
+                filterValues.chessmateStatus = statuses;
+            }
+        } else if (filter?.chessmateStatus && filter.chessmateStatus.length > 0) {
             formValues.chessmateStatus = filter.chessmateStatus;
             filterValues.chessmateStatus = filter.chessmateStatus;
         }
@@ -228,8 +239,11 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Обновление URL происходит через FiltersSync для расширенных фильтров
         // Параметры формы можно обновлять отдельно, если нужно
 
-        const category = formData.category;
-        const chessmateStatus = formData.chessmateStatus;
+        const category = formData.category && formData.category.length > 0 ? formData.category : undefined;
+        const chessmateStatus =
+            formData.chessmateStatus && formData.chessmateStatus.length > 0
+                ? formData.chessmateStatus
+                : undefined;
         const quantity = formData.quantity;
         const selectedHotelsFromForm = formData.hotels ?? [];
         const selectedHotelIds = selectedHotelsFromForm.map((hotel) => hotel.id);
@@ -247,6 +261,14 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
             end: end_time,
             quantity: quantity ?? undefined,
         };
+
+        // Подбор с участием голубых (зеркальных) шахматок: в фоне подтягиваем
+        // протухшую занятость из чужих календарей. Поиск НЕ ждёт результата —
+        // идёт по последним сохранённым данным; свежие лягут к следующему поиску.
+        const involvesMirror = !chessmateStatus || chessmateStatus.includes('mirror');
+        if (involvesMirror && (start_time || end_time)) {
+            void refreshStaleMirrors();
+        }
 
         /**
          * Проверяет, что все значения объекта равны undefined
@@ -419,15 +441,15 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
         // Обновляем URL с базовыми фильтрами
         const searchParams = new URLSearchParams(window.location.search);
 
-        // Добавляем/обновляем базовые фильтры
-        if (category) {
-            searchParams.set('category', category);
+        // Добавляем/обновляем базовые фильтры (списки — через запятую)
+        if (category && category.length > 0) {
+            searchParams.set('category', category.join(','));
         } else {
             searchParams.delete('category');
         }
 
-        if (chessmateStatus) {
-            searchParams.set('chessmateStatus', chessmateStatus);
+        if (chessmateStatus && chessmateStatus.length > 0) {
+            searchParams.set('chessmateStatus', chessmateStatus.join(','));
         } else {
             searchParams.delete('chessmateStatus');
         }
@@ -510,25 +532,33 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                     name="category"
                                     control={control}
                                     render={({ field, fieldState: { error } }) => (
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor="category"
-                                                className="text-sm font-medium"
-                                            >
-                                                Категория номера
-                                            </Label>
-                                            <ClearableSelect
-                                                value={field.value || ''}
-                                                onValueChange={(value) =>
-                                                    field.onChange(value === '' ? undefined : value)
+                                        <FormField>
+                                            <FormMultipleSelector
+                                                label="Категория номера"
+                                                error={error?.message}
+                                                value={(field.value ?? []).map((value) => ({
+                                                    value,
+                                                    label: value,
+                                                }))}
+                                                onChange={(options) =>
+                                                    field.onChange(
+                                                        options.map((option) => option.value),
+                                                    )
                                                 }
-                                                options={HOTEL_TYPES}
-                                                clearable
-                                                placeholder="Выберите категорию"
+                                                options={HOTEL_TYPES.map((item) => ({
+                                                    value: item.value,
+                                                    label: item.label,
+                                                }))}
+                                                placeholder="Все категории"
+                                                emptyIndicator={
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Нет вариантов
+                                                    </span>
+                                                }
+                                                htmlFor="category"
                                             />
-
                                             <FormMessage message={error?.message} />
-                                        </div>
+                                        </FormField>
                                     )}
                                 />
                             </div>
@@ -660,28 +690,41 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                     name="chessmateStatus"
                                     control={control}
                                     render={({ field, fieldState: { error } }) => (
-                                        <div className="space-y-2">
-                                            <Label
-                                                htmlFor="chessmateStatus"
-                                                className="text-sm font-medium text-gray-700"
-                                            >
-                                                Статус
-                                            </Label>
-                                            <ClearableSelect
-                                                value={field.value || ''}
-                                                onValueChange={(value) =>
+                                        <FormField>
+                                            <FormMultipleSelector
+                                                label="Статус"
+                                                error={error?.message}
+                                                value={(field.value ?? []).map((value) => ({
+                                                    value,
+                                                    label:
+                                                        CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS.find(
+                                                            (option) => option.value === value,
+                                                        )?.label ?? value,
+                                                }))}
+                                                onChange={(options) =>
                                                     field.onChange(
-                                                        value === ''
-                                                            ? undefined
-                                                            : (value as ChessmateHotelHeaderStatus),
+                                                        options.map(
+                                                            (option) =>
+                                                                option.value as ChessmateHotelHeaderStatus,
+                                                        ),
                                                     )
                                                 }
-                                                options={CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS}
-                                                clearable
+                                                options={CHESSMATE_HOTEL_HEADER_STATUS_OPTIONS.map(
+                                                    (item) => ({
+                                                        value: item.value,
+                                                        label: item.label,
+                                                    }),
+                                                )}
                                                 placeholder="Все"
+                                                emptyIndicator={
+                                                    <span className="text-sm text-muted-foreground">
+                                                        Нет вариантов
+                                                    </span>
+                                                }
+                                                htmlFor="chessmateStatus"
                                             />
                                             <FormMessage message={error?.message} />
-                                        </div>
+                                        </FormField>
                                     )}
                                 />
                             </div>

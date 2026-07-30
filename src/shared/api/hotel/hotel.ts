@@ -222,6 +222,30 @@ const normalizeFreeHotels = (rows: unknown): FreeHotelsDTO[] => {
         .filter((hotel): hotel is FreeHotelsDTO => hotel !== null && hotel.rooms.length > 0);
 };
 
+// Категории номеров (мультивыбор): одну категорию отдаём в RPC как раньше
+// (room_type_filter), несколько — RPC зовём без фильтра и отсекаем лишние
+// типы уже в результате (каждый room несёт room_type из get_available_hotels).
+const singleRoomTypeFilter = (types?: string[]) =>
+    types && types.length === 1 ? types[0] : null;
+
+const filterFreeHotelsByRoomTypes = (
+    hotels: FreeHotelsDTO[],
+    types?: string[],
+): FreeHotelsDTO[] => {
+    if (!types || types.length <= 1) {
+        return hotels;
+    }
+    const allowed = new Set(types);
+    return hotels
+        .map((hotel) => {
+            const rooms = hotel.rooms.filter(
+                (room) => typeof room.room_type === 'string' && allowed.has(room.room_type),
+            );
+            return { ...hotel, rooms, free_room_count: rooms.length };
+        })
+        .filter((hotel) => hotel.rooms.length > 0);
+};
+
 const hasValidSearchPeriod = (
     filter?: { start?: number; end?: number },
 ): filter is { start: number; end: number } =>
@@ -299,13 +323,15 @@ const getChessmateStatusFilteredRows = <T extends { title?: string | null }>(
     rows: T[],
     filter?: TravelFilterType,
 ) => {
-    if (!filter?.chessmateStatus) {
+    const statuses = filter?.chessmateStatus;
+    if (!statuses || statuses.length === 0) {
         return rows;
     }
 
-    return rows.filter(
-        (hotel) => getChessmateHotelHeaderStatus(hotel.title) === filter.chessmateStatus,
-    );
+    return rows.filter((hotel) => {
+        const status = getChessmateHotelHeaderStatus(hotel.title);
+        return status !== undefined && statuses.includes(status);
+    });
 };
 
 const getOrderedHotelRows = <T extends { title?: string | null }>(
@@ -347,11 +373,14 @@ const getChessmateOrderedHotelIds = async (
         data.map((hotel: { id: string; title: string }) => [hotel.id, hotel.title]),
     );
 
-    const filteredIds = filter?.chessmateStatus
-        ? uniqueIds.filter(
-              (id) => getChessmateHotelHeaderStatus(titleById.get(id)) === filter.chessmateStatus,
-          )
-        : uniqueIds;
+    const statuses = filter?.chessmateStatus;
+    const filteredIds =
+        statuses && statuses.length > 0
+            ? uniqueIds.filter((id) => {
+                  const status = getChessmateHotelHeaderStatus(titleById.get(id));
+                  return status !== undefined && statuses.includes(status);
+              })
+            : uniqueIds;
 
     return [...filteredIds].sort((left, right) => {
         const statusDiff =
@@ -1029,7 +1058,7 @@ export async function getHotelsWithAvailability(
     filter: {
         start?: number;
         end?: number;
-        type?: string;
+        type?: string[];
         quantity?: number;
     },
     parsedAdvancedFilter?: Record<string, string[] | null>,
@@ -1045,7 +1074,7 @@ export async function getHotelsWithAvailability(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            room_type_filter: filter?.type ?? null,
+            room_type_filter: singleRoomTypeFilter(filter?.type),
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
@@ -1070,16 +1099,28 @@ export async function getHotelsWithAvailability(
             return { data: [], count: 0 };
         }
 
+        // Мультивыбор категорий: RPC звался без room_type_filter, отсекаем
+        // лишние типы ДО пагинации (записи RPC сгруппированы по типу номера).
+        const selectedTypes = filter?.type;
+        const typedRpcData =
+            selectedTypes && selectedTypes.length > 1
+                ? rpcData.filter((row: any) => selectedTypes.includes(row.room_type))
+                : rpcData;
+
+        if (typedRpcData.length === 0) {
+            return { data: [], count: 0 };
+        }
+
         // Применяем пагинацию к результатам
         const from = page * limit;
         const to = from + limit;
-        const paginatedData = rpcData.slice(from, to);
+        const paginatedData = typedRpcData.slice(from, to);
 
         // Получаем все ID отелей из результатов
         const hotelIds = paginatedData.map((hotelData: any) => hotelData.hotel_id);
 
         if (hotelIds.length === 0) {
-            return { data: [], count: rpcData.length };
+            return { data: [], count: typedRpcData.length };
         }
 
         // Получаем все отели одним запросом
@@ -1133,7 +1174,7 @@ export async function getHotelsWithAvailability(
 
         return {
             data: hotelsData,
-            count: rpcData.length,
+            count: typedRpcData.length,
         };
     } catch (error) {
         console.error('Ошибка при получении отелей с доступностью:', error);
@@ -1145,7 +1186,7 @@ export async function getHotelsWithFreeRooms(
     filter: {
         start?: number;
         end?: number;
-        type?: string;
+        type?: string[];
         quantity?: number;
     },
     parsedAdvancedFilter?: Record<string, string[] | null>,
@@ -1156,7 +1197,7 @@ export async function getHotelsWithFreeRooms(
         const default_filter = {
             start_time: filter?.start ?? null,
             end_time: filter?.end ?? null,
-            room_type_filter: filter?.type ?? null,
+            room_type_filter: singleRoomTypeFilter(filter?.type),
             min_quantity_filter: filter?.quantity ?? null,
             city_filter: parsedAdvancedFilter?.city ?? null,
             room_features_filter: parsedAdvancedFilter?.roomFeatures ?? null,
@@ -1169,7 +1210,10 @@ export async function getHotelsWithFreeRooms(
         };
 
         try {
-            return await getAvailableHotelsViaYandexBackend(default_filter);
+            return filterFreeHotelsByRoomTypes(
+                await getAvailableHotelsViaYandexBackend(default_filter),
+                filter?.type,
+            );
         } catch (error) {
             if (isYandexBackendProxyClientEnabled()) {
                 throw error;
@@ -1184,7 +1228,10 @@ export async function getHotelsWithFreeRooms(
 
         const visibleHotels = excludeHiddenFreeHotels(normalizeFreeHotels(data), hiddenHotelIds);
 
-        return excludeClosedFreeRooms(visibleHotels, filter);
+        return filterFreeHotelsByRoomTypes(
+            await excludeClosedFreeRooms(visibleHotels, filter),
+            filter?.type,
+        );
     } catch (error) {
         console.error(
             'Ошибка при получении отелей с свободными номерами:',
@@ -1208,7 +1255,7 @@ export async function getHotelsWithFreeRoomsCompatible(
     filter: {
         start?: number;
         end?: number;
-        type?: string;
+        type?: string[];
         quantity?: number;
     },
     parsedAdvancedFilter?: Record<string, string[] | null>,

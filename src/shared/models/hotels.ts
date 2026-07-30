@@ -4,8 +4,10 @@ import { Nullable } from '@/shared/api/reserve/reserve';
 import { createEvent, createStore } from 'effector';
 
 export type TravelFilterType = Nullable<{
-    type?: string;
-    chessmateStatus?: ChessmateHotelHeaderStatus;
+    /** Категории номеров — множественный выбор (пусто/undefined = все). */
+    type?: string[];
+    /** Статусы шахматок — множественный выбор (пусто/undefined = все). */
+    chessmateStatus?: ChessmateHotelHeaderStatus[];
     quantity?: number;
     start?: number;
     end?: number;
