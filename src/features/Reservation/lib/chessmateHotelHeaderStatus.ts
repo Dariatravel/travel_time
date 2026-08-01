@@ -10,28 +10,28 @@ const normalizeHotelTitle = (title: string) =>
 
 // Source: "СЕЗОН 2026. Описание отелей, цены", sheet "ШАХМАТКИ".
 // B "АКТУАЛЬНА" -> active, C "ЕСТЬ ДОСТУП" -> access, D "ПО ЗАПРОСУ" -> request.
-// Объекты с интеграцией RealtyCalendar всегда active (зелёные), даже если в таблице столбец C.
-// «Голубые» шахматки — зеркало чужого календаря с кнопкой «Обновить занятость»
-// (см. src/app/api/mirror/*). Здесь только список для цвета/фильтра шапки;
-// привязка отель→источник лежит на сервере в mirrorSources.ts.
+//
+// ПРАВИЛО ЦВЕТОВ (Дарья, 01.08.2026):
+//   ГОЛУБАЯ (mirror) = занятость подтягивается АВТОМАТИКОЙ (вебхук, крон,
+//     iCal, Google/WPS-таблица) — у шахматки есть кнопка «Обновить занятость».
+//     Менеджер видит: данные обновляет робот, а не человек в отеле.
+//   ЗЕЛЁНАЯ (active) = шахматку ведёт ЖИВОЙ ЧЕЛОВЕК (отельер/наши менеджеры)
+//     и она актуальна.
+// Любой отель, подключённый к автосинку, добавляется в MIRROR_HOTEL_TITLES
+// (и его кнопка — в mirrorSources.ts: источник либо крон-воркфлоу).
 const MIRROR_HOTEL_TITLES = new Set<string>([
+    // Shelter/FrontDesk24 (кнопка → фоновый mirror-крон, сам крон каждые 2 ч).
     'сан амра sun amra',
-    // «Студио Сан Амра» — один номер, поэтому НЕ голубая (кнопка не нужна),
-    // а зелёная с автосинхронизацией из FrontDesk24 (крон mirror-sync-cron).
-    // «Нора» — Shelter/FrontDesk24, категория «Стандарт» (4 номера = все наши 4).
     'нора',
-    // «САНРАЙЗ гостевой дом» — Google-таблица отельера (по-номерно, 14 номеров).
-    // Кнопка «Обновить» читает таблицу; плюс крон обновляет её каждый час.
+    'студио сан амра',
+    // Google-таблицы отельеров (кнопка читает сразу; крон каждый час).
     'санрайз гостевой дом',
-    // «ФЕМЕЛИ» — Google-таблица, цветовой формат (домики 1-12; люксы отложены).
     'фемели',
-    // «Аврора Inn» — публичный iCal reservationsteps по категориям. Голубая:
-    // источник отдаёт только «категория занята целиком», поэтому обновляем по
-    // запросу (кнопка) + автоподтяжка при подборе, а не выдаём за актуальную.
+    // Публичный iCal reservationsteps (кнопка читает сразу; + автоподтяжка при подборе).
     'аврора inn',
-]);
-
-const REALTYCALENDAR_INTEGRATED_HOTEL_TITLES = new Set<string>([
+    // WPS-таблица отельера (кнопка → фоновый googlesheet-крон; сам крон каждый час).
+    'вилла леона',
+    // RealtyCalendar-семья (вебхук + iCal-крон каждые 2 ч; кнопка → фоновый крон).
     'барнаба',
     'рита',
     'александрия',
@@ -75,9 +75,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     белочка: 'active',
     'в синопе': 'active',
     'вилла лаванда': 'request',
-    // Вилла Леона — создана 01.08.2026 (52 номера как в WPS-шахматке отельера),
-    // занятость авто-синкается ежечасно скачиванием xlsx по публичной ссылке.
-    'вилла леона': 'active',
+    // «Вилла Леона» — в MIRROR_HOTEL_TITLES (WPS-автосинк, голубая).
     'вилла любовь': 'active',
     'восходящая звезда': 'active',
     'грант grant': 'access',
@@ -128,7 +126,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'ранчо эли вэл': 'active',
     рита: 'access',
     'сан амра sun amra': 'access',
-    'студио сан амра': 'active',
+    // «Студио Сан Амра» — в MIRROR_HOTEL_TITLES (автосинк FrontDesk24, голубая).
     'сан пино sun pino': 'access',
     'санди хаус': 'active',
     'санни хоум': 'access',
@@ -215,13 +213,9 @@ export const getChessmateHotelHeaderStatus = (
 
     const normalizedTitle = normalizeHotelTitle(title);
 
-    // Голубые (зеркало) — приоритетнее прочих статусов.
+    // Голубые (автосинк) — приоритетнее прочих статусов.
     if (MIRROR_HOTEL_TITLES.has(normalizedTitle)) {
         return 'mirror';
-    }
-
-    if (REALTYCALENDAR_INTEGRATED_HOTEL_TITLES.has(normalizedTitle)) {
-        return 'active';
     }
 
     return CHESSMATE_STATUS_BY_HOTEL_TITLE[normalizedTitle];

@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import { dispatchMirrorCron } from '@/app/api/mirror/_lib/dispatchCron';
-import { getMirrorSource } from '@/app/api/mirror/_lib/mirrorSources';
+import {
+    CRON_WORKFLOW_BY_TITLE,
+    getMirrorSource,
+    normalizeMirrorHotelTitle,
+} from '@/app/api/mirror/_lib/mirrorSources';
 import { syncMirrorForHotel } from '@/app/api/mirror/_lib/syncMirror';
 import {
     createSupabaseServerClient,
@@ -44,6 +48,23 @@ export async function POST(request: NextRequest) {
 
         // Записи делает сервис-роль — надёжно и без зависимости от RLS.
         const supabase = createSupabaseServiceRoleClient();
+
+        // Голубые отели-«кроны» (RealtyCalendar-семья, Студио, Вилла Леона):
+        // источника в MIRROR_SOURCES нет — кнопка запускает их фоновый воркфлоу.
+        if (!source && body.dryRun !== true) {
+            const { data: hotelRow } = await supabase
+                .from('hotels')
+                .select('title')
+                .eq('id', body.hotelId)
+                .single();
+            const workflow = hotelRow?.title
+                ? CRON_WORKFLOW_BY_TITLE[normalizeMirrorHotelTitle(hotelRow.title)]
+                : undefined;
+            if (workflow) {
+                await dispatchMirrorCron(workflow);
+                return NextResponse.json({ result: { hotelId: body.hotelId, started: true } });
+            }
+        }
         const result = await syncMirrorForHotel(supabase, body.hotelId, {
             dryRun: body.dryRun === true,
         });

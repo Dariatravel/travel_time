@@ -5,15 +5,14 @@
 
 const OWNER = 'Dariatravel';
 const REPO = 'travel_time';
-const WORKFLOW_FILE = 'mirror-sync-cron.yml';
 
-export const dispatchMirrorCron = async (): Promise<void> => {
+export const dispatchMirrorCron = async (workflowFile = 'mirror-sync-cron.yml'): Promise<void> => {
     const token = process.env.GITHUB_DISPATCH_TOKEN;
     if (!token) {
         throw new Error('Фоновое обновление не настроено (нет GITHUB_DISPATCH_TOKEN)');
     }
     const response = await fetch(
-        `https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${WORKFLOW_FILE}/dispatches`,
+        `https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/${workflowFile}/dispatches`,
         {
             method: 'POST',
             headers: {

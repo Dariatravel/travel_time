@@ -153,3 +153,37 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
 };
 
 export const getMirrorSource = (hotelId: string): MirrorSource | undefined => MIRROR_SOURCES[hotelId];
+
+// ---------------------------------------------------------------------------
+// Голубые отели-«кроны»: у них нет источника в MIRROR_SOURCES (их синкают
+// фоновые воркфлоу), но кнопка «Обновить занятость» должна работать — она
+// запускает соответствующий крон (workflow_dispatch) и отвечает «запущено».
+// Ключ — НОРМАЛИЗОВАННОЕ название отеля (как в chessmateHotelHeaderStatus).
+// ---------------------------------------------------------------------------
+export const normalizeMirrorHotelTitle = (title: string) =>
+    title
+        .toLowerCase()
+        .replaceAll('ё', 'е')
+        .replace(/[“”"«»()\-.,]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
+const RC_WORKFLOW = 'ical-sync-cron.yml';
+export const CRON_WORKFLOW_BY_TITLE: Record<string, string> = {
+    // Shelter-крон (Студио синкается mirror-кроном вместе с Сан Амрой/Норой).
+    'студио сан амра': 'mirror-sync-cron.yml',
+    // Google/WPS-крон.
+    'вилла леона': 'googlesheet-sync-cron.yml',
+    // RealtyCalendar-семья (вебхук + iCal-крон).
+    'барнаба': RC_WORKFLOW,
+    'рита': RC_WORKFLOW,
+    'александрия': RC_WORKFLOW,
+    'белая лошадь white horse': RC_WORKFLOW,
+    'грей хаус grey house': RC_WORKFLOW,
+    'грин вилладж greenvillage': RC_WORKFLOW,
+    'санни хоум': RC_WORKFLOW,
+    'каво де буксо': RC_WORKFLOW,
+    'эсма': RC_WORKFLOW,
+    'сизон': RC_WORKFLOW,
+    'дыши глубже': RC_WORKFLOW,
+};
