@@ -40,6 +40,23 @@ SOURCES = [
                    'ОКТЯБРЬ': 10, 'НОЯБРЬ': 11},
         'label_prefix': 'ДОМИК', 'room_regex': r'Домик\s*(\d+)', 'guest': 'Занято (Фемели)',
     },
+    {
+        # Вилла Леона: шахматка в WPS 365 (не Google). Отельер включил
+        # «Разрешить скачивание» — качаем xlsx по публичной ссылке и парсим.
+        # Формат: столбец A=тип, B=№ номера, дни в строке 2, бронь = текст в
+        # день заезда + ЗАЛИВКА до дня перед выездом (верим заливке; текстовую
+        # запись «N-M» дотягиваем, если ячейки не закрашены). Лист = месяц,
+        # с 2027 — суффикс «27».
+        'name': 'Вилла Леона', 'tag': 'wps_villa_leona', 'mode': 'wps',
+        'wps_sid': 'cbDaenFcrtTR3pSt',
+        'hotel_like': 'вилла леона',
+        'months': {'май': (2026, 5), 'июнь': (2026, 6), 'июль': (2026, 7), 'август': (2026, 8),
+                   'сентябрь': (2026, 9), 'октябрь': (2026, 10), 'ноябрь': (2026, 11), 'декабрь': (2026, 12),
+                   'январь27': (2027, 1), 'февраль27': (2027, 2), 'март27': (2027, 3), 'апрель27': (2027, 4),
+                   'май27': (2027, 5), 'июнь27': (2027, 6), 'июль27': (2027, 7), 'август27': (2027, 8),
+                   'сентябрь27': (2027, 9), 'октябрь27': (2027, 10), 'ноябрь27': (2027, 11), 'декабрь27': (2027, 12)},
+        'room_regex': r'№(\d+)', 'guest': 'Занято (Вилла Леона)',
+    },
 ]
 
 SB_URL = os.environ['NEXT_PUBLIC_SUPABASE_URL'].rstrip('/')
@@ -188,10 +205,94 @@ def parse_color(token, src):
             stays.append((num, ds[i], ds[j] + datetime.timedelta(days=1))); i = j + 1
     return stays
 
+# ---------- WPS (Вилла Леона): скачиваем xlsx по публичной ссылке ----------
+def parse_wps(src):
+    import io, tempfile
+    import openpyxl
+    ua = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/126.0 Safari/537.36'
+    req = urllib.request.Request(
+        f"https://eu.wps.com/office/docs/api/v3/office/file/{src['wps_sid']}/download",
+        headers={'User-Agent': ua})
+    meta = json.loads(urllib.request.urlopen(req, timeout=60).read().decode())
+    url = meta.get('download_url') or meta.get('url')
+    if not url:
+        raise SystemExit(f"WPS не отдал ссылку на файл: {meta}")
+    req2 = urllib.request.Request(url, headers={'User-Agent': ua})
+    blob = urllib.request.urlopen(req2, timeout=120).read()
+    wb = openpyxl.load_workbook(io.BytesIO(blob), data_only=True)
+
+    def is_filled(cell):
+        f = cell.fill
+        if not f or not f.patternType:
+            return False
+        v = f.fgColor.rgb
+        return isinstance(v, str) and v not in ('00000000', 'FFFFFFFF')
+
+    today = datetime.date.today()
+    occ = {}
+    for sheet, (Y, M) in src['months'].items():
+        if sheet not in wb.sheetnames:
+            continue
+        ws = wb[sheet]
+        col2day = {}
+        prev = 0
+        for c in range(3, ws.max_column + 1):
+            v = ws.cell(2, c).value
+            if not isinstance(v, (int, float)):
+                break
+            d = int(v)
+            if d < prev:
+                break
+            try:
+                datetime.date(Y, M, d)
+            except ValueError:
+                break
+            col2day[c] = d
+            prev = d
+        for r in range(3, ws.max_row + 1):
+            n = ws.cell(r, 2).value
+            if not isinstance(n, (int, float)):
+                continue
+            n = int(n)
+            days = occ.setdefault(n, set())
+            for c, d in col2day.items():
+                cell = ws.cell(r, c)
+                txt = cell.value
+                has = bool(txt is not None and str(txt).strip())
+                if is_filled(cell) or has:
+                    days.add(datetime.date(Y, M, d))
+                if has:
+                    m = re.search(r'(?<!\d)(\d{1,2})\s*[-–]\s*(\d{1,2})(?!\.\d)', str(txt))
+                    if m:
+                        a, b = int(m.group(1)), int(m.group(2))
+                        if a == d and b > a:
+                            for dd in range(a, b):
+                                try:
+                                    days.add(datetime.date(Y, M, dd))
+                                except ValueError:
+                                    pass
+
+    stays = []
+    for n, ds in occ.items():
+        ds = sorted(x for x in ds if x >= today)
+        i = 0
+        while i < len(ds):
+            j = i
+            while j + 1 < len(ds) and (ds[j + 1] - ds[j]).days == 1:
+                j += 1
+            stays.append((n, ds[i], ds[j] + datetime.timedelta(days=1)))
+            i = j + 1
+    return stays
+
 def sync_source(gc, token, src):
     num2id = rooms_of(src['hotel_like'], src['room_regex'])
     ids = list(num2id.values())
-    stays = parse_merge(gc, src) if src['mode'] == 'merge' else parse_color(token, src)
+    if src['mode'] == 'merge':
+        stays = parse_merge(gc, src)
+    elif src['mode'] == 'color':
+        stays = parse_color(token, src)
+    else:
+        stays = parse_wps(src)
 
     inlist = ",".join(f'"{i}"' for i in ids)
     st, rows = sb('GET', f"/rest/v1/reserves?select=room_id,start,end,external_source&room_id=in.({inlist})")
@@ -219,7 +320,11 @@ def sync_source(gc, token, src):
             'comment': f"Занятость из таблицы {src['name']} (авто, крон)",
             'created_by': src['tag'], 'edited_at': now, 'edited_by': src['tag'],
             'external_source': src['tag'], 'external_uid': f"{src['tag']}:{rid}:{s}-{e}",
-            'external_feed_url': 'https://docs.google.com/spreadsheets/d/' + src['sheet_id'],
+            'external_feed_url': (
+                'https://eu.wps.com/cms/module/common/preview/?sid=' + src['wps_sid']
+                if src['mode'] == 'wps'
+                else 'https://docs.google.com/spreadsheets/d/' + src['sheet_id']
+            ),
             'external_synced_at': now})
 
     inserted = 0

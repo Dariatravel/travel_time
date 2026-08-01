@@ -75,6 +75,9 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     белочка: 'active',
     'в синопе': 'active',
     'вилла лаванда': 'request',
+    // Вилла Леона — создана 01.08.2026 (52 номера как в WPS-шахматке отельера),
+    // занятость авто-синкается ежечасно скачиванием xlsx по публичной ссылке.
+    'вилла леона': 'active',
     'вилла любовь': 'active',
     'восходящая звезда': 'active',
     'грант grant': 'access',
