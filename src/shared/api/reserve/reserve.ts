@@ -286,6 +286,9 @@ export const createReserveApi = async (reserve: Reserve) => {
 
 export const deleteReserveApi = async (id: string) => {
     try {
+        // maybeSingle: брони может уже не быть (двойной клик, удалил другой
+        // менеджер, пересинхронизация зеркала заменила метки) — раньше .single()
+        // падал с «Cannot coerce the result to a single JSON object».
         const { data: reserveSnapshot, error: snapshotError } = await supabase
             .from('reserves')
             .select(
@@ -298,11 +301,15 @@ export const deleteReserveApi = async (id: string) => {
             `,
             )
             .eq('id', id)
-            .single();
+            .maybeSingle();
 
         if (snapshotError) {
             throw new Error(snapshotError.message);
         }
+
+        // Брони уже нет — считаем удаление выполненным: ниже delete по id
+        // просто ничего не затронет, а обновление кэша уберёт устаревшую
+        // запись из шахматки.
 
         if (reserveSnapshot) {
             const room = Array.isArray(reserveSnapshot.rooms)
