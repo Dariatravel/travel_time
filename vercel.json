@@ -1,13 +1,5 @@
 {
-    "framework": null,
-    "buildCommand": "",
-    "installCommand": "",
-    "outputDirectory": "vercel-redirect",
-    "redirects": [
-        {
-            "source": "/(.*)",
-            "destination": "https://abhazbereg.online/$1",
-            "permanent": true
-        }
-    ]
+    "git": {
+        "deploymentEnabled": false
+    }
 }
