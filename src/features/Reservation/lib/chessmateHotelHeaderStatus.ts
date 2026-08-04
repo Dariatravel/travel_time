@@ -100,7 +100,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     'киараз резорт': 'active',
     крылья: 'active',
     лазурит: 'access',
-    лайм: 'active',
+    лайм: 'request',
     лемар: 'access',
     'лето квартира 2к': 'active',
     лимон: 'access',
