@@ -1,0 +1,43 @@
+# Отчёт «окошки»: свободные даты по номерам за период. Запускается вручную
+# (workflow_dispatch), печатает JSON в лог — оттуда его забирает ассистент
+# или человек. Ничего не меняет ни в базе, ни на сайте.
+name: Availability Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      period_start:
+        description: 'Дата заезда (YYYY-MM-DD)'
+        required: false
+        default: '2026-08-05'
+      period_end:
+        description: 'Дата выезда (YYYY-MM-DD)'
+        required: false
+        default: '2026-08-20'
+
+jobs:
+  report:
+    name: Build availability report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run availability report
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PERIOD_START: ${{ inputs.period_start }}
+          PERIOD_END: ${{ inputs.period_end }}
+        run: node scripts/availability-report.mjs
