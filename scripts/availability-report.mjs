@@ -48,7 +48,7 @@ const fetchAll = async (table, columns, applyFilters) => {
 
 const main = async () => {
     const [hotels, rooms, reserves, closures] = await Promise.all([
-        fetchAll('hotels', 'id, title, city, address'),
+        fetchAll('hotels', 'id, title, city, address, telegram_url'),
         fetchAll('rooms', 'id, hotel_id, title, "order"'),
         fetchAll('reserves', 'room_id, start, end', (q) =>
             q.lt('start', periodEndUnix).gt('end', periodStartUnix),
@@ -92,7 +92,7 @@ const main = async () => {
 
         let entry = report.get(room.hotel_id);
         if (!entry) {
-            report.set(room.hotel_id, (entry = { hotel_id: room.hotel_id, hotel_title: hotel.title, city: hotel.city ?? null, address: hotel.address ?? null, rooms: [] }));
+            report.set(room.hotel_id, (entry = { hotel_id: room.hotel_id, hotel_title: hotel.title, city: hotel.city ?? null, address: hotel.address ?? null, telegram_url: hotel.telegram_url ?? null, rooms: [] }));
         }
         entry.rooms.push({
             room_title: room.title,
