@@ -9,8 +9,14 @@
 
 const ICAL_URL = 'https://public-api.reservationsteps.ru/v1/api/ical';
 
-/** Далёкие длинные блоки (31.12 → следующий год) — это закрытие продаж, не брони. */
-const MAX_EVENT_NIGHTS = 45;
+// Длинный интервал: либо реальная «категория занята целиком» (короткая бронь),
+// либо закрытие продаж. Отличаем по началу: блок, начинающийся в ближайшие
+// NEAR_BLOCK_DAYS (текущий сезон) — считаем занятостью (виджет показывает «нет
+// мест»); длинный блок далёкого будущего (31.12 → след. год) — закрытие продаж,
+// отсекаем. Короткие интервалы (<= SHORT_NIGHTS) — всегда реальные брони.
+const SHORT_NIGHTS = 45;
+const NEAR_BLOCK_DAYS = 90;
+const DAY_MS = 86_400_000;
 
 export type IcalCategoryOccupancy = {
     icalId: number;
@@ -59,12 +65,15 @@ export const readIcalOccupancy = async (
                 // Недоступная категория не должна ломать остальные.
             }
 
+            const nearLimit = new Date(today.getTime() + NEAR_BLOCK_DAYS * DAY_MS);
             const intervals = events
                 .filter((event) => {
                     if (event.to <= today) return false;
                     if (event.from > horizon) return false;
-                    const nights = (event.to.getTime() - event.from.getTime()) / 86_400_000;
-                    return nights <= MAX_EVENT_NIGHTS;
+                    const nights = (event.to.getTime() - event.from.getTime()) / DAY_MS;
+                    if (nights <= SHORT_NIGHTS) return true;
+                    // длинный блок: берём только начинающийся в текущем сезоне
+                    return event.from <= nearLimit;
                 })
                 .map((event) => ({
                     start: checkinUnix(event.from < today ? today : event.from),

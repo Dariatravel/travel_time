@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
         // Свежесть по каждому источнику — одним запросом (по тегам меток).
         const tags = new Set<string>([SHELTER_TAG]);
         for (const source of Object.values(MIRROR_SOURCES)) {
-            if (source.system === 'googlesheet' || source.system === 'ical') tags.add(source.tag);
+            if (source.system !== 'shelter') tags.add(source.tag);
         }
         const { data: rows, error } = await supabase
             .from('reserves')

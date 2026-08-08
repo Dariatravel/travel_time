@@ -40,9 +40,26 @@ export type IcalMirrorSource = {
     categories: Array<{ icalId: number; titlePrefix: string }>;
 };
 
+export type KonturMirrorSource = {
+    system: 'kontur';
+    /** тег меток: external_source. */
+    tag: string;
+    /** подпись метки-занятости. */
+    guest: string;
+    /** slug модуля бронирования: {slug}.bookonline24.ru */
+    slug: string;
+    /** id номера в Контуре → префикс НАШЕГО названия номера. */
+    rooms: Array<{ categoryId: string; titlePrefix: string }>;
+};
+
 // Источник занятости голубой шахматки: Shelter (по категориям), Google-таблица
-// отельера (по-номерно) либо публичный iCal reservationsteps (по категориям).
-export type MirrorSource = ShelterMirrorSource | GoogleSheetSource | IcalMirrorSource;
+// отельера (по-номерно), публичный iCal reservationsteps (по категориям) либо
+// модуль бронирования Контур/bookonline24 (по-номерно).
+export type MirrorSource =
+    | ShelterMirrorSource
+    | GoogleSheetSource
+    | IcalMirrorSource
+    | KonturMirrorSource;
 
 // Ключ — наш hotel_id.
 export const MIRROR_SOURCES: Record<string, MirrorSource> = {
@@ -97,6 +114,37 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
         labelPrefix: 'ДОМИК',
         roomTitleRegex: 'Домик\\s*(\\d+)',
         guest: 'Занято (Фемели)',
+    },
+    // «Вилла Оазис» — модуль Контур/bookonline24, по-номерно (8 апартаментов).
+    // Горизонт продаж ограничен (проверено: до 20.12.2026) — дальше «ноль
+    // свободных» означает «продажи не открыты», занятостью НЕ считаем.
+    '20680c48-3465-48cb-b228-a41aa2237ac3': {
+        system: 'kontur',
+        tag: 'kontur_bookonline',
+        guest: 'Занято (Оазис)',
+        slug: 'villa_oasis',
+        rooms: [
+            { categoryId: 'b68f719c-2fbb-426d-bd0e-4a96096112e5', titlePrefix: 'N1' },
+            { categoryId: '9039a751-8871-4b28-8f21-9f27065af8a8', titlePrefix: 'N2' },
+            { categoryId: '76ecef99-3950-4855-9508-77cf836f1f41', titlePrefix: 'N3' },
+            { categoryId: '3ca1a20f-947f-4f6a-8aa9-150e07b4d906', titlePrefix: 'N4' },
+            { categoryId: '616ae887-ef3f-4e05-8302-a80db09f76d1', titlePrefix: 'N5' },
+            { categoryId: 'c5ab90ca-c40d-4b8a-ad34-fbf7e68a16fb', titlePrefix: 'N6' },
+            { categoryId: '690bf839-ce7a-436b-bc5a-90e8564659a2', titlePrefix: 'Двухкомнатные апартаменты' },
+            { categoryId: '04944c5c-27e4-4c29-8788-71381741570a', titlePrefix: 'Однокомнатные апартаменты' },
+        ],
+    },
+    // «Блэк Си» — публичные iCal reservationsteps по 4 категориям (25 номеров).
+    '63d8e1bd-1df8-4071-b469-3ec070040d06': {
+        system: 'ical',
+        tag: 'ical_reservationsteps',
+        guest: 'Занято (Блэк Си, категория)',
+        categories: [
+            { icalId: 439240, titlePrefix: 'Стандартный 2х-местный номер' },
+            { icalId: 439241, titlePrefix: 'Стандартный 3х-местный номер' },
+            { icalId: 439242, titlePrefix: 'Стандартный 4х-местный номер' },
+            { icalId: 439243, titlePrefix: 'Семейный 5-местный двухкомнатный домик' },
+        ],
     },
     // «Сан Амра  Sun Amra» — категория FrontDesk24 53918 «Двухкомнатные» (6 номеров).
     '97e23cef-ee78-435c-868b-b8c8afda23fa': {
