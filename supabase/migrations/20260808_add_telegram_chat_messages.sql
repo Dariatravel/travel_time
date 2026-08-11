@@ -34,15 +34,3 @@ CREATE INDEX IF NOT EXISTS telegram_chat_messages_hotel_id_idx
 ALTER TABLE public.telegram_chat_messages ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.telegram_chat_messages FROM anon, authenticated;
-
--- Где остановились в очереди обновлений Telegram (getUpdates offset).
--- Одна строка: id = true.
-CREATE TABLE IF NOT EXISTS public.telegram_bot_state (
-    id boolean PRIMARY KEY DEFAULT true CHECK (id),
-    last_update_id bigint NOT NULL DEFAULT 0,
-    updated_at timestamptz NOT NULL DEFAULT now()
-);
-
-ALTER TABLE public.telegram_bot_state ENABLE ROW LEVEL SECURITY;
-
-REVOKE ALL ON public.telegram_bot_state FROM anon, authenticated;
