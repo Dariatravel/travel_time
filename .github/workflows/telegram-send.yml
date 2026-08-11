@@ -1,0 +1,66 @@
+# Отправка ответа бота в Telegram в обход. Нужен потому, что контейнер в Yandex
+# Cloud не может соединиться с api.telegram.org (ConnectTimeoutError на 10 с),
+# хотя входящие вебхуки до него доходят. Обработчик вебхука сначала пробует
+# отправить ответ сам и только при неудаче запускает этот воркфлоу.
+#
+# Запускается программой, не человеком: вручную дёргать не нужно.
+name: Telegram Send
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: 'Куда отправить'
+        required: true
+      text:
+        description: 'Текст сообщения'
+        required: true
+      reply_to:
+        description: 'id сообщения, на которое отвечаем'
+        required: false
+        default: ''
+
+jobs:
+  send:
+    name: Send message
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Send to Telegram
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ inputs.chat_id }}
+          TEXT: ${{ inputs.text }}
+          REPLY_TO: ${{ inputs.reply_to }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ]; then
+            echo "Не задан секрет TELEGRAM_BOT_TOKEN"
+            exit 1
+          fi
+
+          # Текст собираем через jq: в ответе бота есть кавычки, переносы строк
+          # и эмодзи — руками такую строку в JSON не вклеить.
+          if [ -n "${REPLY_TO}" ]; then
+            jq -n --arg chat_id "$CHAT_ID" --arg text "$TEXT" --argjson reply_to "$REPLY_TO" \
+              '{chat_id: $chat_id, text: $text, reply_to_message_id: $reply_to, disable_web_page_preview: true}' \
+              > payload.json
+          else
+            jq -n --arg chat_id "$CHAT_ID" --arg text "$TEXT" \
+              '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}' \
+              > payload.json
+          fi
+
+          HTTP_CODE="$(curl -sS -o response.json -w '%{http_code}' --max-time 30 \
+            -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            -H 'Content-Type: application/json' \
+            --data-binary @payload.json)"
+
+          echo "Ответ Telegram: HTTP ${HTTP_CODE}"
+          sed "s/${TELEGRAM_BOT_TOKEN}/***/g" response.json
+
+          if [ "${HTTP_CODE}" != "200" ]; then
+            exit 1
+          fi
