@@ -1,0 +1,36 @@
+name: Bnovo Occupancy Cron
+
+on:
+  schedule:
+    - cron: '15 * * * *'   # каждый час (Джаннат — вход в кабинет + чтение по номерам)
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Sync Bnovo occupancy
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run Bnovo sync
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          BNOVO_DJANNAT_LOGIN: ${{ secrets.BNOVO_DJANNAT_LOGIN }}
+          BNOVO_DJANNAT_PASSWORD: ${{ secrets.BNOVO_DJANNAT_PASSWORD }}
+        run: node scripts/bnovo-cron-sync.mjs

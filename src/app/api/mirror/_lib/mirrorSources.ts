@@ -260,6 +260,8 @@ export const CRON_WORKFLOW_BY_TITLE: Record<string, string> = {
     'студио сан амра': 'mirror-sync-cron.yml',
     // Google/WPS-крон.
     'вилла леона': 'googlesheet-sync-cron.yml',
+    // Bnovo-крон: вход в кабинет отельера (Playwright) + чтение по номерам.
+    'джаннат': 'bnovo-sync-cron.yml',
     // RealtyCalendar-семья (вебхук + iCal-крон).
     'барнаба': RC_WORKFLOW,
     'рита': RC_WORKFLOW,

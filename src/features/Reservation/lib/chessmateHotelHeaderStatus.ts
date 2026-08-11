@@ -34,6 +34,9 @@ const MIRROR_HOTEL_TITLES = new Set<string>([
     'лазурит',
     // «Грасс» — публичные iCal с сайта grass-hotel.com (10 номеров, 5 категорий).
     'грасс',
+    // «Джаннат» — Bnovo с урезанным публичным iCal; крон входит в кабинет
+    // отельера (Playwright) и читает занятость по номерам, каждый час.
+    'джаннат',
     // Модуль бронирования Контур/bookonline24 (по-номерно).
     'вилла оазис',
     // WPS-таблица отельера (кнопка → фоновый googlesheet-крон; сам крон каждый час).
@@ -94,7 +97,7 @@ const CHESSMATE_STATUS_BY_HOTEL_TITLE: Record<string, ChessmateHotelHeaderStatus
     данелян: 'access',
     дельфин: 'request',
     'демимокко demi mokko': 'active',
-    джаннат: 'access',
+    // «Джаннат» — в MIRROR_HOTEL_TITLES (Bnovo-крон через кабинет, голубая).
     'домики у марины': 'active',
     'дыши глубже': 'access',
     'зеленый дворик': 'active',
