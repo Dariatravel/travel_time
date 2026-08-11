@@ -31,6 +31,20 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Verify Edge Function shared data
+        run: |
+          node scripts/build-edge-shared.mjs
+          git diff --exit-code -- supabase/functions/telegram-bot/_shared/chessmate.ts
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Test Telegram Edge Function
+        run: |
+          deno test --frozen --lock supabase/functions/telegram-bot/deno.lock \
+            supabase/functions/telegram-bot/parseManagerQuery.test.ts
+
       - name: Lint
         run: npm run lint
 

@@ -1,0 +1,34 @@
+name: Deploy Supabase Edge Functions
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'supabase/functions/**'
+      - 'scripts/build-edge-shared.mjs'
+      - 'src/features/Reservation/lib/chessmateHotelHeaderStatus.ts'
+      - 'src/features/AdvancedFilters/lib/constants.ts'
+      - '.github/workflows/supabase-functions-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: supabase-functions-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+      PROJECT_REF: mgsotfnghyolearhqolv
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: supabase/setup-cli@v2
+        with:
+          version: 2.113.0
+
+      - name: Deploy Telegram bot
+        run: supabase functions deploy telegram-bot --project-ref "$PROJECT_REF" --no-verify-jwt
