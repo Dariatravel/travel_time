@@ -13,7 +13,7 @@ on:
         required: false
         default: 'https://d5d4qekr1vt33i1f6g42.tmjd4m4j.apigw.yandexcloud.net/api/telegram/webhook'
       action:
-        description: 'set — включить, delete — выключить, info — состояние, test — постучаться в адрес'
+        description: 'set / delete / info / test — постучаться в адрес / selftest — исходящая связь контейнера'
         required: false
         default: 'set'
 
@@ -54,6 +54,15 @@ jobs:
               curl -sS -X POST "${API}/deleteWebhook"
               ;;
             info)
+              ;;
+            selftest)
+              # Спрашиваем у самого контейнера, добивается ли он до Telegram.
+              echo "Исходящая связь контейнера:"
+              curl -sS --max-time 60 \
+                "${WEBHOOK_URL%/webhook}/selftest?token=${TELEGRAM_WEBHOOK_SECRET}" \
+                | sed "s/${TELEGRAM_BOT_TOKEN}/***/g"
+              echo
+              echo
               ;;
             test)
               # Стучимся в адрес так же, как это делает Telegram: снаружи, POST,
