@@ -286,16 +286,19 @@ const syncIcal = async (
 
     const roomIdsByCategory = new Map<number, string[]>();
     for (const category of source.categories) {
-        roomIdsByCategory.set(
-            category.icalId,
-            rooms
-                .filter(
-                    (room) =>
-                        room.title === category.titlePrefix ||
-                        (room.title ?? '').startsWith(`${category.titlePrefix} `),
-                )
-                .map((room) => room.id),
-        );
+        const matched = rooms.filter((room) => {
+            const title = room.title ?? '';
+            if (category.roomNumbers) {
+                // номер комнаты внутри названия: «полулюкс 203 вид на …»
+                const match = /\b(\d{2,4})\b/.exec(title);
+                return match !== null && category.roomNumbers.includes(match[1]);
+            }
+            return (
+                title === category.titlePrefix ||
+                title.startsWith(`${category.titlePrefix} `)
+            );
+        });
+        roomIdsByCategory.set(category.icalId, matched.map((room) => room.id));
     }
     const allRoomIds = [...roomIdsByCategory.values()].flat();
     if (allRoomIds.length === 0) {
