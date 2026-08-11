@@ -70,19 +70,47 @@ const fetchBnovoBookings = async (login, password) => {
     const browser = await chromium.launch({ args: ['--no-sandbox'] });
     try {
         const page = await browser.newPage();
-        await page.goto('https://online.bnovo.ru/', { waitUntil: 'networkidle', timeout: 60_000 });
+        await page.goto('https://online.bnovo.ru/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-        await page.getByPlaceholder(/электронную почту/i).fill(login);
+        const emailBox = page.getByPlaceholder(/электронную почту/i);
+        await emailBox.waitFor({ timeout: 60_000 });
+        await emailBox.fill(login);
         await page.getByPlaceholder(/пароль/i).fill(password);
         await page.getByRole('button', { name: /Войти/ }).click();
 
-        // Успешный вход убирает форму «Вход в систему» и поднимает SPA-кабинет.
-        await page.waitForFunction(() => !/Вход в систему/.test(document.body.innerText), null, {
-            timeout: 60_000,
-        });
-        await page.waitForFunction(() => Boolean(document.querySelector('.v-application')), null, {
-            timeout: 60_000,
-        });
+        // Сигнал успешного входа — сам штатный запрос шахматки: без сессии он
+        // отдаёт 'session_expired', с сессией — JSON {result:[…]}. Пробуем в
+        // цикле, пока SPA не установит сессионную куку (или не выйдет таймаут).
+        const deadline = Date.now() + 60_000;
+        let ready = false;
+        while (Date.now() < deadline) {
+            ready = await page.evaluate(async () => {
+                try {
+                    const fd = new FormData();
+                    fd.append('dfrom', '2026-01-01');
+                    fd.append('dto', '2026-01-10');
+                    fd.append('daily', '0');
+                    const r = await fetch('/planning/bookings', {
+                        method: 'POST',
+                        credentials: 'include',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            Accept: 'application/json, text/plain, */*',
+                        },
+                        body: fd,
+                    });
+                    if (!r.ok) return false;
+                    const text = await r.text();
+                    if (/session_expired/.test(text)) return false;
+                    return Array.isArray(JSON.parse(text).result);
+                } catch {
+                    return false;
+                }
+            });
+            if (ready) break;
+            await sleep(2000);
+        }
+        if (!ready) throw new Error('Bnovo: вход не подтвердился (проверьте логин/пароль)');
 
         const periods = [];
         const start = new Date(utcMidnightToday());
