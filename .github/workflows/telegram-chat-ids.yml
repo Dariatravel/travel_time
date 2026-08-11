@@ -1,0 +1,61 @@
+# Показывает id чатов, куда добавлен бот. Нужен один раз: чтобы вписать id чата
+# менеджеров в секрет TELEGRAM_MANAGER_CHAT_IDS.
+#
+# Работает только пока НЕ включён вебхук (Telegram отдаёт очередь либо нам в
+# вебхук, либо по запросу — но не одновременно). Порядок такой: сначала этот
+# воркфлоу, потом telegram-set-webhook.
+name: Telegram Chat IDs
+
+on:
+  workflow_dispatch:
+
+jobs:
+  chat-ids:
+    name: Show chat ids
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Read pending updates
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ]; then
+            echo "Не задан секрет TELEGRAM_BOT_TOKEN"
+            exit 1
+          fi
+
+          curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?limit=100" > updates.json
+
+          node - <<'NODE'
+          const fs = require('fs');
+          const body = JSON.parse(fs.readFileSync('updates.json', 'utf8'));
+
+          if (!body.ok) {
+            console.log('Telegram ответил ошибкой:', body.description);
+            if (String(body.description || '').includes('webhook')) {
+              console.log('Похоже, вебхук уже включён — сначала выключите его (telegram-set-webhook, action=delete).');
+            }
+            process.exit(1);
+          }
+
+          const chats = new Map();
+          for (const update of body.result) {
+            const message =
+              update.message || update.edited_message || update.channel_post || update.edited_channel_post;
+            if (!message?.chat) continue;
+            chats.set(message.chat.id, `${message.chat.title || message.chat.first_name || ''} (${message.chat.type})`);
+          }
+
+          if (!chats.size) {
+            console.log('Сообщений нет. Напишите что-нибудь в группе с ботом и запустите снова.');
+            process.exit(0);
+          }
+
+          console.log('Чаты, где бот видит сообщения:');
+          for (const [id, title] of chats) {
+            console.log(`  ${id}  —  ${title}`);
+          }
+          NODE
