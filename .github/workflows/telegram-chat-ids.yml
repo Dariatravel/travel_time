@@ -27,10 +27,27 @@ jobs:
             exit 1
           fi
 
+          curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" > me.json
           curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getUpdates?limit=100" > updates.json
 
           node - <<'NODE'
           const fs = require('fs');
+          const me = JSON.parse(fs.readFileSync('me.json', 'utf8'));
+
+          if (me.ok) {
+            console.log(`Бот: @${me.result.username}`);
+            console.log(
+              me.result.can_read_all_group_messages
+                ? 'Режим приватности ВЫКЛЮЧЕН — бот видит все сообщения группы.'
+                : 'Режим приватности ВКЛЮЧЁН — бот видит только сообщения, начинающиеся со «/», ' +
+                  'обращения по @имени и ответы на свои сообщения. ' +
+                  'Выключить: @BotFather → /setprivacy → выбрать бота → Disable, ' +
+                  'затем УДАЛИТЬ бота из группы и добавить заново (в старых группах настройка ' +
+                  'применяется только при повторном добавлении).',
+            );
+            console.log('');
+          }
+
           const body = JSON.parse(fs.readFileSync('updates.json', 'utf8'));
 
           if (!body.ok) {
@@ -50,7 +67,9 @@ jobs:
           }
 
           if (!chats.size) {
-            console.log('Сообщений нет. Напишите что-нибудь в группе с ботом и запустите снова.');
+            console.log('Сообщений в очереди нет.');
+            console.log('Что сделать: написать в группе «/chatid» — такие сообщения бот получает');
+            console.log('в любом случае, даже при включённом режиме приватности, — и запустить снова.');
             process.exit(0);
           }
 

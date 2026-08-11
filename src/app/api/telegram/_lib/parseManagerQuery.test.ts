@@ -62,6 +62,30 @@ describe('parseManagerQuery', () => {
         expect(parseManagerQuery('Лидзава 12-16 августа', TODAY)?.cities).toEqual(['ldzaa']);
     });
 
+    it('понимает несколько городов через запятую', () => {
+        const query = parseManagerQuery('Гагра, Пицунда, Лдзаа 12-16 августа', TODAY);
+
+        expect(query?.cities).toEqual(['ldzaa', 'pitsunda', 'gagra']);
+    });
+
+    it('не спотыкается о падежи', () => {
+        expect(parseManagerQuery('в Гагре 12-16 августа', TODAY)?.cities).toEqual(['gagra']);
+        expect(parseManagerQuery('по Пицунде 12-16 августа', TODAY)?.cities).toEqual(['pitsunda']);
+        expect(parseManagerQuery('Сухуме 12-16 августа', TODAY)?.cities).toEqual(['sukhumi']);
+        expect(parseManagerQuery('Гудауте 12-16 августа', TODAY)?.cities).toEqual(['gudauta']);
+        expect(parseManagerQuery('Алахадзах 12-16 августа', TODAY)?.cities).toEqual(['alahadzy']);
+    });
+
+    it('по слову «везде» берёт все города', () => {
+        const query = parseManagerQuery('везде 12-16 августа', TODAY);
+
+        expect(query?.cities).toHaveLength(8);
+    });
+
+    it('оставляет города пустыми, если город не назван', () => {
+        expect(parseManagerQuery('12-16 августа', TODAY)?.cities).toEqual([]);
+    });
+
     it('игнорирует команду перед текстом', () => {
         const query = parseManagerQuery('/free Сухум 12-16 августа', TODAY);
 
