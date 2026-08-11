@@ -121,22 +121,34 @@ const parseDates = (text: string, today: Date): { start: string; end: string } |
     return start < end ? { start, end } : null;
 };
 
-const parseCities = (text: string): string[] => {
-    const cities = new Set<string>();
+/**
+ * Основы названий без окончаний: менеджер пишет «в Гагре», «по Пицунде»,
+ * «Алахадзы» — падеж не должен мешать поиску. Несколько городов перечисляются
+ * через запятую, каждый ищется в тексте отдельно.
+ */
+const CITY_STEMS: Record<string, string[]> = {
+    gagra: ['гагр'],
+    pitsunda: ['пицунд'],
+    // «Лидзава» — как местные называют Лдзаа.
+    ldzaa: ['лдзаа', 'лидзав'],
+    alahadzy: ['алахадз'],
+    candripsh: ['цандрипш'],
+    gudauta: ['гудаут'],
+    // «Афон» пишут и без «Новый».
+    'new-athon': ['афон'],
+    sukhumi: ['сухум'],
+};
 
-    for (const city of DEFAULT_CITIES) {
-        // Хватает первых пяти букв: «гагра/гагре/гагры», «пицунда/пицунде».
-        const root = normalize(city.label).slice(0, 5);
-        if (root.length >= 3 && text.includes(root)) {
-            cities.add(city.value);
-        }
+const ALL_CITIES_HINTS = ['везде', 'все города', 'всем городам', 'вся абхазия', 'по абхазии'];
+
+const parseCities = (text: string): string[] => {
+    if (ALL_CITIES_HINTS.some((hint) => text.includes(hint))) {
+        return DEFAULT_CITIES.map((city) => city.value);
     }
 
-    // «Афон» пишут и без «Новый», «Лидзава» — местное название Лдзаа.
-    if (text.includes('афон')) cities.add('new-athon');
-    if (text.includes('лидзав') || text.includes('лдзаа')) cities.add('ldzaa');
-
-    return Array.from(cities);
+    return DEFAULT_CITIES.filter((city) =>
+        (CITY_STEMS[city.value] ?? [normalize(city.label)]).some((stem) => text.includes(stem)),
+    ).map((city) => city.value);
 };
 
 const parseGuests = (text: string): number | null => {
