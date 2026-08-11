@@ -1,0 +1,67 @@
+# Регистрация вебхука бота в Telegram. Запускается вручную — после первого
+# деплоя и каждый раз, когда меняется адрес приложения или секрет.
+#
+# Пока вебхук установлен, getUpdates не работает (Telegram отдаёт 409) — это
+# нормально: сообщения приходят к нам сами, опрашивать очередь не нужно.
+name: Telegram Set Webhook
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: 'Адрес вебхука'
+        required: false
+        default: 'https://d5d4qekr1vt33i1f6g42.tmjd4m4j.apigw.yandexcloud.net/api/telegram/webhook'
+      action:
+        description: 'set — включить вебхук, delete — выключить, info — показать состояние'
+        required: false
+        default: 'set'
+
+jobs:
+  webhook:
+    name: Configure webhook
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Configure webhook
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_WEBHOOK_SECRET: ${{ secrets.TELEGRAM_WEBHOOK_SECRET }}
+          WEBHOOK_URL: ${{ inputs.url }}
+          ACTION: ${{ inputs.action }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ]; then
+            echo "Не задан секрет TELEGRAM_BOT_TOKEN"
+            exit 1
+          fi
+
+          API="https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}"
+
+          case "${ACTION}" in
+            set)
+              if [ -z "${TELEGRAM_WEBHOOK_SECRET}" ]; then
+                echo "Не задан секрет TELEGRAM_WEBHOOK_SECRET"
+                exit 1
+              fi
+              curl -sS -X POST "${API}/setWebhook" \
+                -H 'Content-Type: application/json' \
+                -d "{\"url\":\"${WEBHOOK_URL}\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"allowed_updates\":[\"message\",\"edited_message\",\"channel_post\",\"edited_channel_post\"],\"drop_pending_updates\":false}"
+              ;;
+            delete)
+              curl -sS -X POST "${API}/deleteWebhook"
+              ;;
+            info)
+              ;;
+            *)
+              echo "Неизвестное действие: ${ACTION}"
+              exit 1
+              ;;
+          esac
+
+          echo
+          echo "Состояние вебхука:"
+          # Адрес содержит секрет только в заголовке, но на всякий случай прячем токен из вывода.
+          curl -sS "${API}/getWebhookInfo" | sed "s/${TELEGRAM_BOT_TOKEN}/***/g"
