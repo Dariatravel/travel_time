@@ -62,6 +62,12 @@ jobs:
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
             NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true
 
+      # Внимание: yc разбирает --environment по запятым, поэтому значение
+      # переменной с запятой внутри превращается в две переменные и деплой
+      # падает. Так уже случилось с TELEGRAM_MANAGER_CHAT_IDS, когда группа
+      # менеджеров стала супергруппой и в списке оказалось два id. Бот с тех пор
+      # живёт в Supabase Edge Function, контейнеру этот список не нужен —
+      # переменная убрана. Новые переменные с запятыми сюда добавлять нельзя.
       - name: Deploy serverless container revision
         run: |
           yc serverless container revision deploy \
@@ -72,7 +78,7 @@ jobs:
             --cores 1 \
             --execution-timeout 30s \
             --concurrency 16 \
-            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true,SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},REALTYCALENDAR_WEBHOOK_TOKEN=${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }},GOOGLE_SA_B64=${{ secrets.GOOGLE_SA_B64 }},GITHUB_DISPATCH_TOKEN=${{ secrets.MIRROR_DISPATCH_TOKEN }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }},TELEGRAM_MANAGER_CHAT_IDS=${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
+            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true,SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},REALTYCALENDAR_WEBHOOK_TOKEN=${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }},GOOGLE_SA_B64=${{ secrets.GOOGLE_SA_B64 }},GITHUB_DISPATCH_TOKEN=${{ secrets.MIRROR_DISPATCH_TOKEN }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
 
       - name: Create or update API Gateway
         run: |
