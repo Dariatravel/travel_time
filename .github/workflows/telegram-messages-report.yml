@@ -1,0 +1,37 @@
+# Что собралось из чатов Telegram. Запускается вручную, ничего не меняет —
+# только читает telegram_chat_messages и печатает сводку в лог.
+name: Telegram Messages Report
+
+on:
+  workflow_dispatch:
+    inputs:
+      last_limit:
+        description: 'Сколько последних сообщений показать'
+        required: false
+        default: '20'
+
+jobs:
+  report:
+    name: Show collected messages
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run report
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          LAST_LIMIT: ${{ inputs.last_limit }}
+        run: node scripts/telegram-messages-report.mjs
