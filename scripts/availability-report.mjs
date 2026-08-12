@@ -106,9 +106,29 @@ const main = async () => {
         entry.rooms.sort((a, b) => a.order - b.order);
     }
 
+    // Сообщения отельеров за последние дни: в подборку идут не только окошки из
+    // шахматки, но и то, что отельеры написали словами («с 19 по 22 Мачара»).
+    // CHAT_DAYS=0 — не забирать вовсе.
+    const chatDays = Number(process.env.CHAT_DAYS ?? 2);
+    let chatMessages = [];
+
+    if (chatDays > 0) {
+        const since = new Date(Date.now() - chatDays * 24 * 60 * 60 * 1000).toISOString();
+        const { data, error } = await supabase
+            .from('telegram_chat_messages')
+            .select('chat_title, author_name, author_username, text, sent_at, edited_at')
+            .gte('sent_at', since)
+            .order('sent_at', { ascending: true });
+
+        // Отсутствие сообщений не повод ронять отчёт по занятости.
+        if (error) console.error(`telegram_chat_messages: ${error.message}`);
+        else chatMessages = data ?? [];
+    }
+
     const payload = {
         period: { start: periodStart, end: periodEnd, nights: lastNight - firstNight + 1 },
         hotels: Array.from(report.values()),
+        chat: { days: chatDays, messages: chatMessages },
     };
 
     console.log('===AVAILABILITY_REPORT_START===');

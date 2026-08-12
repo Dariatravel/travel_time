@@ -14,6 +14,10 @@ on:
         description: 'Дата выезда (YYYY-MM-DD)'
         required: false
         default: '2026-08-20'
+      chat_days:
+        description: 'За сколько последних дней взять сообщения отельеров (0 — не брать)'
+        required: false
+        default: '2'
 
 jobs:
   report:
@@ -40,4 +44,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           PERIOD_START: ${{ inputs.period_start }}
           PERIOD_END: ${{ inputs.period_end }}
+          CHAT_DAYS: ${{ inputs.chat_days }}
         run: node scripts/availability-report.mjs
