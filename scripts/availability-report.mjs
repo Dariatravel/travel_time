@@ -104,6 +104,14 @@ const main = async () => {
 
     for (const entry of report.values()) {
         entry.rooms.sort((a, b) => a.order - b.order);
+
+        // Ни одной брони и ни одной закрытой даты за весь период. Это не то же
+        // самое, что «всё свободно»: так же выглядит шахматка, которую перестали
+        // вести. Потребитель отчёта помечает такие объекты «уточнить у отельера»,
+        // а не выдаёт их как гарантированно свободные.
+        entry.no_occupancy_in_period = entry.rooms
+            .filter((room) => !/буфер/i.test(room.room_title ?? ''))
+            .every((room) => room.free_nights === lastNight - firstNight + 1);
     }
 
     // Сообщения отельеров за последние дни: в подборку идут не только окошки из

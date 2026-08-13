@@ -1,0 +1,41 @@
+# «Заброшенные» шахматки: зелёные и голубые объекты без единой брони на
+# ближайшие недели. Пустая шахматка выглядит в подборке как полностью свободный
+# объект — этот отчёт помогает ловить такие вовремя. Ничего не меняет.
+name: Stale Chessmate Report
+
+on:
+  schedule:
+    # Понедельник, 09:00 по Москве.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      ahead_days:
+        description: 'На сколько дней вперёд проверять'
+        required: false
+        default: '30'
+
+jobs:
+  report:
+    name: Find empty chessmates
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run report
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          AHEAD_DAYS: ${{ inputs.ahead_days || '30' }}
+        run: node scripts/stale-chessmate-report.mjs
