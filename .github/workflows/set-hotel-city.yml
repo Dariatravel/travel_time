@@ -1,0 +1,61 @@
+# Проставить городу отеля значение, когда поле пустое. Без города объект
+# выпадает из группировки по населённым пунктам в подборках и не находится,
+# когда менеджер спрашивает бота про город.
+#
+# По умолчанию — сухой прогон: показывает отели без города и что именно
+# изменится. Запись только при apply = true и только если город пуст.
+name: Set Hotel City
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_title:
+        description: 'Название отеля как в программе (пусто — только показать отели без города)'
+        required: false
+        default: ''
+      city:
+        description: 'Город'
+        required: false
+        type: choice
+        options:
+          - gagra
+          - candripsh
+          - pitsunda
+          - ldzaa
+          - alahadzy
+          - gudauta
+          - new-athon
+          - sukhumi
+      apply:
+        description: 'Применить изменение (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  set-city:
+    name: Set city
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLE: ${{ inputs.hotel_title }}
+          CITY: ${{ inputs.city }}
+          APPLY: ${{ inputs.apply }}
+        run: node scripts/set-hotel-city.mjs
