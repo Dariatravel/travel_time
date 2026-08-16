@@ -168,9 +168,13 @@ Deno.serve(async (request) => {
         const text = message.text ?? message.caption ?? '';
         const supabase = getSupabase();
 
+        // Правка сообщения — не новый запрос: иначе исправленная опечатка
+        // приносит в чат второй такой же ответ.
+        const isEdit = Boolean(update.edited_message ?? update.edited_channel_post);
+
         if (getManagerChatIds().has(String(message.chat.id))) {
-            if (text) await answerManager(supabase, message, text);
-        } else if (/^\/chatid/.test(text.trim().toLowerCase())) {
+            if (text && !isEdit) await answerManager(supabase, message, text);
+        } else if (!isEdit && /^\/chatid/.test(text.trim().toLowerCase())) {
             await sendMessage(
                 message.chat.id,
                 `id этого чата: ${message.chat.id}`,
