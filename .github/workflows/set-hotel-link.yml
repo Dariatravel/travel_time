@@ -1,0 +1,41 @@
+name: Set Hotel Link
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_title:
+        description: 'Точное название объекта в программе'
+        required: true
+      hotel_url:
+        description: 'Полный проверяемый URL'
+        required: true
+      apply:
+        description: 'Применить изменение (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+      confirmation:
+        description: 'Для записи: UPDATE_HOTEL_LINK'
+        required: false
+        default: ''
+
+jobs:
+  set-link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - name: Verify and set link
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLE: ${{ inputs.hotel_title }}
+          HOTEL_URL: ${{ inputs.hotel_url }}
+          APPLY: ${{ inputs.apply }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/set-hotel-link.mjs

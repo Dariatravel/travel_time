@@ -16,7 +16,9 @@
         "supabase:login": "npx supabase login",
         "supabase:update-types": "npx supabase gen types typescript --project-id \"olnyjjsvthqygmhsrgiy\" --schema public > database.types.ts",
         "reconcile:abkhaz": "node scripts/reconcile-abkhazbereg.cjs",
-        "apply:abkhaz-links": "node scripts/apply-abkhazbereg-updates.cjs"
+        "apply:abkhaz-links": "node scripts/apply-abkhazbereg-updates.cjs",
+        "short-links:sync": "node scripts/sync-short-hotel-links.mjs",
+        "short-links:test": "node --test scripts/lib/shortHotelLinks.test.mjs"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

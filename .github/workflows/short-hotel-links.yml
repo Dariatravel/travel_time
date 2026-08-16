@@ -1,0 +1,99 @@
+# Еженедельная сверка коротких ссылок. По расписанию всегда только отчёт.
+# Создание страниц и запись в Supabase доступны лишь при ручном запуске с
+# контрольной фразой. Для публикации в lending_pervyi нужен секрет
+# SHORT_LINKS_SITE_TOKEN с правом записи в этот репозиторий.
+name: Short Hotel Links
+
+on:
+  schedule:
+    - cron: '35 6 * * 1'
+  workflow_dispatch:
+    inputs:
+      apply_site:
+        description: 'Создать и опубликовать недостающие короткие страницы'
+        required: false
+        type: boolean
+        default: false
+      update_database:
+        description: 'После публикации записать проверенные ссылки в Supabase'
+        required: false
+        type: boolean
+        default: false
+      confirmation:
+        description: 'Для записи в базу: UPDATE_SHORT_LINKS'
+        required: false
+        default: ''
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout travel_time
+        uses: actions/checkout@v4
+
+      - name: Checkout static site
+        uses: actions/checkout@v4
+        with:
+          repository: Dariatravel/lending_pervyi
+          path: static-site
+          token: ${{ inputs.apply_site && secrets.SHORT_LINKS_SITE_TOKEN || github.token }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Test short-link rules
+        run: npm run short-links:test
+
+      - name: Build plan or create aliases
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: >-
+          node scripts/sync-short-hotel-links.mjs
+          --site-dir static-site
+          ${{ inputs.apply_site && '--apply-site' || '' }}
+
+      - name: Publish alias pages
+        if: ${{ inputs.apply_site }}
+        working-directory: static-site
+        run: |
+          if git diff --quiet && test -z "$(git status --porcelain)"; then
+            echo "Новых страниц нет"
+            exit 0
+          fi
+          git config user.name "short-links-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add hotels kvartira
+          git commit -m "Добавить короткие ссылки объектов"
+          git push
+
+      - name: Wait for site deployment
+        if: ${{ inputs.apply_site && inputs.update_database }}
+        run: sleep 90
+
+      - name: Update verified database links
+        if: ${{ inputs.update_database }}
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: >-
+          node scripts/sync-short-hotel-links.mjs
+          --site-dir static-site
+          --update-db
+          --confirm "${{ inputs.confirmation }}"
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: short-hotel-links-report
+          path: |
+            short-hotel-links-report.txt
+            short-hotel-links-report.json
