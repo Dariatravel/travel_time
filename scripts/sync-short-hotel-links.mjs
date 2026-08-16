@@ -24,6 +24,7 @@ import {
 const DEFAULT_SITE_BASE = 'https://xn--80aacbklan7f0b.xn--p1ai';
 const DISPLAY_ORIGIN = 'https://абхазберег.рф';
 const CONFIRMATION = 'UPDATE_SHORT_LINKS';
+const EXPLICITLY_SKIPPED_TITLES = new Set(['тест', 'шерамин sheramin']);
 
 const loadEnvLocal = () => {
     const file = path.resolve('.env.local');
@@ -169,6 +170,8 @@ const formatReport = (rows, summary, args) => {
         'Короткие ссылки абхазберег.рф — отчёт',
         `Режим: ${args.applySite ? 'создание страниц разрешено' : 'сухой прогон страниц'}, ${args.updateDb ? 'запись в базу разрешена' : 'без записи в базу'}`,
         `Всего объектов в программе: ${summary.total}`,
+        `Активных для подбора: ${summary.eligible}`,
+        `Скрытых и служебных пропущено: ${summary.skipped}`,
         `Короткие ссылки оставлены как были: ${summary.kept}`,
         `Предложены новые короткие ссылки: ${summary.planned}`,
         `Созданы страницы-псевдонимы: ${summary.aliasesCreated}`,
@@ -196,7 +199,7 @@ const main = async () => {
     if (!url || !key) throw new Error('Нужны NEXT_PUBLIC_SUPABASE_URL и SUPABASE_SERVICE_ROLE_KEY');
 
     const supabase = createClient(url, key, { auth: { persistSession: false } });
-    const { data: hotels, error } = await supabase.from('hotels').select('id,title,telegram_url').order('title');
+    const { data: hotels, error } = await supabase.from('hotels').select('id,title,telegram_url,is_search_visible').order('title');
     if (error) throw new Error(`hotels: ${error.message}`);
 
     const listings = readSnapshot(args.siteDir);
@@ -208,6 +211,15 @@ const main = async () => {
 
     for (const hotel of hotels ?? []) {
         const oldUrl = String(hotel.telegram_url ?? '').trim();
+        const normalizedTitle = String(hotel.title ?? '').trim().toLowerCase();
+        if (hotel.is_search_visible === false || EXPLICITLY_SKIPPED_TITLES.has(normalizedTitle)) {
+            rows.push({
+                id: hotel.id, title: hotel.title, oldUrl, newUrl: oldUrl,
+                canonicalPath: '', status: 'пропущено',
+                note: hotel.is_search_visible === false ? 'объект скрыт из поиска и подборок' : 'служебное исключение без карточки сайта',
+            });
+            continue;
+        }
         const oldPath = normalizeCatalogPath(oldUrl);
         if (oldPath && isShortCatalogPath(oldPath)) {
             const expectedTarget = aliases.byShort.get(oldPath);
@@ -267,6 +279,8 @@ const main = async () => {
 
     const summary = {
         total: rows.length,
+        eligible: rows.filter((row) => row.status !== 'пропущено').length,
+        skipped: rows.filter((row) => row.status === 'пропущено').length,
         kept: rows.filter((row) => row.status === 'оставлено').length,
         planned: rows.filter((row) => row.newUrl && row.newUrl !== row.oldUrl).length,
         aliasesCreated,

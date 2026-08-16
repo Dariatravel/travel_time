@@ -10,7 +10,7 @@ const RU_TO_LATIN = {
 const GENERIC_WORDS = new Set([
     'hotel', 'otel', 'mini', 'gostevoy', 'gostevoi', 'gostinitsa', 'dom', 'doma', 'domik',
     'domiki', 'kvartira', 'kvartiry', 'apartamenty', 'apart', 'kompleks', 'kottedzh',
-    'kottedzhi', 'nomer', 'nomera', 'villa', 'baza', 'otdyha', 'eko', 'rezort', 'resort',
+    'kottedzhi', 'nomer', 'nomera', 'villa', 'baza', 'otdyha', 'eko', 'afreym', 'afreymy',
 ]);
 
 export const transliterate = (value) =>
@@ -28,7 +28,13 @@ export const extractObjectName = (title) => {
     if (quoted?.[1]) return quoted[1].trim();
 
     const tokens = slugify(source).split('-').filter(Boolean);
-    const meaningful = tokens.filter((token) => !GENERIC_WORDS.has(token) && !/^\d+k$/.test(token));
+    const typeIndex = tokens.findIndex((token) => GENERIC_WORDS.has(token));
+    const nameTokens = typeIndex > 0 ? tokens.slice(0, typeIndex) : tokens;
+    const numericNameTokens = tokens.filter((token) => /^\d+$/.test(token) && !nameTokens.includes(token));
+    const meaningful = [
+        ...nameTokens.filter((token) => !GENERIC_WORDS.has(token) && !/^\d+k$/.test(token)),
+        ...numericNameTokens,
+    ];
     return meaningful.join(' ') || source;
 };
 
@@ -84,4 +90,3 @@ export const aliasTargetFromHtml = (html) => {
 };
 
 export const semanticTitleKey = (title) => buildShortSlug(title).replace(/-/g, '');
-

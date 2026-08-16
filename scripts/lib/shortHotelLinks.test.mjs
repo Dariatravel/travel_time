@@ -6,6 +6,9 @@ describe('короткие ссылки объектов', () => {
     it('транслитерирует название и убирает тип объекта', () => {
         assert.equal(buildShortSlug('«БЛЭК СИ» отель с бассейном'), 'blek-si');
         assert.equal(buildShortSlug('Грасс гостевой дом'), 'grass');
+        assert.equal(buildShortSlug('БИОСФЕРА домики у Кындыгского источника'), 'biosfera');
+        assert.equal(buildShortSlug('ТРИО номер на пляже'), 'trio');
+        assert.equal(buildShortSlug('ИНКИТ РЕЗОРТ афреймы'), 'inkit-rezort');
     });
 
     it('сохраняет цифры, являющиеся частью названия', () => {
