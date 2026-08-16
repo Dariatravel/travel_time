@@ -46,6 +46,7 @@ const parseArgs = () => {
         updateDb: false,
         confirm: '',
         skipHttp: false,
+        strict: false,
     };
     for (let i = 0; i < args.length; i += 1) {
         const arg = args[i];
@@ -57,6 +58,7 @@ const parseArgs = () => {
         else if (arg === '--update-db') result.updateDb = true;
         else if (arg === '--confirm') result.confirm = args[++i] ?? '';
         else if (arg === '--skip-http') result.skipHttp = true;
+        else if (arg === '--strict') result.strict = true;
         else throw new Error(`Неизвестный аргумент: ${arg}`);
     }
     if (!result.siteDir) throw new Error('Укажите --site-dir с локальной копией lending_pervyi');
@@ -291,7 +293,7 @@ const main = async () => {
     fs.writeFileSync(path.resolve(args.report), report, 'utf8');
     fs.writeFileSync(path.resolve(args.jsonReport), JSON.stringify({ generatedAt: new Date().toISOString(), summary, rows }, null, 2) + '\n', 'utf8');
     console.log(report);
-    if (summary.failed) process.exitCode = 2;
+    if (summary.failed && args.strict) process.exitCode = 2;
 };
 
 main().catch((error) => {
