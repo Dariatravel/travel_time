@@ -1,0 +1,51 @@
+# Проставить ссылку на объект, когда её нет. Без ссылки объект попадает в
+# подборку и в ответ бота «слепым»: гостю некуда перейти.
+#
+# По умолчанию сухой прогон. Запись только при apply = true и только если
+# ссылка пуста.
+name: Set Hotel Link
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_title:
+        description: 'Название объекта как в программе (пусто — только показать объекты без ссылки)'
+        required: false
+        default: ''
+      link:
+        description: 'Ссылка на страницу объекта'
+        required: false
+        default: ''
+      apply:
+        description: 'Применить изменение (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  set-link:
+    name: Set link
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLE: ${{ inputs.hotel_title }}
+          LINK: ${{ inputs.link }}
+          APPLY: ${{ inputs.apply }}
+        run: node scripts/set-hotel-link.mjs
