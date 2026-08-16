@@ -231,7 +231,7 @@ const main = async () => {
                 id: hotel.id, title: hotel.title, oldUrl, newUrl: oldUrl,
                 canonicalPath: expectedTarget, status: valid ? 'оставлено' : 'ошибка',
                 note: expectedTarget ? (valid ? 'существующая короткая ссылка' : 'короткая ссылка не прошла HTTP-проверку') : 'короткая ссылка отсутствует в копии сайта',
-                http,
+                http, kind: 'existing-short',
             });
             continue;
         }
@@ -279,6 +279,12 @@ const main = async () => {
         rows.push({ id: hotel.id, title: hotel.title, oldUrl, newUrl, canonicalPath, status, note, http });
     }
 
+    // Именно «работала и перестала»: адрес уже разослан гостям, а страница
+    // больше не отвечает. Только те строки, где проверка по HTTP реально
+    // выполнялась и не прошла — планируемые, но ещё не созданные страницы
+    // сюда не попадают.
+    const broken = rows.filter((row) => row.kind === 'existing-short' && row.http && !row.http.ok);
+
     const summary = {
         total: rows.length,
         eligible: rows.filter((row) => row.status !== 'пропущено').length,
@@ -293,6 +299,21 @@ const main = async () => {
     fs.writeFileSync(path.resolve(args.report), report, 'utf8');
     fs.writeFileSync(path.resolve(args.jsonReport), JSON.stringify({ generatedAt: new Date().toISOString(), summary, rows }, null, 2) + '\n', 'utf8');
     console.log(report);
+
+    // Сломавшаяся короткая ссылка — это битый адрес у гостя, о таком нужно
+    // узнавать сразу, а не находить отчёт в журнале запусков. Поэтому падаем
+    // всегда, без --strict. «Карточка не найдена по названию» — другое дело:
+    // такие объекты известны и висят из недели в неделю, из-за них ронять
+    // проверку нельзя, иначе оповещения перестанут читать.
+    if (broken.length) {
+        console.error('');
+        console.error(`Перестали открываться короткие ссылки: ${broken.length}`);
+        for (const row of broken) console.error(`  ${row.title} — ${row.oldUrl}`);
+        process.exitCode = 2;
+
+        return;
+    }
+
     if (summary.failed && args.strict) process.exitCode = 2;
 };
 
