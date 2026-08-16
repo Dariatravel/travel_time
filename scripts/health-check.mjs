@@ -65,7 +65,7 @@ const main = async () => {
 
     const [hotels, rooms] = await Promise.all([
         fetchAll('hotels', 'id, title, city, telegram_url'),
-        fetchAll('rooms', 'id, hotel_id, title, quantity'),
+        fetchAll('rooms', 'id, hotel_id, title, quantity, price'),
     ]);
 
     const maintained = new Set(
@@ -104,6 +104,27 @@ const main = async () => {
     for (const hotel of noLink) console.log(`  ${(hotel.title ?? '').trim()}`);
     console.log(`С нерусским названием: ${notRussian.length}`);
     for (const hotel of notRussian) console.log(`  ${(hotel.title ?? '').trim()}`);
+
+    // Бот показывает цену «от», и заглушка вроде 1 ₽ утягивает её вниз по всему
+    // объекту: менеджер видит «от 1 ₽» и не понимает, чему верить.
+    const titleById = new Map(hotels.map((hotel) => [hotel.id, (hotel.title ?? '').trim()]));
+    const suspiciousPrice = realRooms
+        .filter((room) => maintained.has(room.hotel_id))
+        .filter((room) => typeof room.price === 'number' && room.price > 0 && room.price < 1000)
+        .sort((left, right) => left.price - right.price);
+
+    console.log('');
+    console.log('=== ЦЕНЫ НОМЕРОВ (бот показывает «от» по самой низкой) ===');
+    console.log(`Цена меньше 1000 ₽ — похоже на заглушку: ${suspiciousPrice.length}`);
+    for (const room of suspiciousPrice.slice(0, 20)) {
+        console.log(
+            `  ${titleById.get(room.hotel_id) ?? '(объект неизвестен)'}` +
+                ` — ${(room.title ?? '').trim() || 'номер'}: ${room.price} ₽`,
+        );
+    }
+    if (suspiciousPrice.length > 20) {
+        console.log(`  …и ещё ${suspiciousPrice.length - 20}`);
+    }
 };
 
 main().catch((error) => {
