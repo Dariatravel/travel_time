@@ -1,0 +1,47 @@
+# Привязка сообщений из чата отельеров к объектам: заполняет
+# telegram_chat_messages.hotel_id, чтобы «окошки», написанные словами, попадали
+# в подборку рядом со своим отелем.
+#
+# По умолчанию сухой прогон: показывает, что определилось и что нет.
+# Запись только при apply = true и только там, где объект ещё не проставлен.
+name: Telegram Link Messages
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'За сколько последних дней разбирать сообщения'
+        required: false
+        default: '30'
+      apply:
+        description: 'Записать привязки (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  link:
+    name: Link messages to hotels
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          DAYS: ${{ inputs.days }}
+          APPLY: ${{ inputs.apply }}
+        run: node scripts/telegram-link-messages.mjs

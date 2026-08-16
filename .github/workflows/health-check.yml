@@ -1,0 +1,35 @@
+# Проверка здоровья данных и защит: применена ли защита от двойного
+# бронирования, заполнена ли вместимость номеров, у каких объектов нет города
+# или ссылки. Только читает.
+name: Health Check
+
+on:
+  schedule:
+    # Понедельник, 09:15 по Москве — сразу после отчёта о заброшенных шахматках.
+    - cron: '15 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Data health
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run health check
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/health-check.mjs

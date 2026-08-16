@@ -5,6 +5,8 @@ export type ManagerQuery = {
     endDate: string;
     cities: string[];
     guests: number | null;
+    /** Заезд уже прошёл: ответ будет про прошлое, менеджера надо предупредить. */
+    isPast: boolean;
 };
 
 const MONTHS: Record<string, number> = {
@@ -96,6 +98,46 @@ const parseDates = (text: string, today: Date): { start: string; end: string } |
     return start < end ? { start, end } : null;
 };
 
+const DAY = 24 * 60 * 60 * 1000;
+
+const isoOf = (date: Date) => date.toISOString().slice(0, 10);
+const shift = (date: Date, days: number) => new Date(date.getTime() + days * DAY);
+
+/**
+ * Живые формулировки менеджеров: «сегодня», «завтра», «на выходные», «на неделю».
+ * Считаем от московской даты — менеджеры работают по ней, и «завтра» не должно
+ * зависеть от часового пояса сервера.
+ */
+const parseRelativeDates = (text: string, today: Date): { start: string; end: string } | null => {
+    const moscowToday = new Date(`${new Date(today.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10)}T00:00:00Z`);
+
+    // «на 3 ночи», «на 5 дней» — от сегодня, если не сказано иное.
+    const nights = /на\s+(\d{1,2})\s*(ноч|дн|сут)/.exec(text);
+
+    const startFrom = (from: Date, defaultNights: number) => ({
+        start: isoOf(from),
+        end: isoOf(shift(from, nights ? Number(nights[1]) : defaultNights)),
+    });
+
+    if (/послезавтра/.test(text)) return startFrom(shift(moscowToday, 2), 1);
+    if (/завтра/.test(text)) return startFrom(shift(moscowToday, 1), 1);
+
+    if (/выходн/.test(text)) {
+        // Ближайшая пятница (или сегодня, если уже пятница), выезд в воскресенье.
+        const weekday = moscowToday.getUTCDay(); // 0 — воскресенье
+        const daysToFriday = (5 - weekday + 7) % 7;
+        const friday = shift(moscowToday, daysToFriday);
+
+        return { start: isoOf(friday), end: isoOf(shift(friday, 2)) };
+    }
+
+    if (/на\s+недел|неделю/.test(text)) return startFrom(moscowToday, 7);
+    if (/сегодня|сейчас|ближайш/.test(text)) return startFrom(moscowToday, nights ? 0 : 3);
+    if (nights) return startFrom(moscowToday, 0);
+
+    return null;
+};
+
 const CITY_STEMS: Record<string, string[]> = {
     gagra: ['гагр'],
     pitsunda: ['пицунд'],
@@ -134,7 +176,8 @@ export const parseManagerQuery = (rawText: string, today = new Date()): ManagerQ
         .trim();
     if (!text) return null;
 
-    const dates = parseDates(text, today);
+    // Точные даты важнее: «завтра-послезавтра еду, нужно 20-25 августа».
+    const dates = parseDates(text, today) ?? parseRelativeDates(text, today);
     if (!dates) return null;
 
     const withoutDates = text.replace(
@@ -142,10 +185,15 @@ export const parseManagerQuery = (rawText: string, today = new Date()): ManagerQ
         ' ',
     );
 
+    // Сравниваем с московской датой: до 3 часов ночи по Москве сервер ещё во
+    // вчерашнем дне по UTC, и сегодняшний заезд иначе считался бы прошедшим.
+    const moscowToday = new Date(today.getTime() + 3 * 60 * 60 * 1000).toISOString().slice(0, 10);
+
     return {
         startDate: dates.start,
         endDate: dates.end,
         cities: parseCities(text),
         guests: parseGuests(withoutDates),
+        isPast: dates.start < moscowToday,
     };
 };

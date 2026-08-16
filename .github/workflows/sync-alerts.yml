@@ -1,0 +1,62 @@
+# Оповещение в чат менеджеров, если сломалась синхронизация занятости.
+#
+# Зачем: молчаливо упавший крон опаснее видимой ошибки — шахматка остаётся со
+# вчерашними данными, а менеджер предлагает уже занятые номера. Раньше о таком
+# узнавали, только когда кто-то специально смотрел журнал запусков.
+name: Sync Alerts
+
+on:
+  workflow_run:
+    workflows:
+      - Mirror Occupancy Cron
+      - Google Sheet Occupancy Cron
+      - RealtyCalendar iCal Cron
+      - Deploy Yandex Cloud Mirror
+      - Deploy Supabase Edge Functions
+    types:
+      - completed
+
+jobs:
+  alert:
+    name: Notify managers
+    # Только про поломки: успешные запуски в чате не нужны.
+    if: github.event.workflow_run.conclusion == 'failure'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Send alert
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_IDS: ${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }}
+          WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
+          RUN_URL: ${{ github.event.workflow_run.html_url }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ] || [ -z "${CHAT_IDS}" ]; then
+            echo "Нет TELEGRAM_BOT_TOKEN или TELEGRAM_MANAGER_CHAT_IDS — оповестить некуда"
+            exit 0
+          fi
+
+          TEXT="⚠️ Сбой: «${WORKFLOW_NAME}»
+
+          Занятость могла не обновиться — проверяйте даты у отельера, пока не починим.
+
+          ${RUN_URL}"
+
+          # Список чатов через запятую: у группы менеджеров бывает и старый id.
+          echo "${CHAT_IDS}" | tr ',' '\n' | while read -r CHAT_ID; do
+            CHAT_ID="$(echo "${CHAT_ID}" | xargs)"
+            [ -z "${CHAT_ID}" ] && continue
+
+            jq -n --arg chat_id "${CHAT_ID}" --arg text "${TEXT}" \
+              '{chat_id: $chat_id, text: $text, disable_web_page_preview: true}' > payload.json
+
+            HTTP_CODE="$(curl -sS -o response.json -w '%{http_code}' --max-time 30 \
+              -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+              -H 'Content-Type: application/json' \
+              --data-binary @payload.json)"
+
+            echo "Чат ${CHAT_ID}: HTTP ${HTTP_CODE}"
+          done

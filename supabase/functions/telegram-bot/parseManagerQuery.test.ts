@@ -12,6 +12,7 @@ Deno.test('разбирает «Гагра 12-16 августа 4 человек
         endDate: '2026-08-16',
         cities: ['gagra'],
         guests: 4,
+        isPast: false,
     });
 });
 
@@ -21,6 +22,7 @@ Deno.test('разбирает даты с точками и без города'
         endDate: '2026-08-16',
         cities: [],
         guests: null,
+        isPast: false,
     });
 });
 
@@ -100,4 +102,44 @@ Deno.test('возвращает null, если дат нет', () => {
 
 Deno.test('возвращает null, если выезд раньше заезда в том же месяце', () => {
     assertEquals(parseManagerQuery('16.08-12.08', TODAY), null);
+});
+
+Deno.test('понимает «завтра»', () => {
+    const query = parseManagerQuery('Гагра завтра', TODAY);
+
+    assertEquals(query?.startDate, '2026-08-09');
+    assertEquals(query?.endDate, '2026-08-10');
+});
+
+Deno.test('понимает «на выходные» — с пятницы по воскресенье', () => {
+    const query = parseManagerQuery('Пицунда на выходные', TODAY);
+
+    assertEquals(query?.startDate, '2026-08-14');
+    assertEquals(query?.endDate, '2026-08-16');
+});
+
+Deno.test('понимает «на 5 ночей»', () => {
+    const query = parseManagerQuery('Сухум на 5 ночей', TODAY);
+
+    assertEquals(query?.startDate, '2026-08-08');
+    assertEquals(query?.endDate, '2026-08-13');
+});
+
+Deno.test('точные даты важнее слова «завтра»', () => {
+    const query = parseManagerQuery('завтра нужно на 20-25 августа Гагра', TODAY);
+
+    assertEquals(query?.startDate, '2026-08-20');
+    assertEquals(query?.endDate, '2026-08-25');
+});
+
+Deno.test('помечает прошедшие даты', () => {
+    const query = parseManagerQuery('Гагра 01.08-05.08', TODAY);
+
+    assertEquals(query?.isPast, true);
+});
+
+Deno.test('сегодняшний заезд прошедшим не считается', () => {
+    const query = parseManagerQuery('Гагра 08.08-12.08', TODAY);
+
+    assertEquals(query?.isPast, false);
 });
