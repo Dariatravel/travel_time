@@ -1,0 +1,50 @@
+# Удалить пустую запись объекта — задвоенную или пробную.
+#
+# Удаление необратимо, поэтому по умолчанию сухой прогон: показывает опись
+# (номера, брони, закрытия) и ничего не трогает. Запись требует apply = true
+# и контрольной фразы DELETE_HOTELS. Объект с любой бронью не удаляется.
+name: Delete Hotel
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_titles:
+        description: 'Названия объектов через запятую, точно как в программе'
+        required: true
+      apply:
+        description: 'Удалить (иначе только показать опись)'
+        required: false
+        type: boolean
+        default: false
+      confirmation:
+        description: 'Для удаления: DELETE_HOTELS'
+        required: false
+        default: ''
+
+jobs:
+  delete:
+    name: Delete hotel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLES: ${{ inputs.hotel_titles }}
+          APPLY: ${{ inputs.apply }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/delete-hotel.mjs
