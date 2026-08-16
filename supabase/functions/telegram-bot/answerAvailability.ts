@@ -167,17 +167,56 @@ const searchHotels = async (
 };
 
 /**
- * Номера, у которых есть хоть одна бронь за период. Нужно, чтобы отличить
- * «объект действительно свободен» от «шахматку не ведут»: во втором случае
- * занятости не будет вообще, и предлагать такой объект как свободный нельзя.
+ * Объекты, у которых вокруг запрошенных дат нет ни одной брони.
+ *
+ * Смысл пометки — отличить «объект действительно свободен» от «шахматку
+ * перестали вести»: во втором случае занятости не будет вообще.
+ *
+ * Здесь важны две вещи, на которых пометка ломалась раньше.
+ *
+ * Первая: считать надо по ВСЕМ номерам объекта, а не по свободным. Поиск
+ * возвращает как раз свободные номера, у них брони за период не бывает по
+ * определению — проверка по ним всегда говорила «броней нет».
+ *
+ * Вторая: окно берётся шире запроса. У объекта из одного номера пустая неделя
+ * — обычное дело, а вот пустые два месяца в сезон означают, что шахматку не
+ * ведут. Узкое окно превращало пометку в шум на каждой строчке.
  */
-const getBookedRoomIds = async (
+const WINDOW_DAYS = 30;
+const DAY_SECONDS = 24 * 60 * 60;
+
+const getHotelsWithoutBookings = async (
     supabase: SupabaseClient,
-    roomIds: string[],
+    hotelIds: string[],
     start: number,
     end: number,
 ) => {
-    const booked = new Set<string>();
+    const windowStart = start - WINDOW_DAYS * DAY_SECONDS;
+    const windowEnd = end + WINDOW_DAYS * DAY_SECONDS;
+
+    const hotelByRoom = new Map<string, string>();
+
+    for (let index = 0; index < hotelIds.length; index += HOTEL_CHUNK) {
+        const chunk = hotelIds.slice(index, index + HOTEL_CHUNK);
+        const { data, error } = await supabase
+            .from('rooms')
+            .select('id, hotel_id, title')
+            .in('hotel_id', chunk);
+
+        // Пометка полезная, но не критичная: не смогли посчитать — молча без неё.
+        if (error) return new Set<string>();
+
+        for (const room of data ?? []) {
+            if (typeof room.id !== 'string' || typeof room.hotel_id !== 'string') continue;
+            // Буферные строки — служебные, бронями они не бывают.
+            if (/буфер/i.test(String(room.title ?? ''))) continue;
+
+            hotelByRoom.set(room.id, room.hotel_id);
+        }
+    }
+
+    const withBookings = new Set<string>();
+    const roomIds = Array.from(hotelByRoom.keys());
 
     for (let index = 0; index < roomIds.length; index += ROOM_CLOSURE_CHUNK) {
         const chunk = roomIds.slice(index, index + ROOM_CLOSURE_CHUNK);
@@ -185,18 +224,26 @@ const getBookedRoomIds = async (
             .from('reserves')
             .select('room_id')
             .in('room_id', chunk)
-            .lt('start', end)
-            .gt('end', start);
+            .lt('start', windowEnd)
+            .gt('end', windowStart);
 
-        // Пометка полезная, но не критичная: если не удалось — молча без неё.
-        if (error) return booked;
+        if (error) return new Set<string>();
 
         for (const reserve of data ?? []) {
-            if (typeof reserve.room_id === 'string') booked.add(reserve.room_id);
+            const hotelId = typeof reserve.room_id === 'string'
+                ? hotelByRoom.get(reserve.room_id)
+                : undefined;
+            if (hotelId) withBookings.add(hotelId);
         }
     }
 
-    return booked;
+    // Объекты, номеров которых мы не увидели вовсе, не помечаем: про них ничего
+    // не известно, а ложная пометка хуже её отсутствия.
+    const seenHotels = new Set(hotelByRoom.values());
+
+    return new Set(
+        hotelIds.filter((hotelId) => seenHotels.has(hotelId) && !withBookings.has(hotelId)),
+    );
 };
 
 export const buildAvailabilityAnswer = async (
@@ -257,10 +304,6 @@ export const buildAvailabilityAnswer = async (
     );
     const closedRoomIds = await getClosedRoomIds(supabase, allRoomIds, startTime, endTime);
 
-    // Объекты без единой брони за период: пустая шахматка выглядит как «свободно
-    // всё», хотя может означать, что её просто перестали вести.
-    const bookedRoomIds = await getBookedRoomIds(supabase, allRoomIds, startTime, endTime);
-
     const byCity = new Map<string, string[]>();
     let shownHotels = 0;
     let hiddenHotels = 0;
@@ -273,6 +316,14 @@ export const buildAvailabilityAnswer = async (
             return status === 'active' || status === 'mirror';
         })
         .sort((left, right) => (left.title ?? '').localeCompare(right.title ?? '', 'ru'));
+
+    // Считаем только по объектам, которые реально попадут в ответ.
+    const hotelsWithoutBookings = await getHotelsWithoutBookings(
+        supabase,
+        hotels.map((hotel) => hotel.id),
+        startTime,
+        endTime,
+    );
 
     for (const hotel of hotels) {
         const rooms = (roomsByHotel.get(hotel.id) ?? []).filter(
@@ -293,9 +344,10 @@ export const buildAvailabilityAnswer = async (
         const roomsText = titles.join(' • ') + (more > 0 ? ` +ещё ${more}` : '');
         const link = formatHotelLink(hotel.telegram_url);
 
-        // Ни одной брони за период — занятость под вопросом, а не «всё свободно».
-        const noOccupancy = rooms.every((room) => !bookedRoomIds.has(room.id));
-        const warning = noOccupancy ? '\n   ⚠️ броней за период нет — уточните у отельера' : '';
+        // Пусто ±30 дней вокруг дат — похоже, шахматку не ведут, а не «всё свободно».
+        const warning = hotelsWithoutBookings.has(hotel.id)
+            ? '\n   ⚠️ ни одной брони за ±30 дней — похоже, шахматку не ведут, уточните у отельера'
+            : '';
 
         const lines = [
             `${marker} ${hotel.title ?? ''} — ${rooms.length} своб.${formatPriceFrom(rooms)}: ${roomsText}${warning}`,
