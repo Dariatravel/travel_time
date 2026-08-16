@@ -92,6 +92,9 @@ const main = async () => {
     const noLink = hotels.filter(
         (hotel) => !(hotel.telegram_url ?? '').trim() && maintained.has(hotel.id),
     );
+    // Название всегда русское: латинское менеджер не наберёт в поиске и решит,
+    // что объекта нет.
+    const notRussian = hotels.filter((hotel) => !/[а-яё]/i.test(hotel.title ?? ''));
 
     console.log('');
     console.log('=== КАРТОЧКИ ОБЪЕКТОВ ===');
@@ -99,6 +102,8 @@ const main = async () => {
     for (const hotel of noCity) console.log(`  ${(hotel.title ?? '').trim()}`);
     console.log(`Без ссылки (зелёные и голубые): ${noLink.length}`);
     for (const hotel of noLink) console.log(`  ${(hotel.title ?? '').trim()}`);
+    console.log(`С нерусским названием: ${notRussian.length}`);
+    for (const hotel of notRussian) console.log(`  ${(hotel.title ?? '').trim()}`);
 };
 
 main().catch((error) => {

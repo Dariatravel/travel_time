@@ -1,0 +1,62 @@
+# Название объекта всегда пишется по-русски: латинское название менеджер не
+# наберёт в поиске и решит, что объекта нет.
+#
+# Без «названия» просто показывает объекты с нерусским названием и опись по
+# каждому. Переименование — только при apply = true и контрольной фразе
+# RENAME_HOTEL.
+name: Rename Hotel
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_title:
+        description: 'Название объекта сейчас (пусто — только показать нерусские названия)'
+        required: false
+        default: ''
+      new_title:
+        description: 'Новое название по-русски'
+        required: false
+        default: ''
+      card_url:
+        description: 'Ссылка на карточку объекта — покажет её заголовок, чтобы взять название оттуда'
+        required: false
+        default: ''
+      apply:
+        description: 'Применить переименование (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+      confirmation:
+        description: 'Для записи: RENAME_HOTEL'
+        required: false
+        default: ''
+
+jobs:
+  rename:
+    name: Rename hotel
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLE: ${{ inputs.hotel_title }}
+          NEW_TITLE: ${{ inputs.new_title }}
+          CARD_URL: ${{ inputs.card_url }}
+          APPLY: ${{ inputs.apply }}
+          CONFIRMATION: ${{ inputs.confirmation }}
+        run: node scripts/rename-hotel.mjs
