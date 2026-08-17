@@ -79,9 +79,22 @@ const parseRooms = (rooms: unknown): Room[] => {
         .filter((room): room is Room => room !== null);
 };
 
-/** Цена «от» по отелю: менеджеру нужен ориентир по бюджету. */
+/**
+ * Цена «от» по отелю: менеджеру нужен ориентир по бюджету.
+ *
+ * Цены ниже тысячи — заглушки, а не настоящие ставки за ночь: так заведены
+ * целые объекты («Эсма», «Зеленый дворик», «Морская лагуна» и другие, всего
+ * 146 номеров на 16.08.2026). Одна такая строка утягивала цену «от» по всему
+ * объекту, и в подборке появлялось «от 1 ₽». Ложная цена хуже отсутствующей:
+ * по ней менеджер сделает гостю неверное предложение, а по пустому месту он
+ * просто уточнит. Список таких номеров показывает Health Check.
+ */
+const MIN_PLAUSIBLE_PRICE = 1000;
+
 const formatPriceFrom = (rooms: Room[]) => {
-    const prices = rooms.map((room) => room.price).filter((price): price is number => price !== null);
+    const prices = rooms
+        .map((room) => room.price)
+        .filter((price): price is number => price !== null && price >= MIN_PLAUSIBLE_PRICE);
     if (!prices.length) return '';
 
     return ` от ${Math.min(...prices).toLocaleString('ru-RU')} ₽`;
