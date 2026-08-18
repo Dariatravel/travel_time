@@ -50,12 +50,19 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # provenance и sbom обязательно выключены. С ними buildx кладёт в реестр
+      # OCI-индекс вместо обычного образа, а Yandex Container Registry такой
+      # формат не принимает и отвечает «Cannot read manifest data» на этапе
+      # отправки. Из-за этого деплой падал молча с 16.08.2026: сборка проходила,
+      # образ не уезжал, программа оставалась на старой версии.
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
           context: .
           platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ env.IMAGE }}
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
