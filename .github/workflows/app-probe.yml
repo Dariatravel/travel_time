@@ -120,17 +120,20 @@ jobs:
         run: |
           set -uo pipefail
 
+          # Печатаем два времени: до первого байта и полное. Если первое
+          # маленькое, а второе упирается в предел — данные пришли сразу, но
+          # соединение не закрылось. Это совсем другая поломка, чем «медленно».
           measure () {
             LABEL="$1"; shift
-            printf '  %-46s' "$LABEL"
+            printf '  %-40s' "$LABEL"
             for attempt in 1 2 3; do
-              T="$(curl -sS -o /dev/null -w '%{time_total}' --max-time 60 "$@" || echo 'сбой')"
-              printf ' %ss' "$T"
+              T="$(curl -sS -o /dev/null -w '%{time_starttransfer}/%{time_total}' --max-time 60 "$@" || echo 'сбой')"
+              printf ' %s' "$T"
             done
             printf '\n'
           }
 
-          echo "=== СКОРОСТЬ (три замера подряд) ==="
+          echo "=== СКОРОСТЬ: до первого байта / всего, три замера ==="
 
           measure "страница шахматки" "$SITE/main/reservation"
           measure "список отелей через программу" \
