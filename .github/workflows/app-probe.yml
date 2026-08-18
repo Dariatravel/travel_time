@@ -51,7 +51,10 @@ jobs:
             echo "Адрес шлюза получить не удалось."
           else
             echo "Адрес: https://$DOMAIN"
-            for path in "/" "/reservation"; do
+            # Пути ровно те, что открывают менеджеры: главная и шахматка.
+            # Адрес шахматки — /main/reservation (см. src/shared/config/routes.ts),
+            # не /reservation: по короткому Next.js честно отвечает 404.
+            for path in "/" "/main/reservation"; do
               OUT="$(curl -sS -o /dev/null -w '%{http_code} %{time_total}' --max-time 40 "https://$DOMAIN$path" || echo 'нет ответа')"
               echo "  $path -> $OUT"
             done
