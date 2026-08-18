@@ -55,6 +55,25 @@ jobs:
       # формат не принимает и отвечает «Cannot read manifest data» на этапе
       # отправки. Из-за этого деплой падал молча с 16.08.2026: сборка проходила,
       # образ не уезжал, программа оставалась на старой версии.
+      #
+      # NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false — браузер обращается к
+      # хранилищу напрямую, минуя контейнер.
+      #
+      # Почему: замеры 18.08 показали, что связь контейнера с хранилищем
+      # работает через раз. Один и тот же запрос списка отелей — 0,2–0,5 с
+      # напрямую и 25–30 с через контейнер, вплоть до обрыва по времени.
+      # Менеджеры видели это как вечную загрузку без ошибки.
+      #
+      # Проверено 18.08: хранилище открывается напрямую из браузера в Абхазии и
+      # отвечает «No API key found» — то есть сеть доходит. Это была главная
+      # неизвестность, ради которой посредник и держали.
+      #
+      # Значение зашивается в код страницы при сборке, поэтому оно указано и в
+      # аргументах сборки, и в переменных контейнера ниже — менять надо оба.
+      #
+      # Откат: вернуть true в обоих местах и выкатить. Серверная часть
+      # посредника остаётся включённой, поэтому откат — это два слова, без
+      # правки кода.
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -67,7 +86,7 @@ jobs:
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true
+            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false
 
       # Внимание: yc разбирает --environment по запятым, поэтому значение
       # переменной с запятой внутри превращается в две переменные и деплой
@@ -98,7 +117,7 @@ jobs:
             --cores 2 \
             --execution-timeout 30s \
             --concurrency 6 \
-            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true,SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},REALTYCALENDAR_WEBHOOK_TOKEN=${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }},GOOGLE_SA_B64=${{ secrets.GOOGLE_SA_B64 }},GITHUB_DISPATCH_TOKEN=${{ secrets.MIRROR_DISPATCH_TOKEN }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
+            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false,SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},REALTYCALENDAR_WEBHOOK_TOKEN=${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }},GOOGLE_SA_B64=${{ secrets.GOOGLE_SA_B64 }},GITHUB_DISPATCH_TOKEN=${{ secrets.MIRROR_DISPATCH_TOKEN }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
 
       - name: Create or update API Gateway
         run: |
