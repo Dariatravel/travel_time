@@ -9,11 +9,10 @@
 // Снятую занятость помечаем external_source='bnovo_<slug>' — откат одним DELETE,
 // а пересечения с ручными бронями шахматки пропускаем (триггер А1 отдаёт 23P01).
 import { createClient } from '@supabase/supabase-js';
+
+import { planBookingPeriod } from './lib/bnovoPeriod.mjs';
 import { chromium } from 'playwright';
 
-const MOSCOW_UTC_OFFSET_HOURS = 3;
-const CHECK_IN_HOUR_MSK = 14;
-const CHECK_OUT_HOUR_MSK = 12;
 const HORIZON_DAYS = 400;
 const NIGHT = 86_400;
 
@@ -57,11 +56,6 @@ const isOverlapConflict = (error) =>
 const utcMidnightToday = () => {
     const now = new Date();
     return Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
-};
-
-const dateToUnix = (isoDate, hourMsk) => {
-    const [y, m, d] = isoDate.split('-').map(Number);
-    return Math.floor(Date.UTC(y, m - 1, d, hourMsk - MOSCOW_UTC_OFFSET_HOURS) / 1000);
 };
 
 // Логинимся в кабинет и читаем брони штатным запросом шахматки по всему
@@ -203,13 +197,12 @@ const syncHotel = async (supabase, hotel) => {
     for (const [bnovoRoomId, from, to] of bookings) {
         const roomId = hotel.roomMap[bnovoRoomId];
         if (!roomId) continue;
-        const start = dateToUnix(from, CHECK_IN_HOUR_MSK);
-        const end = dateToUnix(to, CHECK_OUT_HOUR_MSK);
-        if (end <= todayUnix || end <= start) {
+        const period = planBookingPeriod(from, to, todayUnix);
+        if (!period) {
             skippedPast += 1;
             continue;
         }
-        const clampedStart = Math.max(start, dateToUnix(new Date(todayUnix * 1000).toISOString().slice(0, 10), CHECK_IN_HOUR_MSK));
+        const { start: clampedStart, end } = period;
         const nights = new Set();
         for (let n = Math.floor(clampedStart / NIGHT); n < Math.floor(end / NIGHT); n += 1) nights.add(n);
         const manual = manualNights.get(roomId);

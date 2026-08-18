@@ -12,6 +12,10 @@ on:
       - Mirror Occupancy Cron
       - Google Sheet Occupancy Cron
       - RealtyCalendar iCal Cron
+      # Bnovo забыли внести сюда при заведении: он падал каждый час больше
+      # суток, и об этом никто не узнал. Занятость «Джанната» всё это время
+      # не обновлялась молча.
+      - Bnovo Occupancy Cron
       - Deploy Yandex Cloud Mirror
       - Deploy Supabase Edge Functions
       - Short Hotel Links
