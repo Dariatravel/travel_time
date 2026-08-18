@@ -108,6 +108,45 @@ jobs:
           head -c 300 "$RUNNER_TEMP/gw-hotels.json" 2>/dev/null || true
           echo ""
 
+      # Замер скорости: те же запросы, что делает шахматка, по три раза.
+      # Первый вызов включает пробуждение контейнера, дальше видно рабочее
+      # время. Сравнение «через программу» и «напрямую» показывает, сколько
+      # добавляет сама программа, а сколько — база.
+      - name: Measure speed
+        env:
+          SITE: https://abhazbereg.online
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -uo pipefail
+
+          measure () {
+            LABEL="$1"; shift
+            printf '  %-46s' "$LABEL"
+            for attempt in 1 2 3; do
+              T="$(curl -sS -o /dev/null -w '%{time_total}' --max-time 60 "$@" || echo 'сбой')"
+              printf ' %ss' "$T"
+            done
+            printf '\n'
+          }
+
+          echo "=== СКОРОСТЬ (три замера подряд) ==="
+
+          measure "страница шахматки" "$SITE/main/reservation"
+          measure "список отелей через программу" \
+            "$SITE/api/yandex-backend/gateway/rest/v1/hotels?select=id,title&is_search_visible=eq.true&order=title"
+          measure "список отелей напрямую в базу" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/hotels?select=id,title&is_search_visible=eq.true&order=title"
+          measure "номера с бронями напрямую в базу" \
+            -H "apikey: ${SUPABASE_ANON_KEY}" -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "${SUPABASE_URL}/rest/v1/rooms?select=id,title&limit=200"
+
+          echo ""
+          echo "=== НАСТРОЙКИ КОНТЕЙНЕРА ==="
+          yc serverless container revision list --container-name travel-time --format json \
+            | python3 -c 'import sys,json;r=json.load(sys.stdin)[0];res=r.get("resources",{});print("ядер:",res.get("cores"),"| память:",res.get("memory"),"| одновременных запросов:",r.get("concurrency"),"| таймаут:",r.get("execution_timeout"))'
+
       - name: Probe storage
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
