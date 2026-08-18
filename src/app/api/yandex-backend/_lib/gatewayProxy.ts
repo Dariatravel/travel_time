@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
 
-const UPSTREAM_TIMEOUT_MS = 8_000;
+// Замер 18.08, 22:56 МСК: обращение наружу перестало проходить совсем —
+// 25,2 / 26,0 / 25,4 с на всех трёх попытках. Это ровно три захода по восемь
+// секунд с паузами, то есть повторы упирались в тот же обрыв.
+//
+// Пять секунд и один повтор дают предел около десяти секунд вместо двадцати
+// пяти. Когда связь наружу пропала совсем, повторять больше смысла нет:
+// быстрый отказ честнее долгого ожидания — менеджер увидит ошибку и повторит
+// сам, а не будет смотреть на пустой экран.
+const UPSTREAM_TIMEOUT_MS = 5_000;
+const UPSTREAM_RETRIES = 1;
 
 const ALLOWED_PREFIXES = ['auth/v1/', 'rest/v1/', 'storage/v1/'] as const;
 
@@ -98,7 +107,7 @@ export async function proxySupabaseGatewayRequest(
 
     const upstreamResponse =
         method === 'GET' || method === 'HEAD'
-            ? await withRetry(fetchUpstream)
+            ? await withRetry(fetchUpstream, { retries: UPSTREAM_RETRIES })
             : await fetchUpstream();
 
     const responseHeaders = new Headers();
