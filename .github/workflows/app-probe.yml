@@ -65,6 +65,49 @@ jobs:
           yc serverless container revision list --container-name travel-time --format json \
             | python3 -c 'import sys,json;rs=json.load(sys.stdin);r=rs[0] if rs else {};print("создана:", r.get("created_at","?"), "| образ:", r.get("image",{}).get("image_url","?"))'
 
+      # Браузер менеджера ходит в Supabase не напрямую, а через саму программу:
+      # NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true, адрес /api/yandex-backend/gateway
+      # (см. src/shared/config/supabase.ts). Через него идёт и вход в систему.
+      # Поэтому проверять надо именно эту цепочку и именно на рабочем домене,
+      # а не адрес шлюза: менеджеры открывают abhazbereg.online.
+      - name: Probe login chain through the program
+        env:
+          SITE: https://abhazbereg.online
+        run: |
+          set -uo pipefail
+
+          echo "=== ВХОД И ДАННЫЕ ЧЕРЕЗ ПРОГРАММУ ($SITE) ==="
+
+          echo "Страница входа:"
+          curl -sS -o /dev/null -w '  /login -> %{http_code} %{time_total}\n' --max-time 45 "$SITE/login" \
+            || echo '  /login -> нет ответа'
+
+          echo "Служба входа (auth/v1/health):"
+          curl -sS -o "$RUNNER_TEMP/health.json" -w '  -> %{http_code} %{time_total}\n' --max-time 45 \
+            "$SITE/api/yandex-backend/gateway/auth/v1/health" || echo '  -> нет ответа'
+          head -c 300 "$RUNNER_TEMP/health.json" 2>/dev/null || true
+          echo ""
+
+          # Заведомо несуществующая пара логин-пароль. Настоящие данные тут не
+          # нужны и недопустимы: важно лишь, отвечает ли служба входа вообще.
+          # Живая служба вернёт 400 «Invalid login credentials» — это успех
+          # проверки. Молчание или 502 означают, что сломана цепочка.
+          echo "Попытка входа с заведомо неверной парой:"
+          curl -sS -o "$RUNNER_TEMP/login.json" -w '  -> %{http_code} %{time_total}\n' --max-time 45 \
+            -X POST "$SITE/api/yandex-backend/gateway/auth/v1/token?grant_type=password" \
+            -H 'content-type: application/json' \
+            -d '{"email":"probe-not-a-real-user@example.invalid","password":"not-a-real-password"}' \
+            || echo '  -> нет ответа'
+          head -c 300 "$RUNNER_TEMP/login.json" 2>/dev/null || true
+          echo ""
+
+          echo "Список отелей через программу:"
+          curl -sS -o "$RUNNER_TEMP/gw-hotels.json" -w '  -> %{http_code} %{time_total}\n' --max-time 45 \
+            "$SITE/api/yandex-backend/gateway/rest/v1/hotels?select=id,title&is_search_visible=eq.true&order=title" \
+            || echo '  -> нет ответа'
+          head -c 300 "$RUNNER_TEMP/gw-hotels.json" 2>/dev/null || true
+          echo ""
+
       - name: Probe storage
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
