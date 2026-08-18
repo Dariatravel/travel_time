@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
 
+const UPSTREAM_TIMEOUT_MS = 8_000;
+
 const ALLOWED_PREFIXES = ['auth/v1/', 'rest/v1/', 'storage/v1/'] as const;
 
 const FORWARD_REQUEST_HEADERS = [
@@ -68,11 +70,23 @@ export async function proxySupabaseGatewayRequest(
     const body = hasBody ? await request.arrayBuffer() : undefined;
 
     const fetchUpstream = async () => {
+        // Без своего срока ожидания зависший запрос к Supabase не заканчивается
+        // ничем: он просто держится, пока контейнер не оборвёт его на тридцатой
+        // секунде. Браузер в этот момент показывает вечную загрузку без ошибки,
+        // а повтор ниже не срабатывает — повторять нечего, ошибки-то не было.
+        //
+        // Замер 18.08: тот же запрос списка отелей — 0,3 с напрямую в базу, а
+        // через программу 0,73 с, 0,82 с и 30,5 с. То есть изредка обращение
+        // наружу подвисает, и тогда менеджер ждёт полминуты вместо секунды.
+        //
+        // Восемь секунд — заведомо больше обычного ответа и заведомо меньше
+        // предела контейнера, так что на повтор время остаётся.
         const response = await fetch(upstreamUrl, {
             method,
             headers,
             body: hasBody ? body : undefined,
             cache: 'no-store',
+            signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
         });
 
         if (response.status >= 500) {
