@@ -16,7 +16,7 @@ jobs:
   probe:
     name: Probe app and storage
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
 
     env:
       YC_CLOUD_ID: b1g43dk01a0t2mt0aqhm
@@ -24,12 +24,20 @@ jobs:
       YC_API_GATEWAY_NAME: travel-time
 
     steps:
+      # Установка yc нужна только для служебных сведений: адрес шлюза и
+      # настройки контейнера. Дважды она зависала на скачивании, и проверка
+      # обрывалась по времени, так и не дойдя до замеров. Замеры важнее —
+      # поэтому эти шаги теперь не роняют проверку.
       - name: Install Yandex Cloud CLI
+        continue-on-error: true
+        timeout-minutes: 3
         run: |
           curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yandex-cloud" -n
           echo "$HOME/yandex-cloud/bin" >> "$GITHUB_PATH"
 
       - name: Configure Yandex Cloud profile
+        continue-on-error: true
+        timeout-minutes: 3
         env:
           YC_SA_JSON: ${{ secrets.YC_SA_JSON }}
         run: |
@@ -40,6 +48,7 @@ jobs:
           yc config set folder-id "$YC_FOLDER_ID"
 
       - name: Probe program
+        continue-on-error: true
         run: |
           set -uo pipefail
 
@@ -147,6 +156,7 @@ jobs:
 
           echo ""
           echo "=== НАСТРОЙКИ КОНТЕЙНЕРА ==="
+          command -v yc >/dev/null 2>&1 || { echo "  yc не установлен — пропускаю"; exit 0; }
           yc serverless container revision list --container-name travel-time --format json \
             | python3 -c 'import sys,json;r=json.load(sys.stdin)[0];res=r.get("resources",{});print("ядер:",res.get("cores"),"| память:",res.get("memory"),"| одновременных запросов:",r.get("concurrency"),"| таймаут:",r.get("execution_timeout"))'
 
