@@ -1,0 +1,94 @@
+# Работает ли программа прямо сейчас.
+#
+# Зачем: когда менеджеры пишут «шахматка не грузится», нужно за минуту понять,
+# где именно встало — в самой программе на Yandex Cloud или в хранилище
+# Supabase, откуда браузер тянет список отелей. Раньше это выяснялось
+# перепиской и догадками.
+#
+# Только читает: запрашивает страницу и делает тот же запрос списка отелей,
+# что и выпадающий список в поиске. Ключи не печатает, в базу не пишет.
+name: App Probe
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    name: Probe app and storage
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    env:
+      YC_CLOUD_ID: b1g43dk01a0t2mt0aqhm
+      YC_FOLDER_ID: b1gam66bh2jtelu9656g
+      YC_API_GATEWAY_NAME: travel-time
+
+    steps:
+      - name: Install Yandex Cloud CLI
+        run: |
+          curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yandex-cloud" -n
+          echo "$HOME/yandex-cloud/bin" >> "$GITHUB_PATH"
+
+      - name: Configure Yandex Cloud profile
+        env:
+          YC_SA_JSON: ${{ secrets.YC_SA_JSON }}
+        run: |
+          printf '%s' "$YC_SA_JSON" > "$RUNNER_TEMP/yc-key.json"
+          yc config profile create probe
+          yc config set service-account-key "$RUNNER_TEMP/yc-key.json"
+          yc config set cloud-id "$YC_CLOUD_ID"
+          yc config set folder-id "$YC_FOLDER_ID"
+
+      - name: Probe program
+        run: |
+          set -uo pipefail
+
+          echo "=== ПРОГРАММА (Yandex Cloud) ==="
+          DOMAIN="$(yc serverless api-gateway get "$YC_API_GATEWAY_NAME" --format json \
+            | python3 -c 'import sys,json;print(json.load(sys.stdin).get("domain",""))')"
+
+          if [ -z "$DOMAIN" ]; then
+            echo "Адрес шлюза получить не удалось."
+          else
+            echo "Адрес: https://$DOMAIN"
+            for path in "/" "/reservation"; do
+              OUT="$(curl -sS -o /dev/null -w '%{http_code} %{time_total}' --max-time 40 "https://$DOMAIN$path" || echo 'нет ответа')"
+              echo "  $path -> $OUT"
+            done
+          fi
+
+          echo ""
+          echo "=== ПОСЛЕДНЯЯ ВЫКАТКА КОНТЕЙНЕРА ==="
+          yc serverless container revision list --container-name travel-time --format json \
+            | python3 -c 'import sys,json;rs=json.load(sys.stdin);r=rs[0] if rs else {};print("создана:", r.get("created_at","?"), "| образ:", r.get("image",{}).get("image_url","?"))'
+
+      - name: Probe storage
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          set -uo pipefail
+
+          echo "=== ХРАНИЛИЩЕ (Supabase) ==="
+          echo "Тот же запрос, что делает выпадающий список отелей в поиске."
+
+          URL="${SUPABASE_URL}/rest/v1/hotels?select=id,title&is_search_visible=eq.true&order=title"
+          OUT="$(curl -sS -o "$RUNNER_TEMP/hotels.json" -w '%{http_code} %{time_total}' --max-time 40 \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            "$URL" || echo 'нет ответа')"
+          echo "  список отелей -> $OUT"
+
+          python3 - <<'PY'
+          import json, os
+          path = os.path.join(os.environ['RUNNER_TEMP'], 'hotels.json')
+          try:
+              data = json.load(open(path, encoding='utf-8'))
+          except Exception as error:
+              print(f'  разобрать ответ не удалось: {error}')
+          else:
+              if isinstance(data, list):
+                  print(f'  отелей в ответе: {len(data)}')
+              else:
+                  print(f'  ответ не список: {str(data)[:200]}')
+          PY
