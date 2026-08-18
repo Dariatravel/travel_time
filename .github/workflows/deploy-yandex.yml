@@ -75,16 +75,29 @@ jobs:
       # менеджеров стала супергруппой и в списке оказалось два id. Бот с тех пор
       # живёт в Supabase Edge Function, контейнеру этот список не нужен —
       # переменная убрана. Новые переменные с запятыми сюда добавлять нельзя.
+      # Ресурсы подобраны по замеру 18.08.2026, а не на глаз. Тогда один и тот
+      # же запрос списка отелей занимал 0,23 с напрямую в базу и 30 с через
+      # программу — то есть упирался в предел ожидания. Причина: одно ядро
+      # обслуживало до 16 запросов сразу, а браузер шахматки шлёт их пачкой,
+      # потому что через программу идут все обращения к базе, включая вход.
+      #
+      # Два ядра дают запас на разбор и пересылку ответов. Ограничение в шесть
+      # запросов на экземпляр важнее ядер: при шестнадцати очередь копилась
+      # внутри одного экземпляра, теперь Yandex поднимает второй, вместо того
+      # чтобы держать всех в очереди.
+      #
+      # Проверять после изменений воркфлоу App Probe: он печатает три замера
+      # подряд и настройки контейнера.
       - name: Deploy serverless container revision
         run: |
           yc serverless container revision deploy \
             --container-name "$YC_CONTAINER_NAME" \
             --image "$IMAGE" \
             --service-account-id "$YC_SERVICE_ACCOUNT_ID" \
-            --memory 1GB \
-            --cores 1 \
+            --memory 2GB \
+            --cores 2 \
             --execution-timeout 30s \
-            --concurrency 16 \
+            --concurrency 6 \
             --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true,SUPABASE_SERVICE_ROLE_KEY=${{ secrets.SUPABASE_SERVICE_ROLE_KEY }},REALTYCALENDAR_WEBHOOK_TOKEN=${{ secrets.REALTYCALENDAR_WEBHOOK_TOKEN }},GOOGLE_SA_B64=${{ secrets.GOOGLE_SA_B64 }},GITHUB_DISPATCH_TOKEN=${{ secrets.MIRROR_DISPATCH_TOKEN }},TELEGRAM_BOT_TOKEN=${{ secrets.TELEGRAM_BOT_TOKEN }},TELEGRAM_WEBHOOK_SECRET=${{ secrets.TELEGRAM_WEBHOOK_SECRET }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
 
       - name: Create or update API Gateway
