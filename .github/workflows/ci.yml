@@ -51,5 +51,13 @@ jobs:
       - name: Test
         run: npm test
 
+      # Проверки для скриптов из scripts/: vitest их не берёт, он смотрит
+      # только src/. Без этого шага правило про даты в переносе занятости
+      # ничем не удерживается — а оно уже один раз ломало крон Bnovo.
+      - name: Test scripts
+        run: |
+          npm run short-links:test
+          npm run bnovo:test
+
       - name: Build
         run: npm run build
