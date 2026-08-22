@@ -9,7 +9,19 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import supabase from '@/shared/config/supabase';
 import { useQuery } from '@tanstack/react-query';
 
-const SYSTEM_ACTORS = new Set(['realtycalendar_ical', 'realtycalendar_webhook']);
+// В ленте показываем только то, что сделал человек. Автосинки (зеркала, iCal,
+// таблицы, импорты) пишут себя в историю техническим тегом в нижнем регистре
+// с подчёркиваниями — mirror_shelter, bnovo_djannat, wps_villa_leona,
+// travelline_pitsunda и т.д., — а менеджер подписывается именем: «Ирина
+// Ковалева», «оператор Яна». Перечислять теги поимённо оказалось ненадёжно:
+// список отставал от новых источников, и лента забивалась их записями.
+const AUTOMATED_ACTOR_PATTERN = /^[a-z0-9_]+$/;
+// Тот же фильтр на стороне базы: без него автосинки съедают лимит выборки и до
+// действий менеджеров дело не доходит. Записи без автора (старые) оставляем.
+const HUMAN_ONLY_FILTER = `changed_by.is.null,changed_by.not.match.${AUTOMATED_ACTOR_PATTERN.source}`;
+
+export const isAutomatedActor = (actor?: string | null) =>
+    Boolean(actor && AUTOMATED_ACTOR_PATTERN.test(actor));
 
 export const DASHBOARD_ACTIVITY_PAGE_SIZE = 30;
 export const DASHBOARD_ACTIVITY_FETCH_LIMIT = 300;
@@ -41,7 +53,7 @@ type RawActivityRow = {
 };
 
 const mapActivityRow = (row: RawActivityRow): RecentActivityEntry | null => {
-    if (row.changed_by && SYSTEM_ACTORS.has(row.changed_by)) {
+    if (isAutomatedActor(row.changed_by)) {
         return null;
     }
 
@@ -86,6 +98,7 @@ export async function getRecentActivity(limit = DASHBOARD_ACTIVITY_FETCH_LIMIT) 
             )
         `,
         )
+        .or(HUMAN_ONLY_FILTER)
         .order('changed_at', { ascending: false })
         .limit(limit);
 
