@@ -11,6 +11,13 @@ export interface AuthProps {
 
 export type TravelUser = AuthUser['user_metadata'];
 
+export interface AssignableUser {
+    id: string;
+    email: string | null;
+    name: string;
+    role: UserRole | null;
+}
+
 export interface RegisterProps {
     surname: string;
     name: string;
@@ -82,12 +89,14 @@ export async function signOut() {
 }
 
 export async function getListUsers() {
-    try {
-        const { data, error } = await supabase.rpc('get_raw_user_meta_data');
-        return data as TravelUser[];
-    } catch (e) {
-        console.error(e);
+    const { data, error } = await supabase.rpc('list_assignable_users');
+
+    if (error) {
+        devError('Не удалось загрузить список пользователей для назначения отеля', error);
+        throw error;
     }
+
+    return data as AssignableUser[];
 }
 
 export const useLogin = () => useMutation({ mutationFn: login });

@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { FormButtons, PhoneInput } from '@/shared';
-import { TravelUser } from '@/shared/api/auth/auth';
+import { AssignableUser } from '@/shared/api/auth/auth';
 import { CreateHotelDTO, HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
@@ -25,7 +25,7 @@ import { FormTextarea } from './components/FormTextarea';
 import cx from './style.module.css';
 
 export interface HotelInfoProps {
-    users: TravelUser[];
+    users: AssignableUser[];
     onClose: () => void;
     onAccept: (hotel: HotelDTO | CreateHotelDTO) => Promise<void>;
     onDelete: (id: string) => Promise<void>;
@@ -161,8 +161,8 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     const userOptions = useMemo(() => {
         return users?.map((user) =>
             adaptToOption({
-                title: `${user?.surname} ${user?.name} `,
-                id: user?.sub,
+                title: user.name || user.email || user.id,
+                id: user.id,
             }),
         );
     }, [users]);
@@ -170,7 +170,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     // Находим выбранного пользователя для отображения информации
     const selectedUserId = watch('user_id')?.id;
     const selectedUser = useMemo(() => {
-        return users?.find((user) => user.sub === selectedUserId);
+        return users?.find((user) => user.id === selectedUserId);
     }, [users, selectedUserId]);
 
     const telegramUrl = watch('telegram_url');
@@ -385,8 +385,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                                                 <span className="font-medium">
                                                                     Имя:
                                                                 </span>{' '}
-                                                                {selectedUser.name}{' '}
-                                                                {selectedUser.surname}
+                                                                {selectedUser.name}
                                                             </p>
                                                             <p>
                                                                 <span className="font-medium">
@@ -398,18 +397,10 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                                                 <span className="font-medium">
                                                                     Роль:
                                                                 </span>{' '}
-                                                                {translateUserRole(
-                                                                    selectedUser.role,
-                                                                )}
+                                                                {selectedUser.role
+                                                                    ? translateUserRole(selectedUser.role)
+                                                                    : 'Не назначена'}
                                                             </p>
-                                                            {selectedUser.phone && (
-                                                                <p>
-                                                                    <span className="font-medium">
-                                                                        Телефон:
-                                                                    </span>{' '}
-                                                                    {selectedUser.phone}
-                                                                </p>
-                                                            )}
                                                         </div>
                                                     </div>
                                                 </PopoverContent>

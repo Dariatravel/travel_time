@@ -1,9 +1,11 @@
-import { createHash } from 'crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { getCached, setCached } from '@/app/api/yandex-backend/_lib/memoryCache';
 import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
-import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
+import {
+    createSupabaseServerClient,
+    createSupabaseServiceRoleClient,
+} from '@/app/api/yandex-backend/_lib/supabaseServer';
 import type { HotelRoomsReservesDTO } from '@/shared/api/hotel/hotel';
 import type { ReserveDTO } from '@/shared/api/reserve/reserve';
 import type { RoomReserves } from '@/shared/api/room/room';
@@ -27,12 +29,6 @@ type SupabaseRoom = {
     [key: string]: unknown;
 };
 
-const getAuthCacheSegment = (authorization: string | null) => {
-    if (!authorization) return 'anon';
-
-    return createHash('sha256').update(authorization).digest('hex').slice(0, 16);
-};
-
 const parseAllowedRooms = (request: NextRequest) => {
     const allowedRooms = request.nextUrl.searchParams.get('allowedRooms');
 
@@ -52,12 +48,49 @@ export async function GET(
     const allowedRooms = parseAllowedRooms(request);
     const authorization = request.headers.get('authorization');
 
+    if (!authorization) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const authClient = createSupabaseServerClient(authorization);
+    const {
+        data: { user },
+        error: authError,
+    } = await authClient.auth.getUser();
+
+    if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const supabase = createSupabaseServiceRoleClient();
+    const [{ data: roleRow, error: roleError }, { data: hotelScope, error: hotelScopeError }] =
+        await Promise.all([
+            supabase.from('user_roles').select('role').eq('user_id', user.id).maybeSingle(),
+            supabase.from('hotels').select('user_id').eq('id', hotelId).maybeSingle(),
+        ]);
+
+    if (roleError || hotelScopeError) {
+        return NextResponse.json({ error: 'Unable to verify calendar access' }, { status: 502 });
+    }
+
+    if (!hotelScope) {
+        return NextResponse.json({ error: 'Hotel not found' }, { status: 404 });
+    }
+
+    const isStaff = roleRow?.role === 'admin' || roleRow?.role === 'operator';
+    const accessLevel = isStaff ? 'staff' : hotelScope.user_id === user.id ? 'owner' : null;
+
+    if (!accessLevel) {
+        return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
     const cacheTtlMs = Number(process.env.YANDEX_BACKEND_PROXY_CACHE_TTL_MS ?? DEFAULT_CACHE_TTL_MS);
     const cacheKey = [
         'hotel-calendar',
         hotelId,
         allowedRooms?.slice().sort().join(',') ?? 'all',
-        getAuthCacheSegment(authorization),
+        user.id,
+        accessLevel,
     ].join(':');
 
     const cached = getCached<HotelRoomsReservesDTO>(cacheKey);
@@ -68,10 +101,6 @@ export async function GET(
     }
 
     try {
-        // The public view can return zero rows under RLS even for app users.
-        // This read-only app route uses the server-only service role for calendar data.
-        const supabase = createSupabaseServiceRoleClient();
-
         const result = await withRetry(async () => {
             const { data: hotelData, error: hotelError } = await supabase
                 .from('hotels_with_rooms_new')

@@ -1,5 +1,4 @@
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
-import { UserRole } from '@/shared/api/auth/auth';
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -40,8 +39,18 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: error.message }, { status: 500 });
         }
 
+        const { data: roleRows, error: rolesError } = await supabaseAdmin
+            .from('user_roles')
+            .select('user_id')
+            .eq('role', 'operator');
+
+        if (rolesError) {
+            return NextResponse.json({ error: rolesError.message }, { status: 500 });
+        }
+
+        const operatorIds = new Set((roleRows ?? []).map((row) => row.user_id));
         const operators = (data.users ?? [])
-            .filter((user) => user.user_metadata?.role === UserRole.OPERATOR)
+            .filter((user) => operatorIds.has(user.id))
             .map((user) => ({
                 id: user.id,
                 email: user.email,
@@ -87,12 +96,23 @@ export async function POST(request: NextRequest) {
                 name,
                 surname,
                 phone,
-                role: UserRole.OPERATOR,
             },
         });
 
         if (error) {
             return NextResponse.json({ error: error.message }, { status: 400 });
+        }
+
+        const { error: roleError } = await supabaseAdmin
+            .from('user_roles')
+            .upsert({ user_id: data.user.id, role: 'operator' });
+
+        if (roleError) {
+            await supabaseAdmin.auth.admin.deleteUser(data.user.id);
+            return NextResponse.json(
+                { error: `Не удалось назначить роль оператору: ${roleError.message}` },
+                { status: 500 },
+            );
         }
 
         return NextResponse.json({

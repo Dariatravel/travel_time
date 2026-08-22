@@ -25,6 +25,18 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # Миграции должны завершиться до сборки и переключения контейнера: этот
+      # релиз читает user_roles, поэтому образ без схемы запускать нельзя.
+      - name: Apply Supabase migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          test -n "$SUPABASE_DB_URL" || {
+            echo "::error::SUPABASE_DB_URL is required for an atomic schema and code deployment"
+            exit 1
+          }
+          bash scripts/apply-release-migrations.sh
+
       - name: Install Yandex Cloud CLI
         run: |
           curl -sSL https://storage.yandexcloud.net/yandexcloud-yc/install.sh | bash -s -- -i "$HOME/yandex-cloud" -n

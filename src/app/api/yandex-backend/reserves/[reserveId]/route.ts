@@ -139,6 +139,17 @@ export async function PATCH(
         })) as Partial<ReserveDTO>;
         const supabase = createSupabaseServerClient(authorization);
 
+        const { data: existingReserve, error: existingReserveError } = await supabase
+            .from('reserves')
+            .select('external_source')
+            .eq('id', reserveId)
+            .single();
+
+        if (existingReserveError) throw existingReserveError;
+        if (existingReserve.external_source) {
+            throw new HttpError(403, 'External reservations are read-only');
+        }
+
         await assertNoReserveOverlap(supabase, reserveId, body);
 
         const updateReserve = (includeFixedFlag: boolean) =>

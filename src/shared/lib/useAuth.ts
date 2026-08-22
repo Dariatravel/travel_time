@@ -13,7 +13,16 @@ const getSession = async () => {
         throw error;
     }
 
-    return data;
+    if (!data.session) {
+        return { ...data, role: null };
+    }
+
+    const { data: role, error: roleError } = await supabase.rpc('current_app_role');
+    if (roleError) {
+        throw roleError;
+    }
+
+    return { ...data, role: role as string | null };
 };
 
 export const useAuth = () => {
@@ -39,7 +48,7 @@ export const useAuth = () => {
         setUser({
             email: user?.email,
             phone: user?.phone,
-            role: user?.user_metadata?.role,
+            role: data.role,
             surname: user?.user_metadata?.surname,
             name: user?.user_metadata?.name,
             user_metadata: user?.user_metadata,

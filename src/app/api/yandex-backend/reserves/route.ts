@@ -206,12 +206,19 @@ export async function POST(request: NextRequest) {
         }
 
         const supabase = createSupabaseServiceRoleClient();
+        const { data: roleRow, error: roleError } = await supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', user.id)
+            .maybeSingle();
+
+        if (roleError) throw roleError;
 
         await assertCanAccessRoom(
             supabase,
             body.room_id,
             user.id,
-            user.user_metadata?.role,
+            roleRow?.role,
         );
         await assertNoReserveOverlap(supabase, body);
         await assertNoRoomClosureOverlap(supabase, body);
