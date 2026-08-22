@@ -14,6 +14,7 @@ export interface FormButtonsProps {
     deleteText?: string;
     onDelete?: () => void;
     className?: string;
+    isActionDisabled?: boolean;
 }
 
 export const FormButtons: FC<FormButtonsProps> = ({
@@ -24,6 +25,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
     onDelete,
     onAccept,
     className,
+    isActionDisabled = false,
 }: FormButtonsProps) => {
     const submitButtonProps = onAccept
         ? { type: 'button' as const, onClick: onAccept }
@@ -35,7 +37,11 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 <div className={cn(styles.deleteContainer, 'flex justify-end mb-2')}>
                     <Popover>
                         <PopoverTrigger asChild>
-                            <Button type="button" variant="outline">
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={isActionDisabled}
+                            >
                                 {deleteText}
                             </Button>
                         </PopoverTrigger>
@@ -49,6 +55,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
                                         className="text-red-500"
                                         type="button"
                                         onClick={onDelete}
+                                        disabled={isActionDisabled}
                                     >
                                         {deleteText}
                                         <TrashIcon />
@@ -78,7 +85,7 @@ export const FormButtons: FC<FormButtonsProps> = ({
                 >
                     Отмена
                 </Button>
-                <Button {...submitButtonProps} disabled={isLoading}>
+                <Button {...submitButtonProps} disabled={isLoading || isActionDisabled}>
                     {isEdit ? 'Сохранить' : 'Добавить'}
                 </Button>
             </div>
