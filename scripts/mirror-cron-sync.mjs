@@ -12,6 +12,8 @@ const FD_AVAILABLE_DATES = 'https://pms.frontdesk24.ru/api/online/getAvailableDa
 const FD_VARIANTS = 'https://pms.frontdesk24.ru/api/online/getVariants';
 const HORIZON_DAYS = 365;
 const FETCH_BATCH = 8;
+const transactionalIcalSyncEnabled =
+    process.env.TRANSACTIONAL_ICAL_SYNC_ENABLED?.trim().toLowerCase() !== 'false';
 
 // Авто-источники Shelter/FrontDesk24. Фоновый крон (без лимита 30с у кнопки),
 // поэтому сюда вынесены и многономерные Сан Амра/Нора: читалка по кнопке на них
@@ -300,37 +302,59 @@ const syncIcalSource = async (supabase, src) => {
         }
     }
 
-    const { error: delErr } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', src.tag)
-        .in('room_id', allRoomIds);
-    if (delErr) throw new Error(delErr.message);
-
-    const syncedAt = new Date().toISOString();
     let inserted = 0;
     let skipped = 0;
-    for (const m of markers) {
-        const { error: insErr } = await supabase.from('reserves').insert({
-            room_id: m.roomId,
-            start: m.start,
-            end: m.end,
-            guest: src.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
-            comment: 'Категория продана целиком (reservationsteps iCal)',
-            created_by: src.tag,
-            edited_at: syncedAt,
-            edited_by: src.tag,
-            external_source: src.tag,
-            external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
-            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
-            external_synced_at: syncedAt,
+    if (transactionalIcalSyncEnabled) {
+        const { data, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+            p_source: src.tag,
+            p_room_ids: allRoomIds,
+            p_marks: markers.map((m) => ({
+                room_id: m.roomId,
+                start_at: m.start,
+                end_at: m.end,
+                guest: src.guest,
+                comment: 'Категория продана целиком (reservationsteps iCal)',
+                external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
+            })),
         });
-        if (!insErr) inserted += 1;
-        else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
-        else throw new Error(insErr.message);
+        if (rpcError) throw new Error(rpcError.message);
+        if (typeof data?.inserted !== 'number' || typeof data?.skipped_manual !== 'number') {
+            throw new Error('Некорректный ответ sync_external_occupancy');
+        }
+        inserted = data.inserted;
+        skipped += data.skipped_manual;
+    } else {
+        const { error: delErr } = await supabase
+            .from('reserves')
+            .delete()
+            .eq('external_source', src.tag)
+            .in('room_id', allRoomIds);
+        if (delErr) throw new Error(delErr.message);
+
+        const syncedAt = new Date().toISOString();
+        for (const m of markers) {
+            const { error: insErr } = await supabase.from('reserves').insert({
+                room_id: m.roomId,
+                start: m.start,
+                end: m.end,
+                guest: src.guest,
+                phone: '',
+                price: 0,
+                quantity: 1,
+                comment: 'Категория продана целиком (reservationsteps iCal)',
+                created_by: src.tag,
+                edited_at: syncedAt,
+                edited_by: src.tag,
+                external_source: src.tag,
+                external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
+                external_synced_at: syncedAt,
+            });
+            if (!insErr) inserted += 1;
+            else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
+            else throw new Error(insErr.message);
+        }
     }
     return { hotel: src.hotel, markers: markers.length, inserted, skipped };
 };

@@ -26,6 +26,11 @@ import {
 import { readIcalOccupancy } from './reservationstepsIcal';
 import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
+import {
+    isTransactionalIcalSyncEnabled,
+    toExternalOccupancyMarks,
+    type IcalSyncMarker,
+} from './transactionalIcalSync';
 
 const MIRROR_SOURCE_TAG = 'mirror_shelter';
 const DEFAULT_GUEST = 'Занято (внешний календарь)';
@@ -327,7 +332,7 @@ const syncIcal = async (
         }
     }
 
-    const markers: Array<{ roomId: string; start: number; end: number; icalId: number }> = [];
+    const markers: IcalSyncMarker[] = [];
     let skipped = 0;
     for (const category of occupancy) {
         const roomIds = roomIdsByCategory.get(category.icalId) ?? [];
@@ -366,41 +371,66 @@ const syncIcal = async (
         };
     }
 
-    const syncedAt = new Date().toISOString();
-    const { error: deleteError } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', source.tag)
-        .in('room_id', allRoomIds);
-    if (deleteError) {
-        throw new Error(deleteError.message);
-    }
-
     let inserted = 0;
-    for (const marker of markers) {
-        const { error: insertError } = await supabase.from('reserves').insert({
-            room_id: marker.roomId,
-            start: marker.start,
-            end: marker.end,
-            guest: source.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
-            comment: 'Категория продана целиком (зеркало, iCal)',
-            created_by: source.tag,
-            edited_at: syncedAt,
-            edited_by: source.tag,
-            external_source: source.tag,
-            external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
-            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
-            external_synced_at: syncedAt,
+    if (isTransactionalIcalSyncEnabled()) {
+        const { data, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+            p_source: source.tag,
+            p_room_ids: allRoomIds,
+            p_marks: toExternalOccupancyMarks(
+                markers,
+                source,
+                'Категория продана целиком (зеркало, iCal)',
+            ),
         });
-        if (!insertError) {
-            inserted += 1;
-        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
-            skipped += 1;
-        } else {
-            throw new Error(insertError.message);
+        if (rpcError) {
+            throw new Error(rpcError.message);
+        }
+        const summary = data as { inserted?: unknown; skipped_manual?: unknown } | null;
+        if (
+            !summary ||
+            typeof summary.inserted !== 'number' ||
+            typeof summary.skipped_manual !== 'number'
+        ) {
+            throw new Error('Некорректный ответ sync_external_occupancy');
+        }
+        inserted = summary.inserted;
+        skipped += summary.skipped_manual;
+    } else {
+        const syncedAt = new Date().toISOString();
+        const { error: deleteError } = await supabase
+            .from('reserves')
+            .delete()
+            .eq('external_source', source.tag)
+            .in('room_id', allRoomIds);
+        if (deleteError) {
+            throw new Error(deleteError.message);
+        }
+
+        for (const marker of markers) {
+            const { error: insertError } = await supabase.from('reserves').insert({
+                room_id: marker.roomId,
+                start: marker.start,
+                end: marker.end,
+                guest: source.guest,
+                phone: '',
+                price: 0,
+                quantity: 1,
+                comment: 'Категория продана целиком (зеркало, iCal)',
+                created_by: source.tag,
+                edited_at: syncedAt,
+                edited_by: source.tag,
+                external_source: source.tag,
+                external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
+                external_synced_at: syncedAt,
+            });
+            if (!insertError) {
+                inserted += 1;
+            } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
+                skipped += 1;
+            } else {
+                throw new Error(insertError.message);
+            }
         }
     }
 

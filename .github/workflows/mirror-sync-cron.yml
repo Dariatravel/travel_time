@@ -28,4 +28,5 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TRANSACTIONAL_ICAL_SYNC_ENABLED: ${{ vars.TRANSACTIONAL_ICAL_SYNC_ENABLED || 'true' }}
         run: node scripts/mirror-cron-sync.mjs
