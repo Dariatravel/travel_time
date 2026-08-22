@@ -1,3 +1,4 @@
+import { getExternalReserveSourceName } from '@/app/api/mirror/_lib/mirrorSources';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import {
@@ -30,6 +31,7 @@ import {
 } from '@/shared/api/reserve/reserve';
 import { useGetRoomsByHotel } from '@/shared/api/room/room';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
+import { isExternalReserve } from '@/shared/lib/externalReserve';
 import { getDate } from '@/shared/lib/getDate';
 import { parsePrepayment } from '@/shared/lib/parsePrepayment';
 import { $user } from '@/shared/models/auth';
@@ -38,6 +40,7 @@ import { FormMessage } from '@/shared/ui/FormMessage';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useUnit } from 'effector-react/compat';
+import { LockKeyhole } from 'lucide-react';
 import { FC, useCallback, useEffect, useId, useMemo, useState } from 'react';
 import { Controller, FieldErrors, FormProvider, SubmitErrorHandler, useForm } from 'react-hook-form';
 import { z } from 'zod';
@@ -348,6 +351,11 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     const loading = isCheckingOverlaps;
     const lookupLoading = isHotelsLoading || isRoomsLoading;
     const reserveId = currentReserve?.reserve?.id;
+    const externalSource = currentReserve?.reserve?.external_source;
+    const isExternalReserveReadOnly = isExternalReserve(currentReserve?.reserve);
+    const externalSourceName = externalSource
+        ? getExternalReserveSourceName(externalSource, currentReserve?.hotel?.title)
+        : null;
     const { data: historyRows, isPending: isHistoryPending } = useReserveHistory(
         reserveId,
         isEdit && isOpen,
@@ -403,6 +411,14 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     // Мемоизируем обработчики событий
     const onAcceptForm = useCallback(
         async (formData: ReserveFormValues) => {
+            if (isExternalReserveReadOnly) {
+                showToast(
+                    'Эта бронь обновляется автоматически и доступна только для просмотра',
+                    'error',
+                );
+                return;
+            }
+
             if (!formData?.date?.[0] || !formData?.date?.[1]) {
                 showToast('Ошибка при сохранении брони, проверьте даты', 'error');
                 return;
@@ -458,7 +474,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
 
             void Promise.resolve(onAccept(data));
         },
-        [currentReserve?.reserve?.id, deserializeData, onAccept],
+        [currentReserve?.reserve?.id, deserializeData, isExternalReserveReadOnly, onAccept],
     );
 
     const onError: SubmitErrorHandler<ReserveFormValues> = useCallback(
@@ -472,13 +488,18 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
     const submitReserveForm = handleSubmit(onAcceptForm, onError);
 
     const onReserveDelete = useCallback(() => {
+        if (isExternalReserveReadOnly) {
+            showToast('Эта бронь обновляется автоматически и не удаляется вручную', 'error');
+            return;
+        }
+
         if (!currentReserve?.reserve?.id || !onDelete) {
             showToast('Ошибка во время удаления брони, отсутсвует id', 'error');
             return;
         }
 
         onDelete(currentReserve.reserve.id);
-    }, [currentReserve, onDelete]);
+    }, [currentReserve, isExternalReserveReadOnly, onDelete]);
     return (
         <FormProvider {...form}>
             <form
@@ -487,7 +508,23 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                 onSubmit={submitReserveForm}
                 noValidate
             >
-                <div className="flex-1 overflow-y-auto px-1 sm:px-1">
+                {isExternalReserveReadOnly && externalSourceName && (
+                    <div
+                        role="status"
+                        className="mx-1 mb-3 flex items-start gap-2 rounded-md border border-sky-300 bg-sky-50 px-3 py-2 text-sm text-sky-950 dark:border-sky-800 dark:bg-sky-950 dark:text-sky-100"
+                    >
+                        <LockKeyhole className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                        <span>
+                            Обновляется автоматически, источник:{' '}
+                            <strong>{externalSourceName}</strong>
+                        </span>
+                    </div>
+                )}
+                <fieldset
+                    disabled={isExternalReserveReadOnly}
+                    className="min-h-0 min-w-0 flex-1 border-0 p-0"
+                >
+                    <div className="h-full overflow-y-auto px-1 sm:px-1">
                     <div className="flex-1 space-y-1">
                             <Controller
                                 name="date"
@@ -782,7 +819,8 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                                 }
                             />
                     </div>
-                </div>
+                    </div>
+                </fieldset>
                 <div className="w-full space-y-2">
                     <FormButtons
                         className={cx.buttons}
@@ -792,6 +830,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         isLoading={loading}
                         onClose={onClose}
                         onAccept={submitReserveForm}
+                        isActionDisabled={isExternalReserveReadOnly}
                     />
                     {isEdit && (
                         <ReserveHistory

@@ -12,6 +12,7 @@ import {
     isTrialReserveFixed,
 } from '@/features/BaseCalendar/lib/trialBookingLayout';
 import { ReserveDTO } from '@/shared/api/reserve/reserve';
+import { isExternalReserve } from '@/shared/lib/externalReserve';
 import { getDate } from '@/shared/lib/getDate';
 import { $user } from '@/shared/models/auth';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -85,6 +86,11 @@ export const useReserveDragMove = ({
                 !newRoom ||
                 (reserve as { itemKind?: string }).itemKind === 'closure'
             ) {
+                return;
+            }
+
+            if (isExternalReserve(reserve)) {
+                showToast('Бронь обновляется автоматически и не перемещается', 'error');
                 return;
             }
 
