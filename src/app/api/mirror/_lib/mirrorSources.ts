@@ -5,6 +5,44 @@
 
 import type { GoogleSheetSource } from './googleSheet';
 
+const EXTERNAL_RESERVE_SOURCE_NAMES: Readonly<Record<string, string>> = {
+    bnovo_djannat: 'Джаннат',
+    googlesheet_femeli: 'Фемели',
+    googlesheet_sunrise: 'Санрайз',
+    kontur_bookonline: 'Вилла Оазис',
+    wps_villa_leona: 'Вилла Леона',
+};
+
+const HOTEL_SCOPED_EXTERNAL_SOURCES = new Set([
+    'ical_reservationsteps',
+    'mirror_shelter',
+    'realtycalendar_ical',
+]);
+
+const EXTERNAL_RESERVE_SOURCE_FALLBACK_NAMES: Readonly<Record<string, string>> = {
+    ical_reservationsteps: 'Reservationsteps',
+    mirror_shelter: 'Shelter',
+    realtycalendar_ical: 'RealtyCalendar',
+};
+
+export const getExternalReserveSourceName = (
+    externalSource: string,
+    hotelTitle?: string | null,
+): string => {
+    const normalizedSource = externalSource.trim();
+    const normalizedHotelTitle = hotelTitle?.trim();
+
+    if (HOTEL_SCOPED_EXTERNAL_SOURCES.has(normalizedSource) && normalizedHotelTitle) {
+        return normalizedHotelTitle;
+    }
+
+    return (
+        EXTERNAL_RESERVE_SOURCE_NAMES[normalizedSource] ??
+        EXTERNAL_RESERVE_SOURCE_FALLBACK_NAMES[normalizedSource] ??
+        normalizedSource
+    );
+};
+
 export type MirrorCategory = {
     /** id категории в системе-источнике (FrontDesk24 roomCategoryID). */
     categoryId: number;
