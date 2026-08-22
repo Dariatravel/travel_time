@@ -298,7 +298,7 @@ export const HotelCalendar = ({ hotel }: CalendarProps) => {
     };
 
     const isLoading = isRoomPending || isRoomCreating || isUpdatingOrder;
-    const reserveLoading = isReserveCreating || isReserveUpdating;
+    const reserveLoading = isReserveCreating || isReserveUpdating || isReserveDeleting;
 
     const timelineId = `hotel-calendar-${hotel.id}`;
 

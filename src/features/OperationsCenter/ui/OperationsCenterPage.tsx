@@ -373,7 +373,6 @@ export const OperationsCenterPage = () => {
 
     const onRestoreReserve = async (item: DeletedReserveItem) => {
         const reserve = item.reserve_data;
-        let allowOverlap = false;
 
         try {
             setCheckingRestoreId(item.id);
@@ -390,12 +389,11 @@ export const OperationsCenterPage = () => {
                             `• ${overlap.guest || 'Без имени'}: ${formatOverlapPeriod(overlap)}${overlap.phone ? ` · ${overlap.phone}` : ''}`,
                     )
                     .join('\n');
-                const shouldRestore = window.confirm(
-                    `В номере уже есть бронь на эти даты:\n\n${overlapMessage}\n\nВсё равно восстановить удалённую бронь ${reserve.guest || 'Без имени'}?`,
+                showToast(
+                    `Восстановление невозможно: в номере уже есть бронь на эти даты.\n${overlapMessage}`,
+                    'error',
                 );
-
-                if (!shouldRestore) return;
-                allowOverlap = true;
+                return;
             } else {
                 const shouldRestore = window.confirm(
                     `Восстановить бронь ${reserve.guest || 'Без имени'} на ${formatDate(Number(reserve.start))} - ${formatDate(Number(reserve.end))}?`,
@@ -416,7 +414,6 @@ export const OperationsCenterPage = () => {
         restoreMutation.mutate({
             deletedItemId: item.id,
             restoredBy: `${user?.name ?? ''} ${user?.surname ?? ''}`.trim() || user?.email,
-            allowOverlap,
         });
     };
 

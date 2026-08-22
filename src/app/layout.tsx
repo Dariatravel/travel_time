@@ -40,7 +40,7 @@ export default function RootLayout({
             <head>
                 <meta
                     name="viewport"
-                    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+                    content="width=device-width, initial-scale=1.0"
                 />
                 <link rel="icon" href="/favicon-32x32.png" type="image/png" sizes="32x32" />
                 <link rel="icon" href="/icon.png" type="image/png" sizes="512x512" />

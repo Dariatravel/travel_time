@@ -369,11 +369,9 @@ export const getDeletedReserves = async (): Promise<DeletedReserveItem[]> => {
 export const restoreDeletedReserveApi = async ({
     deletedItemId,
     restoredBy,
-    allowOverlap = false,
 }: {
     deletedItemId: string;
     restoredBy?: string;
-    allowOverlap?: boolean;
 }) => {
     const { data: deletedItem, error: selectError } = await supabase
         .from('reserve_deleted_items')
@@ -393,8 +391,8 @@ export const restoreDeletedReserveApi = async ({
         end: Number(item.reserve_data.end),
     });
 
-    if (overlaps.length > 0 && !allowOverlap) {
-        throw new Error('Есть пересечение с активной бронью. Подтвердите восстановление вручную.');
+    if (overlaps.length > 0) {
+        throw new Error('Есть пересечение с активной бронью. Восстановление невозможно.');
     }
 
     const reservePayload = {
