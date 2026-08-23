@@ -1,5 +1,5 @@
 'use client';
-import { NoDataAvailable } from '@/components/ui/empty-state';
+import { ErrorState, NoDataAvailable } from '@/components/ui/empty-state';
 import { RoomsTable } from '@/features/Hotels/ui/RoomsTable';
 import { RoomModal } from '@/features/RoomInfo/ui/RoomModal';
 import { useHotelById } from '@/shared/api/hotel/hotel';
@@ -21,7 +21,13 @@ export default function Rooms() {
     const [isRoomOpen, setIsRoomOpen] = useState(false);
     const [currentRoom, setIsCurrentRoom] = useState<Nullable<RoomDTO>>(null);
 
-    const { data: hotel, isFetching } = useHotelById(params?.slug as string);
+    const {
+        data: hotel,
+        isFetching,
+        isError,
+        error,
+        refetch,
+    } = useHotelById(params?.slug as string);
 
     useEffect(() => {
         return () => {
@@ -33,6 +39,20 @@ export default function Rooms() {
 
     if (isFetching) {
         return <FullWidthLoader />;
+    }
+
+    // Сбой загрузки не должен выглядеть как «у отеля нет номеров».
+    if (isError) {
+        return (
+            <ErrorState
+                title="Не удалось загрузить отель"
+                description={
+                    (error as Error)?.message ||
+                    'Проверьте соединение и попробуйте ещё раз. Данные не потеряны.'
+                }
+                actions={<TravelButton label="Повторить" onClick={() => void refetch()} />}
+            />
+        );
     }
 
     const rooms: RoomDTO[] = hotel?.rooms ?? [];

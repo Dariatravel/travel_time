@@ -1,5 +1,5 @@
 'use client';
-import { NoDataAvailable } from '@/components/ui/empty-state';
+import { ErrorState, NoDataAvailable } from '@/components/ui/empty-state';
 import { HotelModal } from '@/features/HotelModal/ui/HotelModal';
 import { HotelsTable } from '@/features/Hotels/ui/HotelsTable';
 import { HotelDTO, useInfiniteHotelsQuery } from '@/shared/api/hotel/hotel';
@@ -17,7 +17,7 @@ export default function Hotels() {
 
     // Используем бесконечный запрос для получения всех отелей
     const PAGE_SIZE = 100; // Увеличиваем размер для получения всех отелей сразу
-    const { data, isLoading, fetchNextPage, hasNextPage, isFetchingNextPage } =
+    const { data, isLoading, isError, error, refetch, fetchNextPage, hasNextPage, isFetchingNextPage } =
         useInfiniteHotelsQuery(undefined, PAGE_SIZE, true);
 
     const hotels = data?.pages.flatMap((page) => page.data) ?? [];
@@ -58,6 +58,21 @@ export default function Hotels() {
 
     if (isLoading) {
         return <FullWidthLoader />;
+    }
+
+    // Сбой загрузки нельзя показывать как «отелей нет»: менеджер решит, что база
+    // пуста, вместо того чтобы повторить запрос.
+    if (isError) {
+        return (
+            <ErrorState
+                title="Не удалось загрузить список отелей"
+                description={
+                    (error as Error)?.message ||
+                    'Проверьте соединение и попробуйте ещё раз. Данные не потеряны.'
+                }
+                actions={<TravelButton label="Повторить" onClick={() => void refetch()} />}
+            />
+        );
     }
 
     if (!hotels.length) {

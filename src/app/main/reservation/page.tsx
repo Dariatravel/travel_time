@@ -1,7 +1,8 @@
 'use client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { NoDataAvailable } from '@/components/ui/empty-state';
+import { ErrorState, NoDataAvailable } from '@/components/ui/empty-state';
+import { TravelButton } from '@/shared/ui/Button/Button';
 import { VALUE_TO_LABEL_MAP } from '@/features/AdvancedFilters/lib/constants';
 import {
     TIMELINE_ROW_HEIGHT,
@@ -263,8 +264,16 @@ export default function Home() {
     const [phoneExtraPages, setPhoneExtraPages] = useState(0);
     const phonePagesLimit = PHONE_MAX_PAGES + phoneExtraPages;
 
-    const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading } =
-        useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
+    const {
+        data,
+        fetchNextPage,
+        hasNextPage,
+        isFetchingNextPage,
+        isLoading,
+        isError: isHotelsError,
+        error: hotelsError,
+        refetch: refetchHotels,
+    } = useInfiniteHotelsQuery(filter, PAGE_SIZE, { excludeHiddenFromSearch: true });
 
     // Новый поиск сбрасывает страницы запроса — возвращаем и потолок телефона.
     useEffect(() => {
@@ -474,6 +483,25 @@ export default function Home() {
                 <div className={cx.loaderContainer}>
                     <Loader />
                 </div>
+            </div>,
+        );
+    }
+
+    // Отказ поиска нельзя показывать как «свободных номеров нет»: менеджер
+    // откажет гостю, хотя номера есть, а запрос просто не дошёл.
+    if (isHotelsError) {
+        return renderLayout(
+            <div className="flex flex-1 flex-col items-center justify-center gap-4">
+                <ErrorState
+                    title="Не удалось загрузить шахматку"
+                    description={
+                        (hotelsError as Error)?.message ||
+                        'Это сбой загрузки, а не отсутствие свободных номеров. Повторите запрос.'
+                    }
+                    actions={
+                        <TravelButton label="Повторить" onClick={() => void refetchHotels()} />
+                    }
+                />
             </div>,
         );
     }
