@@ -26,6 +26,15 @@ import {
 import { readIcalOccupancy } from './reservationstepsIcal';
 import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
+import {
+    getIcalSyncSafetyError,
+    getTransactionalIcalMinRetainedRatio,
+    isLargeIcalDecreaseConfirmed,
+    isTransactionalIcalSyncEnabled,
+    parseExternalOccupancySummary,
+    toExternalOccupancyMarks,
+    type IcalSyncMarker,
+} from './transactionalIcalSync';
 
 const MIRROR_SOURCE_TAG = 'mirror_shelter';
 const DEFAULT_GUEST = 'Занято (внешний календарь)';
@@ -305,7 +314,11 @@ const syncIcal = async (
         throw new Error('Не найдены номера отеля для категорий источника');
     }
 
-    const occupancy = await readIcalOccupancy(source.categories, options.horizonDays ?? 365);
+    const occupancyResult = await readIcalOccupancy(
+        source.categories,
+        options.horizonDays ?? 365,
+    );
+    const occupancy = occupancyResult.categories;
 
     const { data: rows, error } = await supabase
         .from('reserves')
@@ -315,6 +328,9 @@ const syncIcal = async (
         throw new Error(error.message);
     }
     const ourRows = ((rows ?? []) as ReserveRow[]).filter((row) => row.external_source !== source.tag);
+    const existingSourceCount = ((rows ?? []) as ReserveRow[]).filter(
+        (row) => row.external_source === source.tag,
+    ).length;
     const ourNights = new Map<string, Set<number>>();
     for (const row of ourRows) {
         let nights = ourNights.get(row.room_id);
@@ -327,7 +343,7 @@ const syncIcal = async (
         }
     }
 
-    const markers: Array<{ roomId: string; start: number; end: number; icalId: number }> = [];
+    const markers: IcalSyncMarker[] = [];
     let skipped = 0;
     for (const category of occupancy) {
         const roomIds = roomIdsByCategory.get(category.icalId) ?? [];
@@ -352,7 +368,19 @@ const syncIcal = async (
         }
     }
 
+    const minRetainedRatio = getTransactionalIcalMinRetainedRatio();
+    const confirmLargeDecrease = isLargeIcalDecreaseConfirmed();
+    const safetyError = getIcalSyncSafetyError({
+        sourceComplete: occupancyResult.sourceComplete,
+        confirmedEmpty: occupancyResult.confirmedEmpty,
+        existingCount: existingSourceCount,
+        proposedCount: markers.length,
+        minRetainedRatio,
+        confirmLargeDecrease,
+    });
+
     if (dryRun) {
+        if (safetyError) throw new Error(safetyError);
         return {
             hotelId,
             dryRun: true,
@@ -366,41 +394,87 @@ const syncIcal = async (
         };
     }
 
-    const syncedAt = new Date().toISOString();
-    const { error: deleteError } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', source.tag)
-        .in('room_id', allRoomIds);
-    if (deleteError) {
-        throw new Error(deleteError.message);
-    }
-
     let inserted = 0;
-    for (const marker of markers) {
-        const { error: insertError } = await supabase.from('reserves').insert({
-            room_id: marker.roomId,
-            start: marker.start,
-            end: marker.end,
-            guest: source.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
-            comment: 'Категория продана целиком (зеркало, iCal)',
-            created_by: source.tag,
-            edited_at: syncedAt,
-            edited_by: source.tag,
-            external_source: source.tag,
-            external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
-            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
-            external_synced_at: syncedAt,
+    if (isTransactionalIcalSyncEnabled()) {
+        const { data, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+            p_source: source.tag,
+            p_room_ids: allRoomIds,
+            p_marks: toExternalOccupancyMarks(
+                markers,
+                source,
+                'Категория продана целиком (зеркало, iCal)',
+            ),
+            p_source_complete: occupancyResult.sourceComplete,
+            p_confirm_empty: occupancyResult.confirmedEmpty,
+            p_min_retained_ratio: minRetainedRatio,
+            p_confirm_large_decrease: confirmLargeDecrease,
         });
-        if (!insertError) {
-            inserted += 1;
-        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
-            skipped += 1;
-        } else {
-            throw new Error(insertError.message);
+        if (rpcError) {
+            throw new Error(rpcError.message);
+        }
+        const summary = parseExternalOccupancySummary(data);
+        inserted = summary.inserted;
+        skipped += summary.skippedManual;
+    } else {
+        if (safetyError) {
+            const { error: logError } = await supabase.from('sync_runs').insert({
+                source: source.tag,
+                hotel_id: hotelId,
+                finished_at: new Date().toISOString(),
+                status: 'error',
+                counts: {
+                    existing: existingSourceCount,
+                    proposed: markers.length,
+                    retained_ratio:
+                        existingSourceCount > 0 ? markers.length / existingSourceCount : null,
+                    min_retained_ratio: minRetainedRatio,
+                    source_complete: occupancyResult.sourceComplete,
+                    confirmed_empty: occupancyResult.confirmedEmpty,
+                    confirmed_large_decrease: confirmLargeDecrease,
+                    legacy_path: true,
+                },
+                error: safetyError,
+            });
+            if (logError) {
+                throw new Error(`${safetyError}. Не удалось записать ошибку в sync_runs`);
+            }
+            throw new Error(safetyError);
+        }
+        const syncedAt = new Date().toISOString();
+        const { error: deleteError } = await supabase
+            .from('reserves')
+            .delete()
+            .eq('external_source', source.tag)
+            .in('room_id', allRoomIds);
+        if (deleteError) {
+            throw new Error(deleteError.message);
+        }
+
+        for (const marker of markers) {
+            const { error: insertError } = await supabase.from('reserves').insert({
+                room_id: marker.roomId,
+                start: marker.start,
+                end: marker.end,
+                guest: source.guest,
+                phone: '',
+                price: 0,
+                quantity: 1,
+                comment: 'Категория продана целиком (зеркало, iCal)',
+                created_by: source.tag,
+                edited_at: syncedAt,
+                edited_by: source.tag,
+                external_source: source.tag,
+                external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
+                external_synced_at: syncedAt,
+            });
+            if (!insertError) {
+                inserted += 1;
+            } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
+                skipped += 1;
+            } else {
+                throw new Error(insertError.message);
+            }
         }
     }
 

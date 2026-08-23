@@ -12,6 +12,39 @@ const FD_AVAILABLE_DATES = 'https://pms.frontdesk24.ru/api/online/getAvailableDa
 const FD_VARIANTS = 'https://pms.frontdesk24.ru/api/online/getVariants';
 const HORIZON_DAYS = 365;
 const FETCH_BATCH = 8;
+const transactionalIcalSyncEnabled =
+    process.env.TRANSACTIONAL_ICAL_SYNC_ENABLED?.trim().toLowerCase() !== 'false';
+const configuredMinRetainedRatio =
+    process.env.TRANSACTIONAL_ICAL_MIN_RETAINED_RATIO?.trim() || '0.5';
+const minIcalRetainedRatio = Number(configuredMinRetainedRatio);
+if (!Number.isFinite(minIcalRetainedRatio) || minIcalRetainedRatio < 0 || minIcalRetainedRatio > 1) {
+    throw new Error('TRANSACTIONAL_ICAL_MIN_RETAINED_RATIO должен быть числом от 0 до 1');
+}
+const confirmLargeIcalDecrease =
+    process.env.TRANSACTIONAL_ICAL_CONFIRM_LARGE_DECREASE?.trim().toLowerCase() === 'true';
+
+const getIcalSyncSafetyError = ({
+    sourceComplete,
+    confirmedEmpty,
+    existingCount,
+    proposedCount,
+}) => {
+    if (!sourceComplete) {
+        return 'Источник iCal вернул неполный ответ; текущая занятость сохранена';
+    }
+    if (existingCount > 0 && proposedCount === 0 && !confirmedEmpty) {
+        return 'Источник iCal не подтвердил пустой календарь; текущая занятость сохранена';
+    }
+    if (
+        existingCount > 0 &&
+        proposedCount > 0 &&
+        proposedCount / existingCount < minIcalRetainedRatio &&
+        !confirmLargeIcalDecrease
+    ) {
+        return `Число iCal-меток подозрительно уменьшилось: ${existingCount} -> ${proposedCount}; текущая занятость сохранена`;
+    }
+    return null;
+};
 
 // Авто-источники Shelter/FrontDesk24. Фоновый крон (без лимита 30с у кнопки),
 // поэтому сюда вынесены и многономерные Сан Амра/Нора: читалка по кнопке на них
@@ -223,11 +256,14 @@ const computeMarkers = (categories, ourByRoom, occ) => {
 
 // ---- iCal reservationsteps: чтение и запись меток по категориям ----
 const parseIcalEvents = (icsText) => {
+    if (!icsText.includes('BEGIN:VCALENDAR') || !icsText.includes('END:VCALENDAR')) {
+        return null;
+    }
     const events = [];
     for (const block of icsText.split('BEGIN:VEVENT').slice(1)) {
         const m1 = /DTSTART[^:]*:(\d{8})/.exec(block);
         const m2 = /DTEND[^:]*:(\d{8})/.exec(block);
-        if (!m1 || !m2) continue;
+        if (!m1 || !m2) return null;
         const parse = (s) => new Date(Date.UTC(+s.slice(0, 4), +s.slice(4, 6) - 1, +s.slice(6, 8)));
         events.push({ from: parse(m1[1]), to: parse(m2[1]) });
     }
@@ -266,6 +302,7 @@ const syncIcalSource = async (supabase, src) => {
         .in('room_id', allRoomIds);
     if (zErr) throw new Error(zErr.message);
     const ourNights = new Map(allRoomIds.map((r) => [r, new Set()]));
+    const existingSourceCount = (reserves ?? []).filter((z) => z.external_source === src.tag).length;
     for (const z of reserves ?? []) {
         if (z.external_source === src.tag) continue;
         for (let n = nightOf(z.start); n < nightOf(z.end); n += 1) ourNights.get(z.room_id)?.add(n);
@@ -281,10 +318,27 @@ const syncIcalSource = async (supabase, src) => {
     };
 
     const markers = [];
+    let sourceComplete = true;
+    let sourceHasCurrentIntervals = false;
     for (const c of src.categories) {
-        const res = await fetch(`https://public-api.reservationsteps.ru/v1/api/ical/${c.icalId}`, { cache: 'no-store' });
-        if (!res.ok) continue; // категория недоступна — не роняем остальных
-        const events = parseIcalEvents(await res.text()).filter(keep);
+        let events = [];
+        try {
+            const res = await fetch(`https://public-api.reservationsteps.ru/v1/api/ical/${c.icalId}`, { cache: 'no-store' });
+            if (!res.ok) {
+                sourceComplete = false;
+                continue;
+            }
+            const parsed = parseIcalEvents(await res.text());
+            if (parsed === null) {
+                sourceComplete = false;
+                continue;
+            }
+            events = parsed.filter(keep);
+            if (events.length > 0) sourceHasCurrentIntervals = true;
+        } catch {
+            sourceComplete = false;
+            continue;
+        }
         for (const ev of events) {
             const from = ev.from < today ? today : ev.from;
             const start = checkinUnix(from);
@@ -299,38 +353,102 @@ const syncIcalSource = async (supabase, src) => {
             }
         }
     }
+    const confirmedEmpty = sourceComplete && !sourceHasCurrentIntervals;
+    const safetyError = getIcalSyncSafetyError({
+        sourceComplete,
+        confirmedEmpty,
+        existingCount: existingSourceCount,
+        proposedCount: markers.length,
+    });
 
-    const { error: delErr } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', src.tag)
-        .in('room_id', allRoomIds);
-    if (delErr) throw new Error(delErr.message);
-
-    const syncedAt = new Date().toISOString();
     let inserted = 0;
     let skipped = 0;
-    for (const m of markers) {
-        const { error: insErr } = await supabase.from('reserves').insert({
-            room_id: m.roomId,
-            start: m.start,
-            end: m.end,
-            guest: src.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
-            comment: 'Категория продана целиком (reservationsteps iCal)',
-            created_by: src.tag,
-            edited_at: syncedAt,
-            edited_by: src.tag,
-            external_source: src.tag,
-            external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
-            external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
-            external_synced_at: syncedAt,
+    if (transactionalIcalSyncEnabled) {
+        const { data, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+            p_source: src.tag,
+            p_room_ids: allRoomIds,
+            p_marks: markers.map((m) => ({
+                room_id: m.roomId,
+                start_at: m.start,
+                end_at: m.end,
+                guest: src.guest,
+                comment: 'Категория продана целиком (reservationsteps iCal)',
+                external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
+            })),
+            p_source_complete: sourceComplete,
+            p_confirm_empty: confirmedEmpty,
+            p_min_retained_ratio: minIcalRetainedRatio,
+            p_confirm_large_decrease: confirmLargeIcalDecrease,
         });
-        if (!insErr) inserted += 1;
-        else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
-        else throw new Error(insErr.message);
+        if (rpcError) throw new Error(rpcError.message);
+        if (data?.status === 'error' && typeof data?.error === 'string') {
+            throw new Error(data.error);
+        }
+        if (
+            !['ok', 'partial'].includes(data?.status) ||
+            typeof data?.inserted !== 'number' ||
+            typeof data?.skipped_manual !== 'number'
+        ) {
+            throw new Error('Некорректный ответ sync_external_occupancy');
+        }
+        inserted = data.inserted;
+        skipped += data.skipped_manual;
+    } else {
+        if (safetyError) {
+            const { error: logError } = await supabase.from('sync_runs').insert({
+                source: src.tag,
+                hotel_id: hotelId,
+                finished_at: new Date().toISOString(),
+                status: 'error',
+                counts: {
+                    existing: existingSourceCount,
+                    proposed: markers.length,
+                    retained_ratio:
+                        existingSourceCount > 0 ? markers.length / existingSourceCount : null,
+                    min_retained_ratio: minIcalRetainedRatio,
+                    source_complete: sourceComplete,
+                    confirmed_empty: confirmedEmpty,
+                    confirmed_large_decrease: confirmLargeIcalDecrease,
+                    legacy_path: true,
+                },
+                error: safetyError,
+            });
+            if (logError) {
+                throw new Error(`${safetyError}. Не удалось записать ошибку в sync_runs`);
+            }
+            throw new Error(safetyError);
+        }
+        const { error: delErr } = await supabase
+            .from('reserves')
+            .delete()
+            .eq('external_source', src.tag)
+            .in('room_id', allRoomIds);
+        if (delErr) throw new Error(delErr.message);
+
+        const syncedAt = new Date().toISOString();
+        for (const m of markers) {
+            const { error: insErr } = await supabase.from('reserves').insert({
+                room_id: m.roomId,
+                start: m.start,
+                end: m.end,
+                guest: src.guest,
+                phone: '',
+                price: 0,
+                quantity: 1,
+                comment: 'Категория продана целиком (reservationsteps iCal)',
+                created_by: src.tag,
+                edited_at: syncedAt,
+                edited_by: src.tag,
+                external_source: src.tag,
+                external_uid: `${src.tag}:${m.roomId}:${m.start}-${m.end}`,
+                external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${m.icalId}`,
+                external_synced_at: syncedAt,
+            });
+            if (!insErr) inserted += 1;
+            else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
+            else throw new Error(insErr.message);
+        }
     }
     return { hotel: src.hotel, markers: markers.length, inserted, skipped };
 };
