@@ -23,7 +23,13 @@ export const isLargeIcalDecreaseConfirmed = (
     value = process.env[TRANSACTIONAL_ICAL_CONFIRM_DECREASE_ENV],
 ): boolean => value?.trim().toLowerCase() === 'true';
 
-export const getIcalSyncSafetyError = ({
+/**
+ * Правила одинаковы для всех зеркал: iCal, Google-таблиц, Контура, Bnovo.
+ * Название источника подставляется в текст, чтобы в журнале было видно, кто
+ * именно отдал подозрительный ответ.
+ */
+export const getSyncSafetyError = ({
+    sourceLabel = 'Источник',
     sourceComplete,
     confirmedEmpty,
     existingCount,
@@ -37,12 +43,13 @@ export const getIcalSyncSafetyError = ({
     proposedCount: number;
     minRetainedRatio: number;
     confirmLargeDecrease: boolean;
+    sourceLabel?: string;
 }): string | null => {
     if (!sourceComplete) {
-        return 'Источник iCal вернул неполный ответ; текущая занятость сохранена';
+        return `${sourceLabel} вернул неполный ответ; текущая занятость сохранена`;
     }
     if (existingCount > 0 && proposedCount === 0 && !confirmedEmpty) {
-        return 'Источник iCal не подтвердил пустой календарь; текущая занятость сохранена';
+        return `${sourceLabel} не подтвердил пустой ответ; текущая занятость сохранена`;
     }
     if (
         existingCount > 0 &&
@@ -50,7 +57,7 @@ export const getIcalSyncSafetyError = ({
         proposedCount / existingCount < minRetainedRatio &&
         !confirmLargeDecrease
     ) {
-        return `Число iCal-меток подозрительно уменьшилось: ${existingCount} -> ${proposedCount}; текущая занятость сохранена`;
+        return `${sourceLabel}: число меток подозрительно уменьшилось: ${existingCount} -> ${proposedCount}; текущая занятость сохранена`;
     }
     return null;
 };
@@ -99,3 +106,7 @@ export const toExternalOccupancyMarks = (
         external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
         external_feed_url: `https://public-api.reservationsteps.ru/v1/api/ical/${marker.icalId}`,
     }));
+
+/** Прежнее имя для iCal-пути; оставлено, чтобы не переписывать рабочий код. */
+export const getIcalSyncSafetyError = (params: Parameters<typeof getSyncSafetyError>[0]) =>
+    getSyncSafetyError({ sourceLabel: 'Источник iCal', ...params });

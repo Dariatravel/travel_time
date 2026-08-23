@@ -59,7 +59,7 @@ describe('getIcalSyncSafetyError', () => {
             'неполный ответ',
         );
         expect(getIcalSyncSafetyError({ ...base, proposedCount: 0 })).toContain(
-            'не подтвердил пустой календарь',
+            'не подтвердил пустой ответ',
         );
     });
 

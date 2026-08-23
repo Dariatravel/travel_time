@@ -71,17 +71,30 @@ export const detectSalesHorizon = async (
     return horizon > 0 ? horizon + PROBE_STEP_DAYS : 0;
 };
 
+export type KonturOccupancyResult = {
+    occupancy: KonturOccupancy[];
+    /**
+     * Все ли ответы источника получены. Сбой сети даёт null вместо числа мест, и
+     * ночь просто не попадает в занятые — если так упадёт весь опрос, занятость
+     * отеля будет выглядеть пустой. Синк обязан отличать «источник сказал
+     * свободно» от «мы не смогли спросить».
+     */
+    sourceComplete: boolean;
+    failedProbes: number;
+};
+
 export const readKonturOccupancy = async (
     slug: string,
     rooms: KonturRoom[],
     horizonDays: number,
-): Promise<KonturOccupancy[]> => {
+): Promise<KonturOccupancyResult> => {
     const today = new Date();
     today.setUTCHours(0, 0, 0, 0);
     const nights: Date[] = [];
     for (let offset = 1; offset <= horizonDays; offset += 1) nights.push(addDays(today, offset));
 
     const result: KonturOccupancy[] = [];
+    let failedProbes = 0;
     for (const room of rooms) {
         const busyNights: string[] = [];
         for (let index = 0; index < nights.length; index += BATCH) {
@@ -90,10 +103,14 @@ export const readKonturOccupancy = async (
                 chunk.map(async (night) => ({ night, count: await freeCount(slug, room.id, night) })),
             );
             for (const { night, count } of counts) {
+                if (count === null) {
+                    failedProbes += 1;
+                    continue;
+                }
                 if (count === 0) busyNights.push(iso(night));
             }
         }
         result.push({ roomId: room.id, busyNights });
     }
-    return result;
+    return { occupancy: result, sourceComplete: failedProbes === 0, failedProbes };
 };

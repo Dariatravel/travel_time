@@ -14,6 +14,11 @@ import { planBookingPeriod } from './lib/bnovoPeriod.mjs';
 import { chromium } from 'playwright';
 
 const HORIZON_DAYS = 400;
+// Те же пороги, что и у остальных зеркал: не принимать пустой ответ и резкое
+// падение числа меток без явного подтверждения.
+const MIN_RETAINED_RATIO = Number(process.env.TRANSACTIONAL_ICAL_MIN_RETAINED_RATIO ?? 0.5);
+const CONFIRM_LARGE_DECREASE =
+    (process.env.TRANSACTIONAL_ICAL_CONFIRM_LARGE_DECREASE ?? '').trim().toLowerCase() === 'true';
 const NIGHT = 86_400;
 
 // Отели на Bnovo. roomMap: bnovo room_id (из /roomTypes/get) → наш room_id.
@@ -181,18 +186,12 @@ const syncHotel = async (supabase, hotel) => {
     }
 
     // Свежий снимок: убираем прошлые метки этого источника и пишем текущие.
-    const { error: delErr } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', hotel.externalSource)
-        .in('room_id', roomIds);
-    if (delErr) throw new Error(delErr.message);
-
-    const syncedAt = new Date().toISOString();
-    let inserted = 0;
+    // Собираем метки заранее: запись идёт одной транзакцией через RPC, чтобы
+    // между удалением старых и вставкой новых номера не выглядели свободными,
+    // а сбой посреди процесса не терял занятость.
+    const marks = [];
     let skippedPast = 0;
     let skippedManual = 0;
-    let conflicts = 0;
 
     for (const [bnovoRoomId, from, to] of bookings) {
         const roomId = hotel.roomMap[bnovoRoomId];
@@ -211,32 +210,36 @@ const syncHotel = async (supabase, hotel) => {
             continue;
         }
 
-        const { error } = await supabase.from('reserves').insert({
+        marks.push({
             room_id: roomId,
-            start: clampedStart,
-            end,
+            start_at: clampedStart,
+            end_at: end,
             guest: hotel.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
             comment: 'Занятость из Bnovo (кабинет отельера)',
-            created_by: hotel.externalSource,
-            edited_at: syncedAt,
-            edited_by: hotel.externalSource,
-            external_source: hotel.externalSource,
             external_uid: `${hotel.externalSource}:${roomId}:${clampedStart}-${end}`,
             external_feed_url: 'https://online.bnovo.ru/',
-            external_synced_at: syncedAt,
         });
-
-        if (!error) {
-            inserted += 1;
-        } else if (isOverlapConflict(error)) {
-            conflicts += 1;
-        } else {
-            throw new Error(error.message);
-        }
     }
+
+    // Пустой список тут означал бы, что кабинет не отдал ни одной брони: сам
+    // вход подтверждается отдельно и падает с ошибкой, поэтому до этого места мы
+    // доходим с рабочей сессией. Но стирать занятость из-за пустого ответа всё
+    // равно нельзя — за это отвечает p_confirm_empty.
+    const { data: rpcData, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+        p_source: hotel.externalSource,
+        p_room_ids: roomIds,
+        p_marks: marks,
+        p_source_complete: true,
+        p_confirm_empty: false,
+        p_min_retained_ratio: MIN_RETAINED_RATIO,
+        p_confirm_large_decrease: CONFIRM_LARGE_DECREASE,
+    });
+    if (rpcError) throw new Error(rpcError.message);
+    if (rpcData?.status === 'error') throw new Error(rpcData.error ?? 'sync_external_occupancy отказал');
+
+    const inserted = rpcData?.inserted ?? 0;
+    const conflicts = rpcData?.conflicts ?? 0;
+    skippedManual += rpcData?.skipped_manual ?? 0;
 
     return { title: hotel.title, bookings: bookings.length, inserted, skippedPast, skippedManual, conflicts };
 };

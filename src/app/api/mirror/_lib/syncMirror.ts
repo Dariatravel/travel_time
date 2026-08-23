@@ -139,9 +139,13 @@ const syncKontur = async (
         };
     }
 
+    const minRetainedRatio = getTransactionalIcalMinRetainedRatio();
+    const confirmLargeDecrease = isLargeIcalDecreaseConfirmed();
+
     const konturRooms = await fetchKonturRooms(source.slug);
     const wanted = konturRooms.filter((room) => roomIdByCategory.has(room.id));
-    const occupancy = await readKonturOccupancy(source.slug, wanted, horizonDays);
+    const konturResult = await readKonturOccupancy(source.slug, wanted, horizonDays);
+    const { occupancy } = konturResult;
 
     // наши брони — их не перекрываем
     const { data: rows, error } = await supabase
@@ -215,43 +219,33 @@ const syncKontur = async (
         };
     }
 
-    const syncedAt = new Date().toISOString();
-    const { error: deleteError } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', source.tag)
-        .in('room_id', allRoomIds);
-    if (deleteError) {
-        throw new Error(deleteError.message);
-    }
-
-    let inserted = 0;
-    for (const marker of markers) {
-        const { error: insertError } = await supabase.from('reserves').insert({
+    // Одна транзакция вместо «удалить всё, потом вставлять по одной»: иначе между
+    // шагами номера выглядят свободными, а сбой посреди вставки терял занятость.
+    const { data: rpcData, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+        p_source: source.tag,
+        p_room_ids: allRoomIds,
+        p_marks: markers.map((marker) => ({
             room_id: marker.roomId,
-            start: marker.start,
-            end: marker.end,
+            start_at: marker.start,
+            end_at: marker.end,
             guest: source.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
             comment: 'Занятость из модуля бронирования отельера (зеркало)',
-            created_by: source.tag,
-            edited_at: syncedAt,
-            edited_by: source.tag,
-            external_source: source.tag,
             external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
             external_feed_url: `https://${source.slug}.bookonline24.ru/`,
-            external_synced_at: syncedAt,
-        });
-        if (!insertError) {
-            inserted += 1;
-        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
-            skipped += 1;
-        } else {
-            throw new Error(insertError.message);
-        }
+        })),
+        // Пустой ответ Контура означает «не смогли опросить», а не «всё свободно»:
+        // при сбое сети freeCount отдаёт null и ночь просто не попадает в занятые.
+        p_source_complete: konturResult.sourceComplete,
+        p_confirm_empty: false,
+        p_min_retained_ratio: minRetainedRatio,
+        p_confirm_large_decrease: confirmLargeDecrease,
+    });
+    if (rpcError) {
+        throw new Error(rpcError.message);
     }
+    const summary = parseExternalOccupancySummary(rpcData);
+    const inserted = summary.inserted;
+    skipped += summary.skippedManual;
 
     deleteCacheByPrefix('hotel-calendar:');
 
@@ -576,43 +570,34 @@ const syncGoogleSheet = async (
         };
     }
 
-    const syncedAt = new Date().toISOString();
-    const { error: deleteError } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', source.tag)
-        .in('room_id', roomIds);
-    if (deleteError) {
-        throw new Error(deleteError.message);
-    }
-
-    let inserted = 0;
-    for (const marker of markers) {
-        const { error: insertError } = await supabase.from('reserves').insert({
+    // Одна транзакция вместо «удалить всё, потом вставлять по одной».
+    // Читалка таблицы бросает исключение на любой сбой сети или доступа, поэтому
+    // до этого места мы доходим только с полным ответом источника. А вот пустой
+    // результат возможен и без ошибки — например, лист месяца переименовали, —
+    // и стирать из-за этого занятость нельзя: за это отвечает p_confirm_empty.
+    const { data: rpcData, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+        p_source: source.tag,
+        p_room_ids: roomIds,
+        p_marks: markers.map((marker) => ({
             room_id: marker.roomId,
-            start: marker.start,
-            end: marker.end,
+            start_at: marker.start,
+            end_at: marker.end,
             guest: source.guest,
-            phone: '',
-            price: 0,
-            quantity: 1,
             comment: 'Занятость из таблицы отельера (зеркало)',
-            created_by: source.tag,
-            edited_at: syncedAt,
-            edited_by: source.tag,
-            external_source: source.tag,
             external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
             external_feed_url: `https://docs.google.com/spreadsheets/d/${source.sheetId}`,
-            external_synced_at: syncedAt,
-        });
-        if (!insertError) {
-            inserted += 1;
-        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
-            skipped += 1;
-        } else {
-            throw new Error(insertError.message);
-        }
+        })),
+        p_source_complete: true,
+        p_confirm_empty: false,
+        p_min_retained_ratio: getTransactionalIcalMinRetainedRatio(),
+        p_confirm_large_decrease: isLargeIcalDecreaseConfirmed(),
+    });
+    if (rpcError) {
+        throw new Error(rpcError.message);
     }
+    const sheetSummary = parseExternalOccupancySummary(rpcData);
+    const inserted = sheetSummary.inserted;
+    skipped += sheetSummary.skippedManual;
 
     deleteCacheByPrefix('hotel-calendar:');
 
