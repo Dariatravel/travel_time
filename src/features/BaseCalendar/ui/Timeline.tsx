@@ -157,11 +157,19 @@ export const Timeline = ({
             return { defaultTimeStart, defaultTimeEnd };
         }
 
-        // Иначе — период вокруг текущей даты
+        // Иначе — период вокруг текущей даты: неделя назад и неделя вперёд.
+        // Менеджерам нужен ближний горизонт: заезды-выезды этой и следующей
+        // недели. Дальние даты открываются фильтром или прокруткой.
+        //
+        // Раньше здесь стояли ±45 дней для компьютера, но эта ветка никогда не
+        // срабатывала: хук размера экрана в первый миг всегда отдавал «телефон»,
+        // и все видели узкое окно. Когда хук стал определять размер сразу,
+        // шахматка развернулась на три месяца — менеджеры сообщили, что стало
+        // неудобно. Возвращаем привычный ближний горизонт явно.
         const mobileStartOffset = -6;
         const mobileEndOffset = 6;
-        const desktopStartOffset = -45; // ~1.5 месяца назад
-        const desktopEndOffset = 45; // ~1.5 месяца вперед
+        const desktopStartOffset = -7;
+        const desktopEndOffset = 7;
 
         const defaultTimeStart = moment().add(
             isMobile ? mobileStartOffset : desktopStartOffset,
