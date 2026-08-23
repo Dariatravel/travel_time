@@ -871,7 +871,13 @@ export async function insertItem<Type>(
     },
 ) {
     try {
-        const { data: responseData, error } = await supabase.from(tableName).insert(data, options);
+        // Обёртка над insert для произвольной таблицы: имя таблицы приходит
+        // строкой, поэтому вывести схему нельзя. Свежие версии supabase-js
+        // требуют here точного типа строки таблицы (RejectExcessProperties),
+        // так что приводим явно — вызывающий код типизирован своим Type.
+        const { data: responseData, error } = await supabase
+            .from(tableName)
+            .insert(data as never, options);
         return { responseData, error };
     } catch (error) {
         console.error('im here', error);
