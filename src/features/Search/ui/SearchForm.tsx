@@ -27,7 +27,7 @@ import {
     adaptToMultipleSelectorOption,
     sortHotelOptionsByLabel,
 } from '@/shared/lib/adaptHotel';
-import { useDeviceDetection } from '@/shared/lib/useDeviceDetection';
+import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { refreshStaleMirrors } from '@/shared/api/mirror/mirror';
 import { setFreeHotelsData } from '@/shared/models/freeHotels';
 import {
@@ -92,7 +92,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
     } = useGetHotelsForSearch();
     const advancedFilters = useUnit(AdvancedFiltersModel.$filters);
     const filter = useUnitCompat($hotelsFilter);
-    const { isMobile, isTablet } = useDeviceDetection();
+    const { isMobile } = useScreenSize();
     const [isMobileFiltersOpen, setIsMobileFiltersOpen] = useState(true);
     const [isInitialized, setIsInitialized] = useState(false);
     // Автопоиск из URL: инициализация формы (reset) и запуск поиска разнесены
@@ -563,7 +563,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                 />
                             </div>
                             {/* Кнопка сворачивания только на мобильных и планшетах */}
-                            {(isMobile || isTablet) && (
+                            {isMobile && (
                                 <Button
                                     type="button"
                                     variant="secondary"
@@ -588,7 +588,7 @@ export const SearchForm: FC<SearchFormProps> = ({ onSearchCb }: SearchFormProps)
                                 'transition-all duration-300 ease-in-out',
                                 styles.container,
                                 // На мобильных и планшетах - плавное раскрытие/сворачивание
-                                (isMobile || isTablet) && !isMobileFiltersOpen
+                                isMobile && !isMobileFiltersOpen
                                     ? 'max-h-0 overflow-hidden opacity-0'
                                     : 'max-h-[2000px] opacity-100',
                             )}

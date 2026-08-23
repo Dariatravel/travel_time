@@ -38,7 +38,6 @@ import { QUERY_KEYS } from '@/shared/config/reactQuery';
 import { devLog } from '@/shared/lib/logger';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
 import { $hotelsFilter } from '@/shared/models/hotels';
-import { $isMobile } from '@/shared/models/mobile';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useQueryClient } from '@tanstack/react-query';
@@ -54,8 +53,7 @@ export interface CalendarProps {
 }
 
 export const HotelCalendar = ({ hotel }: CalendarProps) => {
-    const [isMobile] = useUnit([$isMobile]);
-    const { isPhone } = useScreenSize();
+    const { isPhone, isMobile } = useScreenSize();
     const filter = useUnit($hotelsFilter);
     const queryClient = useQueryClient();
     const { data, isPending: isRoomPending } = useGetRoomsWithReservesByHotel(

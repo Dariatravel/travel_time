@@ -1,6 +1,5 @@
 export type { RegisterProps } from './api/auth/auth';
 export type { User } from './models/auth';
-export { useDeviceDetection } from './lib/useDeviceDetection';
 export { ClearableSelect } from './ui/ClearableSelect/ClearableSelect';
 export { Datepicker } from './ui/Datepicker/Datepicker';
 export { FormButtons } from './ui/FormButtons/FormButtons';
