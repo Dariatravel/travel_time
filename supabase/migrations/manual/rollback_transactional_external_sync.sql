@@ -3,6 +3,9 @@
 
 BEGIN;
 
+DROP FUNCTION IF EXISTS public.sync_external_occupancy(
+    text, uuid[], jsonb, boolean, boolean, numeric, boolean
+);
 DROP FUNCTION IF EXISTS public.sync_external_occupancy(text, uuid[], jsonb);
 DROP TABLE IF EXISTS public.sync_runs;
 

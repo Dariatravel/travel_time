@@ -16,7 +16,11 @@ ALTER TABLE public.sync_runs ENABLE ROW LEVEL SECURITY;
 CREATE OR REPLACE FUNCTION public.sync_external_occupancy(
     p_source text,
     p_room_ids uuid[],
-    p_marks jsonb
+    p_marks jsonb,
+    p_source_complete boolean DEFAULT false,
+    p_confirm_empty boolean DEFAULT false,
+    p_min_retained_ratio numeric DEFAULT 0.5,
+    p_confirm_large_decrease boolean DEFAULT false
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -28,10 +32,18 @@ DECLARE
     v_inserted integer := 0;
     v_skipped_manual integer := 0;
     v_run_id uuid;
+    v_existing_count integer := 0;
+    v_proposed_count integer := 0;
+    v_retained_ratio numeric;
+    v_safety_error_code text;
+    v_safety_error text;
 BEGIN
     IF p_source IS NULL OR btrim(p_source) = '' OR p_room_ids IS NULL
        OR cardinality(p_room_ids) = 0 OR p_marks IS NULL
-       OR jsonb_typeof(p_marks) <> 'array' THEN
+       OR jsonb_typeof(p_marks) <> 'array' OR p_source_complete IS NULL
+       OR p_confirm_empty IS NULL OR p_min_retained_ratio IS NULL
+       OR p_min_retained_ratio < 0 OR p_min_retained_ratio > 1
+       OR p_confirm_large_decrease IS NULL THEN
         RAISE EXCEPTION 'Invalid external sync payload';
     END IF;
 
@@ -64,9 +76,65 @@ BEGIN
     END IF;
 
     PERFORM pg_advisory_xact_lock(hashtextextended(p_source || ':' || v_hotel_id::text, 0));
+
+    SELECT count(*)
+    INTO v_existing_count
+    FROM public.reserves
+    WHERE external_source = p_source AND room_id = ANY(p_room_ids);
+
+    v_proposed_count := jsonb_array_length(p_marks);
+    v_retained_ratio := CASE
+        WHEN v_existing_count > 0 THEN v_proposed_count::numeric / v_existing_count
+        ELSE NULL
+    END;
+
     INSERT INTO public.sync_runs (source, hotel_id, status)
     VALUES (p_source, v_hotel_id, 'ok')
     RETURNING id INTO v_run_id;
+
+    IF NOT p_source_complete THEN
+        v_safety_error_code := 'source_incomplete';
+        v_safety_error := 'Источник iCal вернул неполный ответ; текущая занятость сохранена';
+    ELSIF v_existing_count > 0 AND v_proposed_count = 0 AND NOT p_confirm_empty THEN
+        v_safety_error_code := 'empty_unconfirmed';
+        v_safety_error := 'Источник iCal не подтвердил пустой календарь; текущая занятость сохранена';
+    ELSIF v_existing_count > 0 AND v_proposed_count > 0
+          AND v_retained_ratio < p_min_retained_ratio
+          AND NOT p_confirm_large_decrease THEN
+        v_safety_error_code := 'suspicious_decrease';
+        v_safety_error := 'Число iCal-меток подозрительно уменьшилось: '
+            || v_existing_count || ' -> ' || v_proposed_count
+            || '; текущая занятость сохранена';
+    END IF;
+
+    IF v_safety_error IS NOT NULL THEN
+        UPDATE public.sync_runs
+        SET finished_at = now(),
+            status = 'error',
+            counts = jsonb_build_object(
+                'existing', v_existing_count,
+                'proposed', v_proposed_count,
+                'retained_ratio', v_retained_ratio,
+                'min_retained_ratio', p_min_retained_ratio,
+                'source_complete', p_source_complete,
+                'confirmed_empty', p_confirm_empty,
+                'confirmed_large_decrease', p_confirm_large_decrease
+            ),
+            error = v_safety_error
+        WHERE id = v_run_id;
+
+        RETURN jsonb_build_object(
+            'status', 'error',
+            'error_code', v_safety_error_code,
+            'error', v_safety_error,
+            'inserted', 0,
+            'skipped_manual', 0,
+            'skipped_past', 0,
+            'conflicts', 0,
+            'existing', v_existing_count,
+            'proposed', v_proposed_count
+        );
+    END IF;
 
     WITH marks AS (
         SELECT *
@@ -138,11 +206,19 @@ BEGIN
             'inserted', v_inserted,
             'skipped_manual', v_skipped_manual,
             'skipped_past', 0,
-            'conflicts', v_skipped_manual
+            'conflicts', v_skipped_manual,
+            'existing', v_existing_count,
+            'proposed', v_proposed_count,
+            'retained_ratio', v_retained_ratio,
+            'min_retained_ratio', p_min_retained_ratio,
+            'source_complete', p_source_complete,
+            'confirmed_empty', p_confirm_empty,
+            'confirmed_large_decrease', p_confirm_large_decrease
         )
     WHERE id = v_run_id;
 
     RETURN jsonb_build_object(
+        'status', CASE WHEN v_skipped_manual > 0 THEN 'partial' ELSE 'ok' END,
         'inserted', v_inserted,
         'skipped_manual', v_skipped_manual,
         'skipped_past', 0,
@@ -152,8 +228,8 @@ END;
 $$;
 
 REVOKE ALL ON TABLE public.sync_runs FROM PUBLIC, anon, authenticated;
-REVOKE ALL ON FUNCTION public.sync_external_occupancy(text, uuid[], jsonb)
+REVOKE ALL ON FUNCTION public.sync_external_occupancy(text, uuid[], jsonb, boolean, boolean, numeric, boolean)
     FROM PUBLIC, anon, authenticated;
-GRANT SELECT ON TABLE public.sync_runs TO service_role;
-GRANT EXECUTE ON FUNCTION public.sync_external_occupancy(text, uuid[], jsonb)
+GRANT SELECT, INSERT ON TABLE public.sync_runs TO service_role;
+GRANT EXECUTE ON FUNCTION public.sync_external_occupancy(text, uuid[], jsonb, boolean, boolean, numeric, boolean)
     TO service_role;
