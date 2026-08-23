@@ -98,7 +98,13 @@ export const Timeline = ({
     const touchWrapperRef = useRef<HTMLDivElement | null>(null);
     const touchStartRef = useRef({ x: 0, y: 0 });
     const hasTouchMovedRef = useRef(false);
-    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>(isPhone ? 'day' : isMobile ? 'month' : 'day');
+    // Шахматка всегда открывается в развёрнутом виде по дням — так менеджеры
+    // сразу видят брони и не тыкают в месяц, чтобы их разглядеть. Раньше это
+    // получалось случайно: хук размера экрана в первый миг всегда отдавал
+    // «телефон», и ветка с 'month' не срабатывала. Когда хук научился определять
+    // размер сразу, на экранах 768–1365px шахматка стала открываться сжатой.
+    // Масштаб по-прежнему переключается вручную кнопками и жестами.
+    const [currentUnit, setCurrentUnit] = useState<ZoomUnit>('day');
     const [mobileVisibleRange, setMobileVisibleRange] = useState<{ start: number; end: number } | null>(null);
     const initialZoomAppliedRef = useRef(false);
 
