@@ -14,8 +14,12 @@ export async function updateSession(request: NextRequest) {
                 getAll() {
                     return request.cookies.getAll();
                 },
-                setAll(cookiesToSet) {
-                    cookiesToSet.forEach(({ name, value, options }) =>
+                // В @supabase/ssr 0.12 у setAll появился второй аргумент —
+                // заголовки, которые обязательно перенести в ответ. Без них
+                // обновлённая сессия не долетает до браузера: пользователь
+                // входит, видит страницу и тут же выбрасывается на форму входа.
+                setAll(cookiesToSet, headers) {
+                    cookiesToSet.forEach(({ name, value }) =>
                         request.cookies.set(name, value),
                     );
                     supabaseResponse = NextResponse.next({
@@ -23,6 +27,9 @@ export async function updateSession(request: NextRequest) {
                     });
                     cookiesToSet.forEach(({ name, value, options }) =>
                         supabaseResponse.cookies.set(name, value, options),
+                    );
+                    Object.entries(headers ?? {}).forEach(([key, value]) =>
+                        supabaseResponse.headers.set(key, value),
                     );
                 },
             },
