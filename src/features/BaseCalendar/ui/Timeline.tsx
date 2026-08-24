@@ -18,6 +18,7 @@ import {
     normalizeTimelineVisualItem,
 } from '@/features/BaseCalendar/lib/timelineBlocks';
 import { useScreenSize } from '@/shared/lib/useScreenSize';
+import { getInitialZoomFactor } from '@/features/BaseCalendar/lib/timelineZoom';
 import { Plus, ZoomIn, ZoomOut } from 'lucide-react';
 import moment from 'moment';
 import 'moment/locale/ru';
@@ -434,21 +435,23 @@ export const Timeline = ({
         onGroupsReorder?.(roomIds);
     };
 
-    // Устанавливаем дефолтный зум после монтирования компонента
-    // Зум определяется разницей между defaultTimeStart и defaultTimeEnd
-    // Маленький диапазон = большой зум (дни), большой диапазон = маленький зум (месяцы)
+    // Начальный зум после монтирования: домножает окно по умолчанию
+    // (см. getInitialZoomFactor — там же история про 3.5 и 49 дней).
     useEffect(() => {
         initialZoomAppliedRef.current = false;
     }, [visibleTimeStart, visibleTimeEnd]);
 
     useEffect(() => {
-        if (isPhone || !timelineRef.current || initialZoomAppliedRef.current) return;
+        if (!timelineRef.current || initialZoomAppliedRef.current) return;
+
+        const zoomFactor = getInitialZoomFactor({ isPhone, isMobile });
+        if (zoomFactor === null) return;
 
         const timeoutId = window.setTimeout(() => {
             if (!timelineRef.current || initialZoomAppliedRef.current) return;
 
             initialZoomAppliedRef.current = true;
-            timelineRef.current.changeZoom(isMobile ? 0.5 : 3.5, 0.5);
+            timelineRef.current.changeZoom(zoomFactor, 0.5);
         }, 300);
 
         return () => window.clearTimeout(timeoutId);
