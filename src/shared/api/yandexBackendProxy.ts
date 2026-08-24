@@ -112,6 +112,26 @@ export const getHotelCalendarViaYandexBackend = (
     );
 };
 
+export type HotelCalendarBatchItem = {
+    hotelId: string;
+    allowedRooms?: string[];
+};
+
+export const getHotelCalendarsBatchViaYandexBackend = async (
+    hotels: HotelCalendarBatchItem[],
+) => {
+    const response = await fetchBackendJson<{ hotels: HotelRoomsReservesDTO[] }>(
+        '/api/yandex-backend/hotels/calendar-batch',
+        {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ hotels }),
+        },
+    );
+
+    return response.hotels;
+};
+
 export const getAvailableHotelsViaYandexBackend = (
     filter: Record<string, unknown>,
 ) => {

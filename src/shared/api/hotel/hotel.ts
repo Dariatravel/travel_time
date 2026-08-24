@@ -13,6 +13,7 @@ import {
 import {
     getAvailableHotelsViaYandexBackend,
     getHotelCalendarViaYandexBackend,
+    getHotelCalendarsBatchViaYandexBackend,
     isYandexBackendProxyClientEnabled,
 } from '@/shared/api/yandexBackendProxy';
 import { showToast } from '@/shared/ui/Toast/Toast';
@@ -23,6 +24,7 @@ import {
     useQuery,
     useQueryClient,
 } from '@tanstack/react-query';
+import { useEffect } from 'react';
 
 // Тип Room
 export interface HotelImage {
@@ -412,24 +414,65 @@ const getSelectedHotelCalendarsViaBackend = async (
         return [];
     }
 
-    const hotels = await Promise.all(
-        hotelIds.map(async (hotelId) => {
-            try {
-                return await getHotelCalendarViaYandexBackend(
-                    hotelId,
-                    filter?.freeHotels?.get(hotelId),
-                );
-            } catch (error) {
-                console.warn('Failed to load selected hotel calendar via backend', hotelId, error);
-                return null;
-            }
-        }),
-    );
+    if (!isYandexBackendProxyClientEnabled()) return [];
+
+    let hotels: HotelRoomsReservesDTO[];
+    try {
+        hotels = await getHotelCalendarsBatchViaYandexBackend(
+            hotelIds.map((hotelId) => ({
+                hotelId,
+                allowedRooms: filter?.freeHotels?.get(hotelId),
+            })),
+        );
+    } catch (error) {
+        console.warn('Failed to load selected hotel calendars via backend', error);
+        return [];
+    }
 
     return getOrderedHotelRows(
-        hotels.filter((hotel): hotel is HotelRoomsReservesDTO => Boolean(hotel?.rooms?.length)),
+        hotels.filter((hotel) => Boolean(hotel?.rooms?.length)),
         filter,
     );
+};
+
+const hydrateHotelCalendars = async (
+    hotels: HotelRoomsReservesDTO[],
+    filter?: TravelFilterType,
+): Promise<HotelRoomsReservesDTO[]> => {
+    if (hotels.length === 0) return [];
+
+    if (isYandexBackendProxyClientEnabled()) {
+        try {
+            return await getHotelCalendarsBatchViaYandexBackend(
+                hotels.map((hotel) => ({
+                    hotelId: hotel.id,
+                    allowedRooms: filter?.freeHotels?.get(hotel.id),
+                })),
+            );
+        } catch (error) {
+            console.warn('Failed to hydrate hotel calendars via backend, using Supabase', error);
+        }
+    }
+
+    const allowedRoomsByHotel = filter?.freeHotels
+        ? new Map(hotels.map((hotel) => [hotel.id, filter.freeHotels?.get(hotel.id) ?? []]))
+        : undefined;
+    const reservesByHotel = await getReservesByHotels(
+        hotels.map((hotel) => hotel.id),
+        allowedRoomsByHotel,
+    );
+
+    return hotels.map((hotel) => {
+        const loadedRooms = reservesByHotel.get(hotel.id) ?? [];
+        const loadedRoomById = new Map(loadedRooms.map((room) => [room.id, room]));
+
+        return {
+            ...hotel,
+            rooms: hotel.rooms.map(
+                (room) => loadedRoomById.get(room.id) ?? { ...room, reserves: [] },
+            ),
+        };
+    });
 };
 
 /**
@@ -487,7 +530,10 @@ export async function getAllHotels(
             }
 
             const paginatedHotelIds = orderedHotelIds.slice(from, to + 1);
-            const backendRows = await getSelectedHotelCalendarsViaBackend(paginatedHotelIds, filter);
+            const backendRows = await getSelectedHotelCalendarsViaBackend(
+                paginatedHotelIds,
+                filter,
+            );
 
             if (backendRows.length > 0) {
                 return {
@@ -539,7 +585,7 @@ export async function getAllHotels(
                 }) || [];
 
             return {
-                data,
+                data: await hydrateHotelCalendars(data, filter),
                 count: orderedHotelIds.length,
             };
         }
@@ -641,7 +687,7 @@ export async function getAllHotels(
             }) || [];
 
         return {
-            data,
+            data: await hydrateHotelCalendars(data, filter),
             count: orderedIds.length,
         };
     } catch (error) {
@@ -777,8 +823,9 @@ export const useInfiniteHotelsQuery = (
                       excludeHiddenFromSearch: resolvedOptions.excludeHiddenFromSearch,
                   });
 
-            // Возвращаем отели с номерами БЕЗ броней
-            // Брони будут загружены в HotelCard через useHotelDetailQuery
+            if (!resolvedOptions.withEmptyRooms) return result;
+
+            // В каталоге редактирования отелей брони не нужны.
             const hotelsWithEmptyReserves: HotelRoomsReservesDTO[] = result.data.map((hotel) => {
                 // Сортируем номера по полю order
                 const sortedRooms = [...hotel.rooms].sort((a, b) => {
@@ -981,22 +1028,32 @@ export const useHotelDetailQuery = (
     hotelId?: string,
     allowedRooms?: string[],
     enabled: boolean = true,
+    initialData?: HotelRoomsReservesDTO,
 ) => {
-    return useQuery({
-        queryKey: hotelId
-            ? [
-                  ...QUERY_KEYS.hotelDetail(hotelId),
-                  allowedRooms ? allowedRooms.slice().sort().join(',') : 'all', // Сортируем для стабильности queryKey
-              ]
-            : ['hotels', 'detail', 'null'],
+    const queryClient = useQueryClient();
+    const allowedRoomsKey = allowedRooms ? allowedRooms.slice().sort().join(',') : 'all';
+    const queryKey = hotelId
+        ? [...QUERY_KEYS.hotelDetail(hotelId), allowedRoomsKey]
+        : ['hotels', 'detail', 'null'];
+    const query = useQuery({
+        queryKey,
         queryFn: () => {
             if (!hotelId) throw new Error('Hotel ID is required');
             return getHotelDetail(hotelId, allowedRooms);
         },
         enabled: enabled && !!hotelId,
         staleTime: 30_000,
+        initialData,
+        refetchOnMount: initialData ? false : undefined,
         placeholderData: keepPreviousData, // Сохраняем предыдущие данные во время загрузки
     });
+
+    useEffect(() => {
+        if (!initialData || !hotelId) return;
+        queryClient.setQueryData(queryKey, initialData);
+    }, [allowedRoomsKey, hotelId, initialData, queryClient]);
+
+    return query;
 };
 
 export const useHotelById = (id: string) => {
