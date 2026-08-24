@@ -4,6 +4,7 @@
 // категорийное — по каждой категории считаем «занято = номеров − свободно».
 
 import type { GoogleSheetSource } from './googleSheet';
+import type { GrantXlsxSource } from './grantXlsx';
 
 const EXTERNAL_RESERVE_SOURCE_NAMES: Readonly<Record<string, string>> = {
     bnovo_djannat: 'Джаннат',
@@ -17,12 +18,14 @@ const HOTEL_SCOPED_EXTERNAL_SOURCES = new Set([
     'ical_reservationsteps',
     'mirror_shelter',
     'realtycalendar_ical',
+    'xlsx_grant',
 ]);
 
 const EXTERNAL_RESERVE_SOURCE_FALLBACK_NAMES: Readonly<Record<string, string>> = {
     ical_reservationsteps: 'Reservationsteps',
     mirror_shelter: 'Shelter',
     realtycalendar_ical: 'RealtyCalendar',
+    xlsx_grant: 'Таблица Гранта',
 };
 
 export const getExternalReserveSourceName = (
@@ -100,8 +103,16 @@ export type KonturMirrorSource = {
 export type MirrorSource =
     | ShelterMirrorSource
     | GoogleSheetSource
+    | GrantXlsxSource
     | IcalMirrorSource
     | KonturMirrorSource;
+
+// Папка Google Drive «Грант — шахматка», открытая на чтение сервис-аккаунту
+// sheet-bot@sonorous-bounty-488706-q9.iam.gserviceaccount.com. Не секрет:
+// без ключа сервис-аккаунта по этому id ничего не прочитать.
+const GRANT_DRIVE_FOLDER_ID = '1Z8Du1NPCa6t9OEcJ43aPe2VzA-SfM-AV';
+// Тег совпадает с метками первого, ручного переноса — синк их заменяет, а не дублирует.
+const GRANT_TAG = 'xlsx_grant';
 
 // Ключ — наш hotel_id.
 export const MIRROR_SOURCES: Record<string, MirrorSource> = {
@@ -273,6 +284,33 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
                 ],
             },
         ],
+    },
+    // «Грант» — отельер ведёт сетку в OneDrive, куда наш сервер не попадает
+    // (ссылка требует личной сессии Microsoft). Выгрузку .xlsx кладут в папку
+    // Google Drive, открытую сервис-аккаунту на чтение, — читаем оттуда самый
+    // свежий файл. Одна книга на три наших объекта: каждый берёт свои номера
+    // по названию (столбец B книги = название номера у нас).
+    // Раздел «Эконом» отель нам не продаёт — читалка его пропускает.
+    'f656cddc-43f9-4c3c-aa9f-2c1ecbe5e9a3': {
+        system: 'grantxlsx',
+        tag: GRANT_TAG,
+        guest: 'Занято (Грант)',
+        folderId: GRANT_DRIVE_FOLDER_ID,
+        year: 2026,
+    },
+    'a9be6b0f-59d0-4915-be34-f793f96f56b6': {
+        system: 'grantxlsx',
+        tag: GRANT_TAG,
+        guest: 'Занято (Грант)',
+        folderId: GRANT_DRIVE_FOLDER_ID,
+        year: 2026,
+    },
+    'b63e10ef-d4f6-4c3a-b8d6-aabd066a6e99': {
+        system: 'grantxlsx',
+        tag: GRANT_TAG,
+        guest: 'Занято (Грант)',
+        folderId: GRANT_DRIVE_FOLDER_ID,
+        year: 2026,
     },
 };
 

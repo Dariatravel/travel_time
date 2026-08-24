@@ -12,6 +12,7 @@ import { deleteCacheByPrefix } from '@/app/api/yandex-backend/_lib/memoryCache';
 
 import { computeMirrorMarkers, type OurReserve } from './computeMirrorReserves';
 import { NIGHT, readGoogleSheetOccupancy, type GoogleSheetSource } from './googleSheet';
+import { normalizeGrantRoomLabel, readGrantOccupancy, type GrantXlsxSource } from './grantXlsx';
 import {
     detectSalesHorizon,
     fetchKonturRooms,
@@ -77,6 +78,9 @@ export const syncMirrorForHotel = async (
     }
     if (source.system === 'kontur') {
         return syncKontur(supabase, hotelId, source, options);
+    }
+    if (source.system === 'grantxlsx') {
+        return syncGrantXlsx(supabase, hotelId, source, options);
     }
     return syncShelter(supabase, hotelId, source, options);
 };
@@ -609,6 +613,137 @@ const syncGoogleSheet = async (
         movedBookings: 0,
         markersPlanned: markers.length,
         inserted,
+        skipped,
+    };
+};
+
+// ---------------------------------------------------------------------------
+// «Грант»: выгрузка .xlsx из папки Google Drive, по-номерно. Номера книги и
+// наши совпадают по названию (сравниваем без пробелов и регистра).
+// ---------------------------------------------------------------------------
+const syncGrantXlsx = async (
+    supabase: SupabaseClient,
+    hotelId: string,
+    source: GrantXlsxSource,
+    options: { dryRun?: boolean },
+): Promise<MirrorSyncResult> => {
+    const dryRun = options.dryRun === true;
+
+    // 1. Наши номера этого объекта: нормализованное название → room_id.
+    const { data: roomRows, error: roomsError } = await supabase
+        .from('rooms')
+        .select('id, title, is_service')
+        .eq('hotel_id', hotelId);
+    if (roomsError) {
+        throw new Error(roomsError.message);
+    }
+    const labelToRoomId = new Map<string, string>();
+    for (const room of (roomRows ?? []) as Array<{
+        id: string;
+        title: string | null;
+        is_service: boolean | null;
+    }>) {
+        if (room.is_service) continue;
+        const label = normalizeGrantRoomLabel(room.title ?? '');
+        if (label) labelToRoomId.set(label, room.id);
+    }
+    const roomIds = [...labelToRoomId.values()];
+
+    // 2. Занятость из книги. Читалка бросает исключение на любой сбой доступа
+    //    или на пустую папку — «нет файла» не должно читаться как «отель свободен».
+    const occupancy = await readGrantOccupancy(source);
+
+    // 3. Наши брони на этих номерах (кроме наших же меток этого источника).
+    const { data: rows, error } = await supabase
+        .from('reserves')
+        .select('id, room_id, start, end, external_source')
+        .in('room_id', roomIds);
+    if (error) {
+        throw new Error(error.message);
+    }
+    const ourRows = ((rows ?? []) as ReserveRow[]).filter((row) => row.external_source !== source.tag);
+    const ourNights = new Map<string, Set<number>>();
+    for (const row of ourRows) {
+        let set = ourNights.get(row.room_id);
+        if (!set) {
+            set = new Set();
+            ourNights.set(row.room_id, set);
+        }
+        for (let n = Math.floor(row.start / NIGHT); n < Math.floor(row.end / NIGHT); n += 1) set.add(n);
+    }
+
+    // 4. Метки: занятость из книги, пропуская пересечения с ручными бронями (А1).
+    //    Прошедшие ночи не переносим — на свободные номера они не влияют,
+    //    а книгу за прошлое отельер уже не правит.
+    const nowNight = Math.floor(Date.now() / 1000 / NIGHT);
+    const markers: Array<{ roomId: string; start: number; end: number }> = [];
+    let skipped = 0;
+    let unknownRooms = 0;
+    for (const stay of occupancy.stays) {
+        const roomId = labelToRoomId.get(normalizeGrantRoomLabel(stay.roomLabel));
+        if (!roomId) {
+            unknownRooms += 1;
+            continue;
+        }
+        if (Math.floor(stay.end / NIGHT) <= nowNight) continue;
+        const nights: number[] = [];
+        for (let n = Math.floor(stay.start / NIGHT); n < Math.floor(stay.end / NIGHT); n += 1) nights.push(n);
+        const our = ourNights.get(roomId);
+        if (our && nights.some((n) => our.has(n))) {
+            skipped += 1;
+            continue;
+        }
+        markers.push({ roomId, start: stay.start, end: stay.end });
+    }
+    void unknownRooms; // номера других объектов Гранта — книга общая на три отеля
+
+    if (dryRun) {
+        return {
+            hotelId,
+            dryRun: true,
+            roomsTotal: roomIds.length,
+            ourReserves: ourRows.length,
+            movedBookings: 0,
+            markersPlanned: markers.length,
+            inserted: 0,
+            skipped,
+            markers,
+        };
+    }
+
+    const { data: rpcData, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+        p_source: source.tag,
+        p_room_ids: roomIds,
+        p_marks: markers.map((marker) => ({
+            room_id: marker.roomId,
+            start_at: marker.start,
+            end_at: marker.end,
+            guest: source.guest,
+            comment: `Занятость из шахматки отельера (зеркало, файл «${occupancy.fileName}»)`,
+            external_uid: `${source.tag}:${marker.roomId}:${marker.start}-${marker.end}`,
+            external_feed_url: `https://drive.google.com/drive/folders/${source.folderId}`,
+        })),
+        p_source_complete: occupancy.sourceComplete,
+        p_confirm_empty: false,
+        p_min_retained_ratio: getTransactionalIcalMinRetainedRatio(),
+        p_confirm_large_decrease: isLargeIcalDecreaseConfirmed(),
+    });
+    if (rpcError) {
+        throw new Error(rpcError.message);
+    }
+    const grantSummary = parseExternalOccupancySummary(rpcData);
+    skipped += grantSummary.skippedManual;
+
+    deleteCacheByPrefix('hotel-calendar:');
+
+    return {
+        hotelId,
+        dryRun: false,
+        roomsTotal: roomIds.length,
+        ourReserves: ourRows.length,
+        movedBookings: 0,
+        markersPlanned: markers.length,
+        inserted: grantSummary.inserted,
         skipped,
     };
 };
