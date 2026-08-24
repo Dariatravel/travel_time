@@ -1,0 +1,406 @@
+name: Temporary Shelter transaction verification
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+
+jobs:
+    verify:
+        if: github.head_ref == 'codex/shelter-transactional-sync'
+        runs-on: ubuntu-latest
+        timeout-minutes: 10
+        env:
+            SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        steps:
+            - name: Verify production data inside rollback transaction
+              shell: bash
+              run: |
+                  test -n "$SUPABASE_DB_URL"
+                  psql "$SUPABASE_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+                  BEGIN;
+
+                  CREATE TEMP TABLE shelter_targets (
+                      hotel_id uuid PRIMARY KEY,
+                      hotel_name text NOT NULL,
+                      room_ids uuid[] NOT NULL
+                  ) ON COMMIT DROP;
+
+                  INSERT INTO shelter_targets (hotel_id, hotel_name, room_ids) VALUES
+                  (
+                      '97e23cef-ee78-435c-868b-b8c8afda23fa',
+                      'Сан Амра',
+                      ARRAY[
+                          '352802ff-24e8-458f-b607-09ed6369e7dc'::uuid,
+                          'f224b1b9-4bcd-4936-9d3e-0c0dc975edc9'::uuid,
+                          '222565c4-6a5e-42ec-b576-72eb111706ad'::uuid,
+                          'b8975d0e-3f36-49c0-9681-ccf7b984344a'::uuid,
+                          'cbddcc7b-1973-4bca-8dff-dff6cc5c1b6c'::uuid,
+                          '9260c303-e71b-4d7a-87a1-5eded6f78b72'::uuid
+                      ]
+                  ),
+                  (
+                      '1d73fbce-85fe-4290-b657-6e29ba99226c',
+                      'Нора',
+                      ARRAY[
+                          'd1210df3-28d7-4f03-9a86-ca1eb4a56ae5'::uuid,
+                          'a55d7d23-a2bf-49e9-829c-c090a6233db9'::uuid,
+                          'cdcfe88c-702a-4f05-8528-07db4aab130a'::uuid,
+                          'fad57533-9f12-43ce-97fe-e5ccd8779f7d'::uuid
+                      ]
+                  ),
+                  (
+                      'f453ac59-bde5-461b-9934-60167c72ce88',
+                      'Студио Сан Амра',
+                      ARRAY['f328f032-b384-44f5-a522-b3bb2fee0be0'::uuid]
+                  );
+
+                  CREATE TEMP TABLE sync_run_ids_before ON COMMIT DROP AS
+                  SELECT id FROM public.sync_runs;
+
+                  CREATE TEMP TABLE protected_before ON COMMIT DROP AS
+                  SELECT DISTINCT r.id, r.room_id, r.start, r."end", r.external_source
+                  FROM public.reserves AS r
+                  WHERE r.external_source = 'manual_belvedere'
+                     OR (
+                         r.external_source IS DISTINCT FROM 'mirror_shelter'
+                         AND EXISTS (
+                             SELECT 1
+                             FROM shelter_targets AS target
+                             WHERE r.room_id = ANY(target.room_ids)
+                         )
+                     );
+
+                  CREATE TEMP TABLE nights_before ON COMMIT DROP AS
+                  SELECT r.room_id, night.night, count(*)::integer AS occupied
+                  FROM public.reserves AS r
+                  CROSS JOIN LATERAL generate_series(
+                      r.start / 86400,
+                      r."end" / 86400 - 1
+                  ) AS night(night)
+                  WHERE r."end" > r.start
+                    AND EXISTS (
+                        SELECT 1
+                        FROM shelter_targets AS target
+                        WHERE r.room_id = ANY(target.room_ids)
+                    )
+                  GROUP BY r.room_id, night.night;
+
+                  CREATE TEMP TABLE verification_results (
+                      check_name text,
+                      hotel_name text,
+                      existing_count integer,
+                      proposed_count integer,
+                      result_status text
+                  ) ON COMMIT DROP;
+
+                  DO $$
+                  DECLARE
+                      target record;
+                      marks jsonb;
+                      result jsonb;
+                      existing_count integer;
+                  BEGIN
+                      FOR target IN SELECT * FROM shelter_targets ORDER BY hotel_name LOOP
+                          SELECT
+                              count(*)::integer,
+                              COALESCE(
+                                  jsonb_agg(
+                                      jsonb_build_object(
+                                          'room_id', r.room_id,
+                                          'start_at', r.start,
+                                          'end_at', r."end",
+                                          'guest', r.guest,
+                                          'comment', r.comment,
+                                          'external_uid', r.external_uid,
+                                          'external_feed_url', r.external_feed_url
+                                      ) ORDER BY r.id
+                                  ),
+                                  '[]'::jsonb
+                              )
+                          INTO existing_count, marks
+                          FROM public.reserves AS r
+                          WHERE r.external_source = 'mirror_shelter'
+                            AND r.room_id = ANY(target.room_ids);
+
+                          result := public.sync_external_occupancy(
+                              'mirror_shelter',
+                              target.room_ids,
+                              marks,
+                              true,
+                              existing_count = 0,
+                              0.5,
+                              false
+                          );
+
+                          IF result->>'status' NOT IN ('ok', 'partial') THEN
+                              RAISE EXCEPTION 'Identity sync failed for %: %', target.hotel_name, result;
+                          END IF;
+
+                          INSERT INTO verification_results VALUES (
+                              'identity_diff',
+                              target.hotel_name,
+                              existing_count,
+                              jsonb_array_length(marks),
+                              result->>'status'
+                          );
+                      END LOOP;
+                  END
+                  $$;
+
+                  CREATE TEMP TABLE nights_after_identity ON COMMIT DROP AS
+                  SELECT r.room_id, night.night, count(*)::integer AS occupied
+                  FROM public.reserves AS r
+                  CROSS JOIN LATERAL generate_series(
+                      r.start / 86400,
+                      r."end" / 86400 - 1
+                  ) AS night(night)
+                  WHERE r."end" > r.start
+                    AND EXISTS (
+                        SELECT 1
+                        FROM shelter_targets AS target
+                        WHERE r.room_id = ANY(target.room_ids)
+                    )
+                  GROUP BY r.room_id, night.night;
+
+                  DO $$
+                  DECLARE
+                      diff_count integer;
+                      new_run_count integer;
+                  BEGIN
+                      SELECT count(*)::integer INTO diff_count
+                      FROM (
+                          (SELECT * FROM nights_before EXCEPT SELECT * FROM nights_after_identity)
+                          UNION ALL
+                          (SELECT * FROM nights_after_identity EXCEPT SELECT * FROM nights_before)
+                      ) AS diff;
+                      IF diff_count <> 0 THEN
+                          RAISE EXCEPTION 'Night occupancy diff is % instead of 0', diff_count;
+                      END IF;
+
+                      SELECT count(*)::integer INTO new_run_count
+                      FROM public.sync_runs AS run
+                      WHERE NOT EXISTS (SELECT 1 FROM sync_run_ids_before AS old WHERE old.id = run.id);
+                      IF new_run_count <> 3 THEN
+                          RAISE EXCEPTION 'Expected 3 sync_runs rows, got %', new_run_count;
+                      END IF;
+
+                      RAISE NOTICE 'Identity sync: night diff = 0; sync_runs rows = %', new_run_count;
+                  END
+                  $$;
+
+                  DO $$
+                  DECLARE
+                      target record;
+                      result jsonb;
+                      count_before integer;
+                      count_after integer;
+                  BEGIN
+                      SELECT candidate.* INTO target
+                      FROM (
+                          SELECT t.*,
+                                 (SELECT count(*) FROM public.reserves r
+                                  WHERE r.external_source = 'mirror_shelter'
+                                    AND r.room_id = ANY(t.room_ids)) AS mark_count
+                          FROM shelter_targets t
+                      ) AS candidate
+                      ORDER BY candidate.mark_count DESC, candidate.hotel_name
+                      LIMIT 1;
+
+                      SELECT count(*)::integer INTO count_before
+                      FROM public.reserves
+                      WHERE external_source = 'mirror_shelter'
+                        AND room_id = ANY(target.room_ids);
+
+                      result := public.sync_external_occupancy(
+                          'mirror_shelter', target.room_ids, '[]'::jsonb,
+                          false, false, 0.5, false
+                      );
+
+                      SELECT count(*)::integer INTO count_after
+                      FROM public.reserves
+                      WHERE external_source = 'mirror_shelter'
+                        AND room_id = ANY(target.room_ids);
+
+                      IF result->>'status' <> 'error' OR count_after <> count_before THEN
+                          RAISE EXCEPTION 'Incomplete source protection failed for %', target.hotel_name;
+                      END IF;
+                      IF NOT EXISTS (
+                          SELECT 1 FROM public.sync_runs AS run
+                          WHERE run.hotel_id = target.hotel_id
+                            AND run.source = 'mirror_shelter'
+                            AND run.status = 'error'
+                            AND NOT EXISTS (SELECT 1 FROM sync_run_ids_before old WHERE old.id = run.id)
+                      ) THEN
+                          RAISE EXCEPTION 'Error sync_run was not written for %', target.hotel_name;
+                      END IF;
+
+                      INSERT INTO verification_results VALUES (
+                          'incomplete_source', target.hotel_name,
+                          count_before, 0, result->>'status'
+                      );
+                  END
+                  $$;
+
+                  DO $$
+                  DECLARE
+                      target record;
+                      one_mark jsonb;
+                      duplicate_marks jsonb;
+                      count_before integer;
+                      count_after integer;
+                      failed_as_expected boolean := false;
+                  BEGIN
+                      SELECT t.*, jsonb_build_object(
+                          'room_id', r.room_id,
+                          'start_at', r.start,
+                          'end_at', r."end",
+                          'guest', r.guest,
+                          'comment', r.comment,
+                          'external_uid', r.external_uid,
+                          'external_feed_url', r.external_feed_url
+                      ) AS mark
+                      INTO target
+                      FROM shelter_targets AS t
+                      JOIN public.reserves AS r
+                        ON r.room_id = ANY(t.room_ids)
+                       AND r.external_source = 'mirror_shelter'
+                      ORDER BY t.hotel_name, r.id
+                      LIMIT 1;
+
+                      IF target.hotel_id IS NULL THEN
+                          RAISE EXCEPTION 'No existing Shelter mark for artificial failure test';
+                      END IF;
+                      one_mark := target.mark;
+                      duplicate_marks := jsonb_build_array(one_mark, one_mark);
+
+                      SELECT count(*)::integer INTO count_before
+                      FROM public.reserves
+                      WHERE external_source = 'mirror_shelter'
+                        AND room_id = ANY(target.room_ids);
+
+                      BEGIN
+                          PERFORM public.sync_external_occupancy(
+                              'mirror_shelter', target.room_ids, duplicate_marks,
+                              true, false, 0, true
+                          );
+                      EXCEPTION WHEN SQLSTATE '23P01' THEN
+                          failed_as_expected := true;
+                      END;
+
+                      IF NOT failed_as_expected THEN
+                          RAISE EXCEPTION 'Artificial mid-sync failure was not raised';
+                      END IF;
+
+                      SELECT count(*)::integer INTO count_after
+                      FROM public.reserves
+                      WHERE external_source = 'mirror_shelter'
+                        AND room_id = ANY(target.room_ids);
+                      IF count_after <> count_before THEN
+                          RAISE EXCEPTION 'Mid-sync failure lost occupancy for %', target.hotel_name;
+                      END IF;
+
+                      INSERT INTO verification_results VALUES (
+                          'mid_sync_failure', target.hotel_name,
+                          count_before, 2, 'preserved'
+                      );
+                  END
+                  $$;
+
+                  DO $$
+                  DECLARE
+                      target record;
+                      reduced_marks jsonb;
+                      result jsonb;
+                      existing_count integer;
+                      keep_count integer;
+                  BEGIN
+                      SELECT candidate.* INTO target
+                      FROM (
+                          SELECT t.*,
+                                 (SELECT count(*) FROM public.reserves r
+                                  WHERE r.external_source = 'mirror_shelter'
+                                    AND r.room_id = ANY(t.room_ids))::integer AS mark_count
+                          FROM shelter_targets t
+                      ) AS candidate
+                      WHERE candidate.mark_count >= 2
+                      ORDER BY candidate.mark_count DESC
+                      LIMIT 1;
+
+                      IF target.hotel_id IS NULL THEN
+                          RAISE EXCEPTION 'No Shelter hotel with at least two marks for decrease test';
+                      END IF;
+                      existing_count := target.mark_count;
+                      keep_count := GREATEST(1, existing_count / 2);
+
+                      SELECT jsonb_agg(mark ORDER BY reserve_id) INTO reduced_marks
+                      FROM (
+                          SELECT r.id AS reserve_id, jsonb_build_object(
+                              'room_id', r.room_id,
+                              'start_at', r.start,
+                              'end_at', r."end",
+                              'guest', r.guest,
+                              'comment', r.comment,
+                              'external_uid', r.external_uid,
+                              'external_feed_url', r.external_feed_url
+                          ) AS mark
+                          FROM public.reserves AS r
+                          WHERE r.external_source = 'mirror_shelter'
+                            AND r.room_id = ANY(target.room_ids)
+                          ORDER BY r.id
+                          LIMIT keep_count
+                      ) AS selected;
+
+                      result := public.sync_external_occupancy(
+                          'mirror_shelter', target.room_ids, reduced_marks,
+                          true, false, 0.9, true
+                      );
+                      IF result->>'status' NOT IN ('ok', 'partial') THEN
+                          RAISE EXCEPTION 'Confirmed decrease failed for %: %', target.hotel_name, result;
+                      END IF;
+
+                      INSERT INTO verification_results VALUES (
+                          'confirmed_decrease', target.hotel_name,
+                          existing_count, keep_count, result->>'status'
+                      );
+                  END
+                  $$;
+
+                  CREATE TEMP TABLE protected_after ON COMMIT DROP AS
+                  SELECT DISTINCT r.id, r.room_id, r.start, r."end", r.external_source
+                  FROM public.reserves AS r
+                  WHERE r.external_source = 'manual_belvedere'
+                     OR (
+                         r.external_source IS DISTINCT FROM 'mirror_shelter'
+                         AND EXISTS (
+                             SELECT 1
+                             FROM shelter_targets AS target
+                             WHERE r.room_id = ANY(target.room_ids)
+                         )
+                     );
+
+                  DO $$
+                  DECLARE
+                      protected_diff integer;
+                      belvedere_count integer;
+                  BEGIN
+                      SELECT count(*)::integer INTO protected_diff
+                      FROM (
+                          (SELECT * FROM protected_before EXCEPT SELECT * FROM protected_after)
+                          UNION ALL
+                          (SELECT * FROM protected_after EXCEPT SELECT * FROM protected_before)
+                      ) AS diff;
+                      IF protected_diff <> 0 THEN
+                          RAISE EXCEPTION 'Protected reservations changed: diff = %', protected_diff;
+                      END IF;
+
+                      SELECT count(*)::integer INTO belvedere_count
+                      FROM protected_after
+                      WHERE external_source = 'manual_belvedere';
+                      RAISE NOTICE 'Protected reservations diff = 0; manual_belvedere rows unchanged = %', belvedere_count;
+                  END
+                  $$;
+
+                  TABLE verification_results;
+                  ROLLBACK;
+                  SELECT 'rollback_complete' AS result;
+                  SQL
