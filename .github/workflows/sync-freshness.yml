@@ -1,0 +1,43 @@
+name: Sync Freshness
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: sync-freshness
+  cancel-in-progress: false
+
+jobs:
+  check:
+    name: Check sync freshness
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Check partial failures and stale data
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_MANAGER_CHAT_IDS: ${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SYNC_FRESHNESS_ERROR_WINDOW_HOURS: ${{ vars.SYNC_FRESHNESS_ERROR_WINDOW_HOURS || '1' }}
+          SYNC_FRESHNESS_STALE_HOURS: ${{ vars.SYNC_FRESHNESS_STALE_HOURS || '8' }}
+          SYNC_FRESHNESS_SOURCE_HOURS: ${{ vars.SYNC_FRESHNESS_SOURCE_HOURS || '{"bnovo_djannat":6,"mirror_shelter":8}' }}
+          SYNC_FRESHNESS_MONITORED_SOURCES: ${{ vars.SYNC_FRESHNESS_MONITORED_SOURCES || 'bnovo_djannat,mirror_shelter' }}
+          SYNC_FRESHNESS_WORKFLOWS: ${{ vars.SYNC_FRESHNESS_WORKFLOWS || '{"bnovo-sync-cron.yml":{"label":"Bnovo (Джаннат)","maxAgeHours":6},"googlesheet-sync-cron.yml":{"label":"Google/WPS-таблицы","maxAgeHours":6},"ical-sync-cron.yml":{"label":"RealtyCalendar iCal","maxAgeHours":12},"mirror-sync-cron.yml":{"label":"зеркала Shelter / FrontDesk24","maxAgeHours":8}}' }}
+        run: node scripts/check-sync-freshness.mjs

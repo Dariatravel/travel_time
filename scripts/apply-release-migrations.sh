@@ -22,6 +22,7 @@ migrations=(
     "supabase/migrations/20260818204445_finalize_roles_and_calendar_access.sql"
     "supabase/migrations/20260818204516_unify_availability_night_logic.sql"
     "supabase/migrations/20260818204803_add_transactional_external_sync.sql"
+    "supabase/migrations/20260824090000_add_sync_freshness_alerts.sql"
 )
 
 for migration in "${migrations[@]}"; do

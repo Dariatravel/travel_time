@@ -16,6 +16,7 @@ on:
       # суток, и об этом никто не узнал. Занятость «Джанната» всё это время
       # не обновлялась молча.
       - Bnovo Occupancy Cron
+      - Sync Freshness
       - Deploy Yandex Cloud Mirror
       - Deploy Supabase Edge Functions
       - Short Hotel Links
