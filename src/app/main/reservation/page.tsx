@@ -64,11 +64,13 @@ const HotelCard = ({
 }) => {
     const elementRef = useRef<HTMLDivElement>(null);
 
-    // Загружаем детальные данные конкретного отеля (с автообновлением при изменениях)
-    // Передаём allowedRooms для фильтрации номеров
+    // Пакетный запрос страницы уже принёс брони. Кладём их в точечный query-кэш,
+    // чтобы после изменения одной брони обновлялся только её отель.
     const { data: hotelDetail, isLoading: isHotelDetailLoading } = useHotelDetailQuery(
         hotel.id,
         allowedRooms,
+        true,
+        hotel,
     );
 
     const allowedRoomSet = useMemo(
@@ -90,8 +92,7 @@ const HotelCard = ({
             rooms: (sourceHotel.rooms ?? []).filter((room) => allowedRoomSet.has(room.id)),
         };
     }, [allowedRoomSet, hotel, hotelDetail]);
-    const shouldShowCalendarLoader =
-        isHotelDetailLoading && !hotelDetail && !(hotel.rooms?.length > 0);
+    const shouldShowCalendarLoader = isHotelDetailLoading && !hotelDetail;
     const chessmateHeaderStatus = getChessmateHotelHeaderStatus(hotelData?.title);
     const headerStatusClassName =
         chessmateHeaderStatus === 'active'

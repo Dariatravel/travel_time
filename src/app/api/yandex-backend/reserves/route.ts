@@ -241,6 +241,7 @@ export async function POST(request: NextRequest) {
         if (error) throw error;
 
         deleteCacheByPrefix('hotel-calendar:');
+        deleteCacheByPrefix('hotel-calendar-batch:');
 
         return NextResponse.json({
             data,
