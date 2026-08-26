@@ -55,4 +55,45 @@ describe('readIcalOccupancy', () => {
         expect(result.sourceComplete).toBe(false);
         expect(result.confirmedEmpty).toBe(false);
     });
+
+    it('повторяет запрос при временном сбое сети — из-за него не отменяем весь отель', async () => {
+        // Так падал «Грасс»: одна лента из пяти отвечала «fetch failed»,
+        // и синхронизация всего отеля отменялась.
+        const fetchMock = vi
+            .fn()
+            .mockRejectedValueOnce(new Error('fetch failed'))
+            .mockImplementation(() => Promise.resolve(new Response(EMPTY_ICAL, { status: 200 })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await readIcalOccupancy([{ icalId: 1 }]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(2);
+        expect(result.sourceComplete).toBe(true);
+        expect(result.failedCategoryIds).toEqual([]);
+    });
+
+    it('повторяет при 503 и сдаётся, если сбой не проходит', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockImplementation(() => Promise.resolve(new Response('', { status: 503 })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await readIcalOccupancy([{ icalId: 7 }]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(3); // первая попытка + два повтора
+        expect(result.sourceComplete).toBe(false);
+        expect(result.failedCategoryIds).toEqual([7]);
+    });
+
+    it('на 404 повторов не делает — ленту удалили, повтор ничего не изменит', async () => {
+        const fetchMock = vi
+            .fn()
+            .mockImplementation(() => Promise.resolve(new Response('', { status: 404 })));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const result = await readIcalOccupancy([{ icalId: 9 }]);
+
+        expect(fetchMock).toHaveBeenCalledTimes(1);
+        expect(result.sourceComplete).toBe(false);
+    });
 });

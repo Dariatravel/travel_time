@@ -7,7 +7,44 @@
 // номеров» на интервал DTSTART..DTEND (DTEND — день выезда, не занят).
 // Частичную занятость категории источник не отдаёт вовсе.
 
+import { withRetry } from '@/app/api/yandex-backend/_lib/retry';
+
 const ICAL_URL = 'https://public-api.reservationsteps.ru/v1/api/ical';
+
+// Ленты reservationsteps периодически отвечают сетевой ошибкой или 5xx.
+// Раньше одна такая осечка делала ответ источника неполным, и синхронизация
+// ВСЕГО отеля отменялась: у «Грасс» из-за этого занятость не обновлялась
+// часами (в журнале — «Источник iCal вернул неполный ответ»). Временные сбои
+// повторяем, постоянные (404/403 — ленту удалили или закрыли) не повторяем:
+// там повтор ничего не изменит, и это честная неполнота ответа.
+const ICAL_TIMEOUT_MS = 20_000;
+const ICAL_RETRIES = 2;
+const ICAL_RETRY_DELAY_MS = 300;
+
+const fetchIcalText = async (icalId: number): Promise<string | null> => {
+    try {
+        return await withRetry(
+            async () => {
+                const response = await fetch(`${ICAL_URL}/${icalId}`, {
+                    cache: 'no-store',
+                    signal: AbortSignal.timeout(ICAL_TIMEOUT_MS),
+                });
+                if (!response.ok) {
+                    // Статус кладём в ошибку: withRetry сам решит, временный он или нет.
+                    const error = Object.assign(
+                        new Error(`iCal ${icalId}: HTTP ${response.status}`),
+                        { status: response.status },
+                    );
+                    throw error;
+                }
+                return await response.text();
+            },
+            { retries: ICAL_RETRIES, baseDelayMs: ICAL_RETRY_DELAY_MS },
+        );
+    } catch {
+        return null;
+    }
+};
 
 // Длинный интервал: либо реальная «категория занята целиком» (короткая бронь),
 // либо закрытие продаж. Отличаем по началу: блок, начинающийся в ближайшие
@@ -68,17 +105,15 @@ export const readIcalOccupancy = async (
     const results = await Promise.all(
         categories.map(async (category) => {
             try {
-                const response = await fetch(`${ICAL_URL}/${category.icalId}`, {
-                    cache: 'no-store',
-                });
-                if (!response.ok) {
+                const text = await fetchIcalText(category.icalId);
+                if (text === null) {
                     return {
                         occupancy: { icalId: category.icalId, intervals: [] },
                         complete: false,
                     };
                 }
 
-                const events = parseEvents(await response.text());
+                const events = parseEvents(text);
                 if (events === null) {
                     return {
                         occupancy: { icalId: category.icalId, intervals: [] },
