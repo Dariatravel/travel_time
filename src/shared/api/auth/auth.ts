@@ -15,8 +15,19 @@ export interface AssignableUser {
     id: string;
     email: string | null;
     name: string;
+    /** У отельеров здесь обычно название отеля («Виктория Дуэт мокко»). */
+    surname: string;
     role: UserRole | null;
 }
+
+/**
+ * Подпись пользователя в списках: имя и фамилия целиком. Одних имён мало —
+ * «Ирина» и «Ирина» друг от друга не отличить.
+ */
+export const formatAssignableUser = (user: AssignableUser): string =>
+    [user.name, user.surname].filter(Boolean).join(' ').trim() ||
+    user.email ||
+    user.id;
 
 export interface RegisterProps {
     surname: string;

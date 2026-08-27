@@ -4,7 +4,7 @@ import { Label } from '@/components/ui/label';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { INITIAL_FILTERS, TRAVEL_TIME_DEFAULTS } from '@/features/AdvancedFilters/lib/constants';
 import { FormButtons, PhoneInput } from '@/shared';
-import { AssignableUser } from '@/shared/api/auth/auth';
+import { AssignableUser, formatAssignableUser } from '@/shared/api/auth/auth';
 import { CreateHotelDTO, HotelDTO } from '@/shared/api/hotel/hotel';
 import { CurrentReserveType, Nullable } from '@/shared/api/reserve/reserve';
 import { adaptToOption } from '@/shared/lib/adaptHotel';
@@ -161,7 +161,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
     const userOptions = useMemo(() => {
         return users?.map((user) =>
             adaptToOption({
-                title: user.name || user.email || user.id,
+                title: formatAssignableUser(user),
                 id: user.id,
             }),
         );
@@ -385,7 +385,7 @@ export const HotelInfo: FC<HotelInfoProps> = ({
                                                                 <span className="font-medium">
                                                                     Имя:
                                                                 </span>{' '}
-                                                                {selectedUser.name}
+                                                                {formatAssignableUser(selectedUser)}
                                                             </p>
                                                             <p>
                                                                 <span className="font-medium">

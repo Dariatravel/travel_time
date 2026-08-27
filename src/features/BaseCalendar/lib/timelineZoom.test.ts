@@ -7,17 +7,17 @@ const DESKTOP_WINDOW_DAYS = 14;
 const TABLET_WINDOW_DAYS = 13;
 
 describe('getInitialZoomFactor', () => {
-    it('на компьютере окно не растягивает — менеджерам нужна ближняя неделя', () => {
+    it('на компьютере даёт широкий обзор — так просила Дарья', () => {
         const factor = getInitialZoomFactor({ isPhone: false, isMobile: false });
 
-        expect(factor).toBeNull();
-        expect(DESKTOP_WINDOW_DAYS * (factor ?? 1)).toBe(14);
+        expect(factor).toBe(3.5);
+        expect(DESKTOP_WINDOW_DAYS * (factor ?? 1)).toBe(49);
     });
 
-    it('не возвращает 3.5: с ним шахматка открывалась на 49 дней', () => {
+    it('обзор не сужается до пары недель — пробовали, дат помещалось мало', () => {
         const factor = getInitialZoomFactor({ isPhone: false, isMobile: false }) ?? 1;
 
-        expect(DESKTOP_WINDOW_DAYS * factor).toBeLessThanOrEqual(21);
+        expect(DESKTOP_WINDOW_DAYS * factor).toBeGreaterThan(30);
     });
 
     it('на планшете окно ужимает вдвое — экран узкий', () => {
