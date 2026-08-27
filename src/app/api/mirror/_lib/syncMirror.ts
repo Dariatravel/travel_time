@@ -1,8 +1,8 @@
 // Оркестратор голубой шахматки. Приводит нашу шахматку к зеркалу чужого
 // календаря. Два вида источника:
-//  • Shelter (по категориям): наши брони упаковываются вниз по строкам-номерам
-//    (ДАТЫ не меняются, только room_id), затем «занято N из M» дописывается
-//    метками на свободные номера (external_source='mirror_shelter');
+//  • Shelter (по категориям): ручные брони остаются на своих номерах, а
+//    «занято N из M» дописывается метками на свободные номера
+//    (external_source='mirror_shelter');
 //  • Google-таблица (по-номерно): зеркалим занятость на конкретные номера,
 //    перестановка не нужна; метки external_source=<tag источника>.
 
@@ -25,10 +25,10 @@ import {
     type ShelterMirrorSource,
 } from './mirrorSources';
 import { readIcalOccupancy } from './reservationstepsIcal';
-import { computePullDownRepack, type RepackBooking, type RepackMove } from './repackBookings';
 import { readShelterOccupancy } from './shelterFrontdesk';
 import {
     getIcalSyncSafetyError,
+    getSyncSafetyError,
     getTransactionalIcalMinRetainedRatio,
     isLargeIcalDecreaseConfirmed,
     isTransactionalIcalSyncEnabled,
@@ -49,7 +49,6 @@ export type MirrorSyncResult = {
     markersPlanned: number;
     inserted: number;
     skipped: number;
-    moves?: RepackMove[];
     markers?: Array<{ roomId: string; start: number; end: number }>;
 };
 
@@ -749,9 +748,10 @@ const syncGrantXlsx = async (
 };
 
 // ---------------------------------------------------------------------------
-// Shelter: по категориям, с упаковкой наших броний вниз (v2).
+// Shelter: по категориям. Ручные брони не перемещаем; процедура атомарно
+// заменяет только метки mirror_shelter.
 // ---------------------------------------------------------------------------
-const syncShelter = async (
+export const syncShelter = async (
     supabase: SupabaseClient,
     hotelId: string,
     source: ShelterMirrorSource,
@@ -763,7 +763,7 @@ const syncShelter = async (
     const allRoomIds = source.categories.flatMap((category) => category.roomIds);
 
     // 1. Занятость у отельера (по категориям, по дням).
-    const occupancy = await readShelterOccupancy(
+    const occupancyResult = await readShelterOccupancy(
         source.token,
         source.categories.map((category) => ({
             categoryId: category.categoryId,
@@ -771,6 +771,7 @@ const syncShelter = async (
         })),
         horizonDays,
     );
+    const { occupancy } = occupancyResult;
     const occByCategory = new Map(occupancy.map((item) => [item.categoryId, item]));
 
     // 2. Наши брони в этих номерах (всё, кроме наших же зеркальных меток).
@@ -784,106 +785,75 @@ const syncShelter = async (
     const ourRows = ((rows ?? []) as ReserveRow[]).filter(
         (row) => row.external_source !== MIRROR_SOURCE_TAG,
     );
+    const existingSourceCount = ((rows ?? []) as ReserveRow[]).filter(
+        (row) => row.external_source === MIRROR_SOURCE_TAG,
+    ).length;
 
-    // 3. v2: упаковка вниз по каждой категории.
-    const allMoves: RepackMove[] = [];
-    const finalRoomByReserveId = new Map<string, string>();
-    for (const category of source.categories) {
-        const catRoomSet = new Set(category.roomIds);
-        const catBookings: RepackBooking[] = ourRows
-            .filter((row) => catRoomSet.has(row.room_id))
-            .map((row) => ({ id: row.id, roomId: row.room_id, start: row.start, end: row.end }));
-        const { moves, finalRoomById } = computePullDownRepack(category.roomIds, catBookings);
-        allMoves.push(...moves);
-        for (const [id, roomId] of finalRoomById) finalRoomByReserveId.set(id, roomId);
-    }
-
-    const repackedReserves: OurReserve[] = ourRows.map((row) => ({
-        room_id: finalRoomByReserveId.get(row.id) ?? row.room_id,
+    // Ручные и чужие внешние брони участвуют только как занятые ночи. Их room_id
+    // остаётся неизменным и процедура не имеет права обновлять эти строки.
+    const fixedReserves: OurReserve[] = ourRows.map((row) => ({
+        room_id: row.room_id,
         start: row.start,
         end: row.end,
     }));
 
-    // 4. Внешние метки поверх упакованных броней.
+    // 3. Внешние метки поверх существующих броней без их перестановки.
     const markers = computeMirrorMarkers(
         source.categories.map((category) => ({
             roomIds: category.roomIds,
             occupancy: occByCategory.get(category.categoryId)!,
         })),
-        repackedReserves,
+        fixedReserves,
     );
 
+    const minRetainedRatio = getTransactionalIcalMinRetainedRatio();
+    const confirmLargeDecrease = isLargeIcalDecreaseConfirmed();
+    const safetyError = getSyncSafetyError({
+        sourceLabel: 'Shelter/FrontDesk24',
+        sourceComplete: occupancyResult.sourceComplete,
+        confirmedEmpty: occupancyResult.confirmedEmpty,
+        existingCount: existingSourceCount,
+        proposedCount: markers.length,
+        minRetainedRatio,
+        confirmLargeDecrease,
+    });
+
     if (dryRun) {
+        if (safetyError) throw new Error(safetyError);
         return {
             hotelId,
             dryRun: true,
             roomsTotal: allRoomIds.length,
             ourReserves: ourRows.length,
-            movedBookings: allMoves.length,
+            movedBookings: 0,
             markersPlanned: markers.length,
             inserted: 0,
             skipped: 0,
-            moves: allMoves,
             markers,
         };
     }
 
-    const syncedAt = new Date().toISOString();
-
-    // Убрать прежние зеркальные метки (освобождает строки под перестановку).
-    const { error: deleteError } = await supabase
-        .from('reserves')
-        .delete()
-        .eq('external_source', MIRROR_SOURCE_TAG)
-        .in('room_id', allRoomIds);
-    if (deleteError) {
-        throw new Error(deleteError.message);
-    }
-
-    // Применить переезды В ТОМ ЖЕ ПОРЯДКЕ — каждый в свободную строку.
-    let movedBookings = 0;
-    for (const move of allMoves) {
-        const { error: moveError } = await supabase
-            .from('reserves')
-            .update({ room_id: move.toRoomId })
-            .eq('id', move.id);
-        if (!moveError) {
-            movedBookings += 1;
-        } else if (!(moveError.code === '23P01' || moveError.message?.includes('Наложение'))) {
-            throw new Error(moveError.message);
-        }
-    }
-
-    // Вставить новые метки; пересечения с нашими бронями (А1) пропускаем.
-    let inserted = 0;
-    let skipped = 0;
-    for (const marker of markers) {
-        const { error: insertError } = await supabase.from('reserves').insert({
+    const { data: rpcData, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+        p_source: MIRROR_SOURCE_TAG,
+        p_room_ids: allRoomIds,
+        p_marks: markers.map((marker) => ({
             room_id: marker.roomId,
-            start: marker.start,
-            end: marker.end,
+            start_at: marker.start,
+            end_at: marker.end,
             guest: DEFAULT_GUEST,
-            phone: '',
-            price: 0,
-            quantity: 1,
             comment: 'Занятость из чужого календаря (зеркало)',
-            created_by: MIRROR_SOURCE_TAG,
-            edited_at: syncedAt,
-            edited_by: MIRROR_SOURCE_TAG,
-            external_source: MIRROR_SOURCE_TAG,
             external_uid: `${MIRROR_SOURCE_TAG}:${marker.roomId}:${marker.start}-${marker.end}`,
             external_feed_url: source.widgetUrl,
-            external_synced_at: syncedAt,
-        });
-
-        if (!insertError) {
-            inserted += 1;
-        } else if (insertError.code === '23P01' || insertError.message?.includes('Наложение')) {
-            skipped += 1;
-        } else {
-            throw new Error(insertError.message);
-        }
+        })),
+        p_source_complete: occupancyResult.sourceComplete,
+        p_confirm_empty: occupancyResult.confirmedEmpty,
+        p_min_retained_ratio: minRetainedRatio,
+        p_confirm_large_decrease: confirmLargeDecrease,
+    });
+    if (rpcError) {
+        throw new Error(rpcError.message);
     }
+    const summary = parseExternalOccupancySummary(rpcData);
 
     deleteCacheByPrefix('hotel-calendar:');
 
@@ -892,9 +862,9 @@ const syncShelter = async (
         dryRun: false,
         roomsTotal: allRoomIds.length,
         ourReserves: ourRows.length,
-        movedBookings,
+        movedBookings: 0,
         markersPlanned: markers.length,
-        inserted,
-        skipped,
+        inserted: summary.inserted,
+        skipped: summary.skippedManual,
     };
 };

@@ -128,8 +128,18 @@ const fetchAvailableRooms = async (token, dateFrom, dateTo) => {
     });
     if (!res.ok) throw new Error(`FrontDesk24 getVariants: ${res.status}`);
     const json = await res.json();
+    if (!Array.isArray(json?.data) || (json.data.length > 0 && !Array.isArray(json.data[0]))) {
+        throw new Error('FrontDesk24 getVariants: некорректный ответ');
+    }
     const out = new Map();
-    for (const item of json?.data?.[0] ?? []) out.set(item.id, item.availableRooms ?? 0);
+    for (const item of json.data[0] ?? []) {
+        const categoryId = Number(item?.id);
+        const availableRooms = item?.availableRooms === undefined ? 0 : Number(item.availableRooms);
+        if (!Number.isInteger(categoryId) || !Number.isFinite(availableRooms)) {
+            throw new Error('FrontDesk24 getVariants: некорректная запись');
+        }
+        out.set(categoryId, availableRooms);
+    }
     return out;
 };
 
@@ -144,20 +154,32 @@ const readOccupancy = async (token, categories) => {
     const end = new Date(today);
     end.setUTCDate(end.getUTCDate() + HORIZON_DAYS);
 
-    const res = await fetch(FD_AVAILABLE_DATES, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({
-            token,
-            language: 'ru',
-            dateFrom: isoDate(today),
-            dateTo: isoDate(end),
-            currency: 'RUB',
-        }),
-    });
-    if (!res.ok) throw new Error(`FrontDesk24 getAvailableDates: ${res.status}`);
-    const json = await res.json();
+    let sourceComplete = true;
+    let failedProbes = 0;
+    let freeDateRows = [];
+    try {
+        const res = await fetch(FD_AVAILABLE_DATES, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            body: JSON.stringify({
+                token,
+                language: 'ru',
+                dateFrom: isoDate(today),
+                dateTo: isoDate(end),
+                currency: 'RUB',
+            }),
+        });
+        if (!res.ok) throw new Error(`FrontDesk24 getAvailableDates: ${res.status}`);
+        const json = await res.json();
+        if (!Array.isArray(json?.data)) {
+            throw new Error('FrontDesk24 getAvailableDates: некорректный ответ');
+        }
+        freeDateRows = json.data;
+    } catch {
+        sourceComplete = false;
+        failedProbes += 1;
+    }
 
     const freeByCat = new Map();
     const maxNightByCat = new Map();
@@ -166,19 +188,29 @@ const readOccupancy = async (token, categories) => {
         maxNightByCat.set(c.categoryId, -1);
     }
     const freeNights = new Set();
-    for (const rec of json?.data ?? []) {
-        const set = freeByCat.get(rec.roomCategoryID);
+    for (const rec of freeDateRows) {
+        const categoryId = Number(rec?.roomCategoryID);
+        if (
+            !Number.isInteger(categoryId) ||
+            typeof rec?.date !== 'string' ||
+            !/^\d{4}-\d{2}-\d{2}$/.test(rec.date)
+        ) {
+            sourceComplete = false;
+            failedProbes += 1;
+            continue;
+        }
+        const set = freeByCat.get(categoryId);
         if (!set) continue;
         const night = nightOf(checkinUnix(new Date(`${rec.date}T00:00:00Z`)));
         set.add(night);
         freeNights.add(night);
-        if (night > maxNightByCat.get(rec.roomCategoryID)) {
-            maxNightByCat.set(rec.roomCategoryID, night);
+        if (night > maxNightByCat.get(categoryId)) {
+            maxNightByCat.set(categoryId, night);
         }
     }
 
-    // Число свободных номеров на свободные дни (батчами; сбой дня = «полностью
-    // свободно», т.е. недоучёт, а не падение всего крона).
+    // Число свободных номеров на свободные дни. Любой сбой помечает весь ответ
+    // неполным: RPC сохранит прежнюю занятость и запишет ошибку в sync_runs.
     const availByNight = new Map();
     const nights = [...freeNights].sort((a, b) => a - b);
     for (let i = 0; i < nights.length; i += FETCH_BATCH) {
@@ -189,13 +221,23 @@ const readOccupancy = async (token, categories) => {
                 const next = new Date(day);
                 next.setUTCDate(next.getUTCDate() + 1);
                 try {
-                    return { night, avail: await fetchAvailableRooms(token, isoDate(day), isoDate(next)) };
+                    return {
+                        night,
+                        avail: await fetchAvailableRooms(token, isoDate(day), isoDate(next)),
+                        complete: true,
+                    };
                 } catch {
-                    return { night, avail: new Map() };
+                    return { night, avail: new Map(), complete: false };
                 }
             }),
         );
-        for (const { night, avail } of results) availByNight.set(night, avail);
+        for (const { night, avail, complete } of results) {
+            if (!complete) {
+                sourceComplete = false;
+                failedProbes += 1;
+            }
+            availByNight.set(night, avail);
+        }
     }
 
     const todayNight = nightOf(checkinUnix(today));
@@ -204,6 +246,10 @@ const readOccupancy = async (token, categories) => {
         const total = c.roomIds.length;
         const free = freeByCat.get(c.categoryId);
         const maxNight = maxNightByCat.get(c.categoryId);
+        if (maxNight < todayNight) {
+            sourceComplete = false;
+            failedProbes += 1;
+        }
         const byNight = new Map();
         for (let night = todayNight; night <= maxNight; night += 1) {
             let occupied;
@@ -217,7 +263,14 @@ const readOccupancy = async (token, categories) => {
         }
         occ.set(c.categoryId, byNight);
     }
-    return occ;
+    const confirmedEmpty =
+        sourceComplete &&
+        occ.size > 0 &&
+        [...occ.values()].every(
+            (byNight) =>
+                byNight.size > 0 && [...byNight.values()].every((occupied) => occupied === 0),
+        );
+    return { occupancy: occ, sourceComplete, confirmedEmpty, failedProbes };
 };
 
 const computeMarkers = (categories, ourByRoom, occ) => {
@@ -463,7 +516,8 @@ const main = async () => {
     for (const src of AUTO_SOURCES) {
       try {
         const roomIds = src.categories.flatMap((c) => c.roomIds);
-        const occ = await readOccupancy(src.token, src.categories);
+        const occupancyResult = await readOccupancy(src.token, src.categories);
+        const occ = occupancyResult.occupancy;
 
         const { data: rows, error } = await supabase
             .from('reserves')
@@ -479,40 +533,43 @@ const main = async () => {
 
         const markers = computeMarkers(src.categories, ourByRoom, occ);
 
-        const { error: delErr } = await supabase
-            .from('reserves')
-            .delete()
-            .eq('external_source', MIRROR_SOURCE_TAG)
-            .in('room_id', roomIds);
-        if (delErr) throw new Error(delErr.message);
-
-        const syncedAt = new Date().toISOString();
-        let inserted = 0;
-        let skipped = 0;
-        for (const m of markers) {
-            const { error: insErr } = await supabase.from('reserves').insert({
+        const { data, error: rpcError } = await supabase.rpc('sync_external_occupancy', {
+            p_source: MIRROR_SOURCE_TAG,
+            p_room_ids: roomIds,
+            p_marks: markers.map((m) => ({
                 room_id: m.roomId,
-                start: m.start,
-                end: m.end,
+                start_at: m.start,
+                end_at: m.end,
                 guest: 'Занято (внешний календарь)',
-                phone: '',
-                price: 0,
-                quantity: 1,
                 comment: 'Занятость из чужого календаря (зеркало, авто)',
-                created_by: MIRROR_SOURCE_TAG,
-                edited_at: syncedAt,
-                edited_by: MIRROR_SOURCE_TAG,
-                external_source: MIRROR_SOURCE_TAG,
                 external_uid: `${MIRROR_SOURCE_TAG}:${m.roomId}:${m.start}-${m.end}`,
                 external_feed_url: src.widgetUrl,
-                external_synced_at: syncedAt,
-            });
-            if (!insErr) inserted += 1;
-            else if (insErr.code === '23P01' || (insErr.message || '').includes('Наложение')) skipped += 1;
-            else throw new Error(insErr.message);
+            })),
+            p_source_complete: occupancyResult.sourceComplete,
+            p_confirm_empty: occupancyResult.confirmedEmpty,
+            p_min_retained_ratio: minIcalRetainedRatio,
+            p_confirm_large_decrease: confirmLargeIcalDecrease,
+        });
+        if (rpcError) throw new Error(rpcError.message);
+        if (data?.status === 'error' && typeof data?.error === 'string') {
+            throw new Error(data.error);
+        }
+        if (
+            !['ok', 'partial'].includes(data?.status) ||
+            typeof data?.inserted !== 'number' ||
+            typeof data?.skipped_manual !== 'number'
+        ) {
+            throw new Error('Некорректный ответ sync_external_occupancy');
         }
 
-        summary.push({ hotel: src.hotel, markers: markers.length, inserted, skipped });
+        summary.push({
+            hotel: src.hotel,
+            markers: markers.length,
+            inserted: data.inserted,
+            skipped: data.skipped_manual,
+            sourceComplete: occupancyResult.sourceComplete,
+            failedProbes: occupancyResult.failedProbes,
+        });
       } catch (err) {
         summary.push({ hotel: src.hotel, error: err instanceof Error ? err.message : String(err) });
       }
