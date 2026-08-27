@@ -151,7 +151,34 @@ jobs:
           fs.writeFileSync(process.env.SPEC_OUTPUT, output);
           NODE
 
-          if yc serverless api-gateway get "$YC_API_GATEWAY_NAME" >/dev/null 2>&1; then
+          # Раньше здесь стояло `get >/dev/null 2>&1` — и ЛЮБАЯ осечка проверки
+          # (а не только «шлюза нет») уводила в ветку create, которая падала с
+          # «Duplicate name: travel-time» и роняла всю выкатку, хотя контейнер
+          # уже был выкачен. Теперь: проверку повторяем, ошибку не глотаем и
+          # создаём шлюз только если он действительно не найден.
+          GATEWAY_ERR="$(mktemp)"
+          GATEWAY_EXISTS=""
+          for attempt in 1 2 3; do
+            if yc serverless api-gateway get "$YC_API_GATEWAY_NAME" >/dev/null 2>"$GATEWAY_ERR"; then
+              GATEWAY_EXISTS="yes"
+              break
+            fi
+            if grep -qiE 'not ?found|does not exist' "$GATEWAY_ERR"; then
+              GATEWAY_EXISTS="no"
+              break
+            fi
+            echo "Проверка шлюза не удалась (попытка $attempt):"
+            cat "$GATEWAY_ERR"
+            sleep $((attempt * 5))
+          done
+
+          if [ -z "$GATEWAY_EXISTS" ]; then
+            echo "Не удалось выяснить, существует ли шлюз «$YC_API_GATEWAY_NAME». Создавать вслепую не будем."
+            cat "$GATEWAY_ERR"
+            exit 1
+          fi
+
+          if [ "$GATEWAY_EXISTS" = "yes" ]; then
             yc serverless api-gateway update "$YC_API_GATEWAY_NAME" --spec "$TMP_SPEC"
           else
             yc serverless api-gateway create "$YC_API_GATEWAY_NAME" --spec "$TMP_SPEC"
