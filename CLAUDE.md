@@ -20,3 +20,16 @@
 - The records have `external_source = 'manual_belvedere'` and are intentional.
 
 Do not delete, replace, or overwrite these records in sync, migration, cleanup, or data-reconciliation work unless the user explicitly asks. Preserve real bookings alongside these manual occupancy markers.
+
+# Создание отелей: без заглушек (29.08.2026)
+
+При программном создании отеля НЕ ставить город/адрес наугад. Случай «Грант»:
+три объекта создали с city='gagra', address='Гагра', а настоящий город — Лдзаа
+(менеджеры видели отель не в том городе). Правила:
+
+- город и адрес брать из существующей карточки того же отеля либо из вкладки
+  «ОТЕЛИ ОПИСАНИЕ» книги «СЕЗОН 2026» (адрес — столбец D);
+- коды городов — ТОЛЬКО из DEFAULT_CITIES (`AdvancedFilters/lib/constants.ts`);
+  чужой код (был 'picunda' вместо 'pitsunda') делает отель невидимым для
+  фильтра по городу;
+- если данных нет — спросить владельца, а не вписывать заглушку.
