@@ -204,6 +204,11 @@ const main = async () => {
     const plan = planAlertStateChanges(incidents, storedStates ?? [], now.toISOString());
 
     if (plan.notifications.length > 0) {
+        // Сначала в лог: если Telegram сломан (битый chat_id, лежит API),
+        // суть инцидента всё равно видна прямо в прогоне GitHub Actions.
+        for (const notification of plan.notifications) {
+            console.log(`ИНЦИДЕНТ: ${JSON.stringify(notification)}`);
+        }
         for (const message of chunkAlertMessages(plan.notifications)) {
             await sendTelegram(message);
         }
