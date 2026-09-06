@@ -151,15 +151,34 @@ const sendTelegram = async (text) => {
         throw new Error('Нет TELEGRAM_BOT_TOKEN или TELEGRAM_MANAGER_CHAT_IDS');
     }
 
+    // Один недоступный чат (человек не нажал Start у бота, опечатка в id)
+    // не должен ронять мониторинг целиком: до 05.09.2026 первый же
+    // «chat not found» валил скрипт ДО сохранения состояния, и уведомления
+    // затем слались по кругу. Теперь шлём всем, ошибки копим, и падаем
+    // только если НИ ОДИН чат сообщение не получил.
+    const failures = [];
+    let delivered = 0;
     for (const chatId of chatIds) {
-        const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
-            signal: AbortSignal.timeout(30_000),
-        });
-        const data = await readJson(response, `Telegram, чат ${chatId}`);
-        if (data?.ok !== true) throw new Error(`Telegram, чат ${chatId}: ответ без ok=true`);
+        try {
+            const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+                signal: AbortSignal.timeout(30_000),
+            });
+            const data = await readJson(response, `Telegram, чат ${chatId}`);
+            if (data?.ok !== true) throw new Error(`Telegram, чат ${chatId}: ответ без ok=true`);
+            delivered += 1;
+        } catch (error) {
+            failures.push(error instanceof Error ? error.message : String(error));
+        }
+    }
+
+    for (const failure of failures) {
+        console.warn(`ПРЕДУПРЕЖДЕНИЕ: ${failure} — проверьте TELEGRAM_MANAGER_CHAT_IDS`);
+    }
+    if (delivered === 0) {
+        throw new Error(`Telegram не принял сообщение ни для одного чата: ${failures.join('; ')}`);
     }
 };
 

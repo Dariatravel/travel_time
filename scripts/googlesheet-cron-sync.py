@@ -12,7 +12,7 @@
   GOOGLE_SA_B64 (base64 JSON) либо GOOGLE_SERVICE_ACCOUNT_JSON
   NEXT_PUBLIC_SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 """
-import os, json, re, datetime, urllib.request, urllib.error, urllib.parse, base64
+import os, json, re, time, datetime, urllib.request, urllib.error, urllib.parse, base64
 import gspread
 from google.oauth2.service_account import Credentials
 from google.auth.transport.requests import Request
@@ -341,6 +341,23 @@ def sync_source(gc, token, src):
                     skipped += 1
     return {'hotel': src['name'], 'parsed': len(stays), 'inserted': inserted, 'skipped': skipped}
 
+def sync_source_with_retry(gc, token, src, attempts=3, pause=60):
+    """Google API временами отвечает 503/500/429 на ровном месте (сбой на их
+    стороне): 04.09.2026 один такой 503 уронил весь крон. Временные коды
+    ретраим с паузой; настоящие ошибки (нет доступа, таблица удалена)
+    пробрасываем сразу."""
+    for attempt in range(attempts):
+        try:
+            return sync_source(gc, token, src)
+        except gspread.exceptions.APIError as e:
+            code = getattr(getattr(e, 'response', None), 'status_code', None)
+            if code not in (429, 500, 502, 503, 504) or attempt == attempts - 1:
+                raise
+            print(f"{src['name']}: Google API ответил {code}, "
+                  f"жду {pause} с и повторяю ({attempt + 1}/{attempts - 1})…", flush=True)
+            time.sleep(pause)
+
+
 def main():
     key = load_key()
     creds = Credentials.from_service_account_info(
@@ -348,7 +365,7 @@ def main():
     gc = gspread.authorize(creds)
     creds.refresh(Request())
     token = creds.token
-    summary = [sync_source(gc, token, src) for src in SOURCES]
+    summary = [sync_source_with_retry(gc, token, src) for src in SOURCES]
     print(json.dumps({'status': 'ok', 'summary': summary}, ensure_ascii=False, indent=2))
 
 if __name__ == '__main__':
