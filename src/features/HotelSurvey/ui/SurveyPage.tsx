@@ -30,7 +30,8 @@ const kindLabel = (kind: SurveyObject['kind']) => (kind === 'hotel' ? 'Отел�
 // Кнопки ответов: обычный шрифт, перенос текста, сетка — на телефоне две
 // колонки, на компьютере все варианты в одну строку. Итого не больше двух строк.
 const OPTIONS_GRID = 'grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4';
-const OPTION_BUTTON = 'h-auto min-h-9 w-full whitespace-normal px-3 py-2 text-sm font-normal';
+const OPTION_BUTTON =
+    'h-auto min-h-9 w-full whitespace-normal px-3 py-2 text-sm font-normal transition-transform active:scale-[0.97]';
 
 // ---------- карточка одного вопроса ----------
 
@@ -290,12 +291,11 @@ export const SurveyPage = () => {
     const myAnswers = answersByObject.get(current.slug);
     const st = progressByObject.get(current.slug)?.status;
 
-    const finishObject = async (forcedStatus?: 'skipped') => {
+    const finishObject = (forcedStatus?: 'skipped') => {
         const hasAnswers = (myAnswers?.size ?? 0) > 0;
         const nextStatus: 'done' | 'skipped' = forcedStatus ?? (hasAnswers ? 'done' : 'skipped');
-        await setProgress.mutateAsync({ objectSlug: current.slug, status: nextStatus });
-        // null → следующий непройденный; но при последовательном проходе это
-        // как раз следующий объект, а «Назад» всегда доступен.
+        // Переходим сразу, отметка о прохождении уходит на сервер в фоне.
+        setProgress.mutate({ objectSlug: current.slug, status: nextStatus });
         openObject(nextObject?.slug ?? null);
     };
 
@@ -378,11 +378,7 @@ export const SurveyPage = () => {
                     Назад
                 </Button>
                 <div className="flex gap-2">
-                    <Button
-                        variant="secondary"
-                        disabled={saving}
-                        onClick={() => finishObject('skipped')}
-                    >
+                    <Button variant="secondary" onClick={() => finishObject('skipped')}>
                         <SkipForward />
                         Пропустить объект
                     </Button>
