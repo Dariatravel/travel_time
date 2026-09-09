@@ -1,0 +1,21 @@
+# Временный (опрос по объектам, сентябрь 2026): список админов и операторов —
+# участников опроса. Удалить вместе с модулем опроса.
+name: Survey staff list
+
+on:
+  workflow_dispatch:
+
+jobs:
+  staff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Список сотрудников
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/survey-staff-list.mjs
