@@ -12,6 +12,7 @@ migrations=(
     "supabase/migrations/20260818204803_add_transactional_external_sync.sql"
     "supabase/migrations/20260824090000_add_sync_freshness_alerts.sql"
     "supabase/migrations/20260827100000_assignable_users_with_surname.sql"
+    "supabase/migrations/20260909120000_add_hotel_survey.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.

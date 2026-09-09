@@ -48,8 +48,10 @@ export const Login = () => {
     const onSubmit = async (data: AuthProps) => {
         try {
             await mutateAsync(data);
-            // После успешного входа перенаправляем на главную страницу
-            router.push(routes[PagesEnum.MAIN]);
+            // После входа возвращаем туда, откуда отправили на логин (?next=/main/…):
+            // так общая ссылка на страницу внутри приложения ведёт прямо на неё.
+            const next = new URLSearchParams(window.location.search).get('next');
+            router.push(next && next.startsWith('/main') ? next : routes[PagesEnum.MAIN]);
         } catch (error) {
             console.error('Ошибка входа:', error);
         }

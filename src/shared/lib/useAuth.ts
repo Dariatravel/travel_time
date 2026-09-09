@@ -36,7 +36,12 @@ export const useAuth = () => {
         if (isFetching) return;
         if (!data) return;
         if (!data.session) {
-            router.replace(routes.LOGIN);
+            const here = typeof window !== 'undefined' ? window.location.pathname : '';
+            router.replace(
+                here.startsWith('/main')
+                    ? `${routes.LOGIN}?next=${encodeURIComponent(here)}`
+                    : routes.LOGIN,
+            );
             return;
         }
 
