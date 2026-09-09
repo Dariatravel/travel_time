@@ -9,9 +9,9 @@ import { isStaffRole } from '@/shared/lib/userRoles';
 import { $user } from '@/shared/models/auth';
 import { FullWidthLoader } from '@/shared/ui/Loader/Loader';
 import { useUnit } from 'effector-react';
-import { ArrowLeft, ArrowRight, Check, ExternalLink, List, SkipForward } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Check, ExternalLink, Play, SkipForward } from 'lucide-react';
 import Link from 'next/link';
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 
 import {
     useMyAnswers,
@@ -25,29 +25,12 @@ import {
 } from '../api/survey';
 import { SURVEY_QUESTIONS, type SurveyAnswerValue, type SurveyQuestion } from '../model/questions';
 
-const LAST_OBJECT_KEY = 'hotel-survey:last-object';
-
-type StatusFilter = 'all' | 'todo' | 'done' | 'skipped';
-type KindFilter = 'all' | 'hotel' | 'kvartira';
-
 const kindLabel = (kind: SurveyObject['kind']) => (kind === 'hotel' ? 'Отель' : 'Квартира');
 
-const readLastObject = () => {
-    try {
-        return window.localStorage.getItem(LAST_OBJECT_KEY);
-    } catch {
-        return null;
-    }
-};
-
-const writeLastObject = (slug: string | null) => {
-    try {
-        if (slug) window.localStorage.setItem(LAST_OBJECT_KEY, slug);
-        else window.localStorage.removeItem(LAST_OBJECT_KEY);
-    } catch {
-        // приватный режим — не страшно, прогресс и так в базе
-    }
-};
+// Кнопки ответов: обычный шрифт, перенос текста, сетка — на телефоне две
+// колонки, на компьютере все варианты в одну строку. Итого не больше двух строк.
+const OPTIONS_GRID = 'grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4';
+const OPTION_BUTTON = 'h-auto min-h-9 w-full whitespace-normal px-3 py-2 text-sm font-normal';
 
 // ---------- карточка одного вопроса ----------
 
@@ -89,8 +72,8 @@ const QuestionCard = ({ question, value, onChange }: QuestionCardProps) => {
 
     return (
         <div className="space-y-2">
-            <p className="font-medium">{question.title}</p>
-            <div className="flex flex-wrap gap-2">
+            <p className="text-base font-bold">{question.title}</p>
+            <div className={OPTIONS_GRID}>
                 {question.options.map((option) => {
                     const active =
                         question.type === 'single'
@@ -100,8 +83,8 @@ const QuestionCard = ({ question, value, onChange }: QuestionCardProps) => {
                         <Button
                             key={option.id}
                             type="button"
-                            size="sm"
                             variant={active ? 'default' : 'outline'}
+                            className={OPTION_BUTTON}
                             onClick={() =>
                                 question.type === 'single'
                                     ? toggleSingle(option.id)
@@ -138,11 +121,10 @@ export const SurveyPage = () => {
     const saveAnswer = useSaveAnswer();
     const setProgress = useSetProgress();
 
+    // Объект, открытый в этой сессии вручную («Назад», «Старт»). Если null —
+    // показываем место остановки: первый объект без отметки о прохождении.
     const [currentSlug, setCurrentSlug] = useState<string | null>(null);
-    const [search, setSearch] = useState('');
-    const [city, setCity] = useState('all');
-    const [status, setStatus] = useState<StatusFilter>('all');
-    const [kind, setKind] = useState<KindFilter>('all');
+    const [started, setStarted] = useState(false);
 
     const objects = useMemo(() => objectsQuery.data ?? [], [objectsQuery.data]);
     const answersByObject = useMemo(() => {
@@ -159,59 +141,13 @@ export const SurveyPage = () => {
         return map;
     }, [progressQuery.data]);
 
-    const cities = useMemo(
-        () =>
-            Array.from(new Set(objects.map((o) => o.city))).sort((a, b) =>
-                a.localeCompare(b, 'ru'),
-            ),
-        [objects],
-    );
+    const visitedCount = objects.filter((o) => progressByObject.has(o.slug)).length;
+    const doneCount = objects.filter((o) => progressByObject.get(o.slug)?.status === 'done').length;
+    const resumeObject = objects.find((o) => !progressByObject.has(o.slug)) ?? null;
 
-    const filtered = useMemo(() => {
-        const needle = search.trim().toLowerCase();
-        return objects.filter((o) => {
-            if (kind !== 'all' && o.kind !== kind) return false;
-            if (city !== 'all' && o.city !== city) return false;
-            const st = progressByObject.get(o.slug)?.status;
-            if (status === 'todo' && st) return false;
-            if (status === 'done' && st !== 'done') return false;
-            if (status === 'skipped' && st !== 'skipped') return false;
-            if (needle && !`${o.title} ${o.city}`.toLowerCase().includes(needle)) return false;
-            return true;
-        });
-    }, [objects, kind, city, status, search, progressByObject]);
-
-    const visitedCount = progressByObject.size;
-    const doneCount = Array.from(progressByObject.values()).filter(
-        (p) => p.status === 'done',
-    ).length;
-    const firstUnvisited = objects.find((o) => !progressByObject.has(o.slug)) ?? null;
-
-    // Восстанавливаем объект, на котором остановились в этом браузере.
-    useEffect(() => {
-        if (currentSlug || objects.length === 0) return;
-        const last = readLastObject();
-        if (last && objects.some((o) => o.slug === last)) setCurrentSlug(last);
-    }, [objects, currentSlug]);
-
-    const openObject = useCallback((slug: string | null) => {
+    const openObject = (slug: string | null) => {
         setCurrentSlug(slug);
-        writeLastObject(slug);
         if (typeof window !== 'undefined') window.scrollTo({ top: 0 });
-    }, []);
-
-    const current = currentSlug ? (objects.find((o) => o.slug === currentSlug) ?? null) : null;
-    const navList = filtered.length > 0 ? filtered : objects;
-    const currentIndex = current ? navList.findIndex((o) => o.slug === current.slug) : -1;
-    const prevObject = currentIndex > 0 ? navList[currentIndex - 1] : null;
-    const nextObject =
-        currentIndex >= 0 && currentIndex < navList.length - 1 ? navList[currentIndex + 1] : null;
-
-    const finishObject = async (obj: SurveyObject, forcedStatus?: 'skipped') => {
-        const hasAnswers = (answersByObject.get(obj.slug)?.size ?? 0) > 0;
-        const nextStatus: 'done' | 'skipped' = forcedStatus ?? (hasAnswers ? 'done' : 'skipped');
-        await setProgress.mutateAsync({ objectSlug: obj.slug, status: nextStatus });
-        openObject(nextObject?.slug ?? null);
     };
 
     if (!user) return <FullWidthLoader />;
@@ -238,6 +174,12 @@ export const SurveyPage = () => {
 
     const saving = saveAnswer.isPending || setProgress.isPending;
     const saveError = saveAnswer.error || setProgress.error;
+    const statsLink =
+        user.role === 'admin' ? (
+            <Link href="/main/survey/stats" className="text-sm text-primary underline">
+                Статистика
+            </Link>
+        ) : null;
 
     const progressBar = (
         <div className="space-y-1">
@@ -265,206 +207,190 @@ export const SurveyPage = () => {
         </div>
     );
 
-    // ---- вид: один объект ----
-    if (current) {
-        const myAnswers = answersByObject.get(current.slug);
-        const st = progressByObject.get(current.slug)?.status;
+    // ---- стартовый экран: только пока ни одного объекта не пройдено ----
+    if (visitedCount === 0 && !started && !currentSlug) {
         return (
             <div className="mx-auto max-w-3xl space-y-4 p-2">
-                {progressBar}
-                <div className="flex items-center justify-between gap-2">
-                    <Button variant="ghost" size="sm" onClick={() => openObject(null)}>
-                        <List />К списку
-                    </Button>
-                    <span className="text-sm text-muted-foreground">
-                        {currentIndex + 1} из {navList.length}
-                    </span>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                    <h1 className="text-2xl font-semibold">Опрос по объектам сайта</h1>
+                    {statsLink}
                 </div>
                 <Card>
                     <CardContent className="space-y-4 p-4">
-                        <div className="flex flex-wrap items-start gap-4">
-                            {current.coverUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={current.coverUrl}
-                                    alt={current.title}
-                                    className="h-28 w-40 flex-none rounded object-cover"
-                                    loading="lazy"
-                                />
-                            ) : null}
-                            <div className="min-w-0 flex-1 space-y-1">
-                                <h1 className="text-xl font-semibold">{current.title}</h1>
-                                <div className="flex flex-wrap items-center gap-2 text-sm">
-                                    <Badge variant="secondary">{kindLabel(current.kind)}</Badge>
-                                    <Badge variant="outline">{current.city}</Badge>
-                                    {st ? (
-                                        <Badge variant={st === 'done' ? 'default' : 'outline'}>
-                                            {st === 'done' ? 'отвечено' : 'пропущен'}
-                                        </Badge>
-                                    ) : null}
-                                </div>
-                                {current.location ? (
-                                    <p className="text-sm text-muted-foreground">
-                                        {current.location}
-                                    </p>
-                                ) : null}
-                                <a
-                                    href={current.pageUrl}
-                                    target="_blank"
-                                    rel="noreferrer"
-                                    className="inline-flex items-center gap-1 text-sm text-primary underline"
-                                >
-                                    <ExternalLink className="size-4" />
-                                    Открыть на сайте
-                                </a>
-                            </div>
-                        </div>
-
-                        <div className="space-y-5 border-t pt-4">
-                            {SURVEY_QUESTIONS.map((question) => (
-                                <QuestionCard
-                                    key={question.id}
-                                    question={question}
-                                    value={myAnswers?.get(question.id)?.answer}
-                                    onChange={(value) =>
-                                        saveAnswer.mutate({
-                                            objectSlug: current.slug,
-                                            questionId: question.id,
-                                            value,
-                                        })
-                                    }
-                                />
-                            ))}
-                            <p className="text-xs text-muted-foreground">
-                                Отвечать на все вопросы не обязательно — можно перейти к следующему
-                                объекту. Каждый ответ сохраняется сразу.
-                            </p>
-                        </div>
+                        <p>
+                            Объектов: <b>{objects.length}</b> — отели и квартиры с сайта
+                            абхазберег.рф. Они будут открываться по одному, по 4 вопроса с кнопками
+                            на каждый.
+                        </p>
+                        <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
+                            <li>
+                                Отвечать на все вопросы не обязательно — «Дальше» переводит к
+                                следующему.
+                            </li>
+                            <li>Если с объектом не работали — «Пропустить объект».</li>
+                            <li>
+                                Каждый ответ сохраняется сразу. Можно закрыть страницу и вернуться
+                                позже — опрос продолжится с того места, где остановились.
+                            </li>
+                        </ul>
+                        <Button
+                            size="lg"
+                            onClick={() => {
+                                setStarted(true);
+                                openObject(objects[0]?.slug ?? null);
+                            }}
+                            disabled={objects.length === 0}
+                        >
+                            <Play />
+                            Старт
+                        </Button>
                     </CardContent>
                 </Card>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                    <Button
-                        variant="outline"
-                        disabled={!prevObject}
-                        onClick={() => prevObject && openObject(prevObject.slug)}
-                    >
-                        <ArrowLeft />
-                        Назад
-                    </Button>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="secondary"
-                            disabled={saving}
-                            onClick={() => finishObject(current, 'skipped')}
-                        >
-                            <SkipForward />
-                            Пропустить объект
-                        </Button>
-                        <Button disabled={saving} onClick={() => finishObject(current)}>
-                            Дальше
-                            <ArrowRight />
-                        </Button>
-                    </div>
-                </div>
             </div>
         );
     }
 
-    // ---- вид: список ----
-    const selectClass = 'h-9 rounded-md border bg-background px-2 text-sm';
+    const current =
+        (currentSlug ? objects.find((o) => o.slug === currentSlug) : null) ?? resumeObject;
+
+    // ---- финальный экран: все объекты пройдены ----
+    if (!current) {
+        const lastObject = objects[objects.length - 1] ?? null;
+        return (
+            <div className="mx-auto max-w-3xl space-y-4 p-2">
+                {progressBar}
+                <Card>
+                    <CardContent className="space-y-4 p-4">
+                        <h1 className="text-2xl font-semibold">Готово — все объекты пройдены 🎉</h1>
+                        <p className="text-muted-foreground">
+                            Спасибо! Ответы сохранены. Если хотите что-то поправить — вернитесь к
+                            предыдущим объектам кнопкой «Назад».
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                            <Button
+                                variant="outline"
+                                disabled={!lastObject}
+                                onClick={() => lastObject && openObject(lastObject.slug)}
+                            >
+                                <ArrowLeft />
+                                Назад
+                            </Button>
+                            {statsLink}
+                        </div>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    // ---- один объект ----
+    const currentIndex = objects.findIndex((o) => o.slug === current.slug);
+    const prevObject = currentIndex > 0 ? objects[currentIndex - 1] : null;
+    const nextObject = currentIndex < objects.length - 1 ? objects[currentIndex + 1] : null;
+    const myAnswers = answersByObject.get(current.slug);
+    const st = progressByObject.get(current.slug)?.status;
+
+    const finishObject = async (forcedStatus?: 'skipped') => {
+        const hasAnswers = (myAnswers?.size ?? 0) > 0;
+        const nextStatus: 'done' | 'skipped' = forcedStatus ?? (hasAnswers ? 'done' : 'skipped');
+        await setProgress.mutateAsync({ objectSlug: current.slug, status: nextStatus });
+        // null → следующий непройденный; но при последовательном проходе это
+        // как раз следующий объект, а «Назад» всегда доступен.
+        openObject(nextObject?.slug ?? null);
+    };
+
     return (
-        <div className="mx-auto max-w-5xl space-y-4 p-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-                <h1 className="text-2xl font-semibold">Опрос по объектам сайта</h1>
-                {user.role === 'admin' ? (
-                    <Link href="/main/survey/stats" className="text-sm text-primary underline">
-                        Статистика
-                    </Link>
-                ) : null}
-            </div>
+        <div className="mx-auto max-w-3xl space-y-4 p-2">
             {progressBar}
-            <div className="flex flex-wrap items-center gap-2">
-                <Button
-                    disabled={!firstUnvisited}
-                    onClick={() => firstUnvisited && openObject(firstUnvisited.slug)}
-                >
-                    {visitedCount === 0 ? 'Начать' : 'Продолжить'}
-                    <ArrowRight />
-                </Button>
-                <Input
-                    className="max-w-xs"
-                    placeholder="Поиск по названию"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                />
-                <select
-                    className={selectClass}
-                    value={city}
-                    onChange={(event) => setCity(event.target.value)}
-                >
-                    <option value="all">Все города</option>
-                    {cities.map((c) => (
-                        <option key={c} value={c}>
-                            {c}
-                        </option>
-                    ))}
-                </select>
-                <select
-                    className={selectClass}
-                    value={kind}
-                    onChange={(event) => setKind(event.target.value as KindFilter)}
-                >
-                    <option value="all">Отели и квартиры</option>
-                    <option value="hotel">Только отели</option>
-                    <option value="kvartira">Только квартиры</option>
-                </select>
-                <select
-                    className={selectClass}
-                    value={status}
-                    onChange={(event) => setStatus(event.target.value as StatusFilter)}
-                >
-                    <option value="all">Все</option>
-                    <option value="todo">Осталось</option>
-                    <option value="done">Отвечено</option>
-                    <option value="skipped">Пропущено</option>
-                </select>
-                <span className="text-sm text-muted-foreground">Показано: {filtered.length}</span>
+            <div className="flex items-center justify-between gap-2 text-sm text-muted-foreground">
+                <span>
+                    Объект {currentIndex + 1} из {objects.length}
+                </span>
+                {statsLink}
             </div>
-            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                {filtered.map((o) => {
-                    const st = progressByObject.get(o.slug)?.status;
-                    return (
-                        <button
-                            key={o.slug}
-                            type="button"
-                            onClick={() => openObject(o.slug)}
-                            className="flex items-center gap-3 rounded-lg border bg-card p-2 text-left transition hover:bg-accent"
-                        >
-                            {o.coverUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                    src={o.coverUrl}
-                                    alt=""
-                                    className="h-14 w-20 flex-none rounded object-cover"
-                                    loading="lazy"
-                                />
-                            ) : (
-                                <div className="h-14 w-20 flex-none rounded bg-muted" />
-                            )}
-                            <div className="min-w-0 flex-1">
-                                <p className="truncate font-medium">{o.title}</p>
-                                <p className="truncate text-xs text-muted-foreground">
-                                    {kindLabel(o.kind)} · {o.city}
-                                </p>
+            <Card>
+                <CardContent className="space-y-4 p-4">
+                    <div className="flex flex-wrap items-start gap-4">
+                        {current.coverUrl ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                                src={current.coverUrl}
+                                alt={current.title}
+                                className="h-28 w-40 flex-none rounded object-cover"
+                                loading="lazy"
+                            />
+                        ) : null}
+                        <div className="min-w-0 flex-1 space-y-1">
+                            <h1 className="text-xl font-semibold">{current.title}</h1>
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                                <Badge variant="secondary">{kindLabel(current.kind)}</Badge>
+                                <Badge variant="outline">{current.city}</Badge>
+                                {st ? (
+                                    <Badge variant={st === 'done' ? 'default' : 'outline'}>
+                                        {st === 'done' ? 'отвечено' : 'пропущен'}
+                                    </Badge>
+                                ) : null}
                             </div>
-                            {st === 'done' ? (
-                                <Check className="size-5 flex-none text-green-600" />
-                            ) : st === 'skipped' ? (
-                                <SkipForward className="size-5 flex-none text-muted-foreground" />
+                            {current.location ? (
+                                <p className="text-sm text-muted-foreground">{current.location}</p>
                             ) : null}
-                        </button>
-                    );
-                })}
+                            <a
+                                href={current.pageUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="inline-flex items-center gap-1 text-sm text-primary underline"
+                            >
+                                <ExternalLink className="size-4" />
+                                Открыть на сайте
+                            </a>
+                        </div>
+                    </div>
+
+                    <div className="space-y-5 border-t pt-4">
+                        {SURVEY_QUESTIONS.map((question) => (
+                            <QuestionCard
+                                key={question.id}
+                                question={question}
+                                value={myAnswers?.get(question.id)?.answer}
+                                onChange={(value) =>
+                                    saveAnswer.mutate({
+                                        objectSlug: current.slug,
+                                        questionId: question.id,
+                                        value,
+                                    })
+                                }
+                            />
+                        ))}
+                        <p className="text-xs text-muted-foreground">
+                            Отвечать на все вопросы не обязательно — можно перейти к следующему
+                            объекту. Каждый ответ сохраняется сразу.
+                        </p>
+                    </div>
+                </CardContent>
+            </Card>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+                <Button
+                    variant="outline"
+                    disabled={!prevObject}
+                    onClick={() => prevObject && openObject(prevObject.slug)}
+                >
+                    <ArrowLeft />
+                    Назад
+                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        disabled={saving}
+                        onClick={() => finishObject('skipped')}
+                    >
+                        <SkipForward />
+                        Пропустить объект
+                    </Button>
+                    <Button disabled={saving} onClick={() => finishObject()}>
+                        Дальше
+                        <ArrowRight />
+                    </Button>
+                </div>
             </div>
         </div>
     );

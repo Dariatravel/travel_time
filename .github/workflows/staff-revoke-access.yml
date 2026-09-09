@@ -1,0 +1,28 @@
+# Закрыть доступ уволенным сотрудникам: снять роль + заблокировать вход.
+# Учётка не удаляется (на неё ссылаются брони); отменить можно в консоли
+# Supabase (Authentication → пользователь → Unban) и вернув роль.
+name: Staff revoke access
+
+on:
+  workflow_dispatch:
+    inputs:
+      emails:
+        description: "Email сотрудников через запятую"
+        required: true
+        type: string
+
+jobs:
+  revoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Закрыть доступ
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          REVOKE_EMAILS: ${{ inputs.emails }}
+        run: node scripts/revoke-staff-access.mjs
