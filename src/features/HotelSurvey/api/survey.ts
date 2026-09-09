@@ -55,10 +55,11 @@ const getJson = async <T>(url: string): Promise<T> => {
     return payload as T;
 };
 
+// Сессия читается из локального хранилища — без сетевого запроса на каждый клик.
 const currentUserId = async () => {
-    const { data } = await supabase.auth.getUser();
-    if (!data.user) throw new Error('Не авторизован');
-    return data.user.id;
+    const { data } = await supabase.auth.getSession();
+    if (!data.session?.user) throw new Error('Не авторизован');
+    return data.session.user.id;
 };
 
 // Таблицы опроса временные и в database.types.ts не описаны — клиент
@@ -96,7 +97,12 @@ export const useMyProgress = () =>
         },
     });
 
-/** Сохранить ответ на вопрос (upsert). Пустой ответ — удалить строку. */
+/** Сохранить ответ на вопрос (upsert). Пустой ответ — удалить строку.
+ *
+ * Оптимистично: кэш ответов меняется сразу при нажатии, запрос уходит в фоне,
+ * при ошибке кэш откатывается. Полный перечитывание списка после каждого
+ * клика убрано — на мобильном интернете именно оно делало кнопки «тугими».
+ */
 export const useSaveAnswer = () => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -127,11 +133,38 @@ export const useSaveAnswer = () => {
             );
             if (error) throw error;
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: SURVEY_KEYS.myAnswers }),
+        onMutate: async (input) => {
+            await queryClient.cancelQueries({ queryKey: SURVEY_KEYS.myAnswers });
+            const userId = await currentUserId();
+            const previous = queryClient.getQueryData<AnswerRow[]>(SURVEY_KEYS.myAnswers) ?? [];
+            const rest = previous.filter(
+                (row) =>
+                    !(row.object_slug === input.objectSlug && row.question_id === input.questionId),
+            );
+            const next =
+                input.value === null
+                    ? rest
+                    : [
+                          ...rest,
+                          {
+                              user_id: userId,
+                              object_slug: input.objectSlug,
+                              question_id: input.questionId,
+                              answer: input.value,
+                              updated_at: new Date().toISOString(),
+                          },
+                      ];
+            queryClient.setQueryData(SURVEY_KEYS.myAnswers, next);
+            return { previous };
+        },
+        onError: (_error, _input, context) => {
+            if (context?.previous)
+                queryClient.setQueryData(SURVEY_KEYS.myAnswers, context.previous);
+        },
     });
 };
 
-/** Отметить объект пройденным или пропущенным. */
+/** Отметить объект пройденным или пропущенным (оптимистично, без перечитывания). */
 export const useSetProgress = () => {
     const queryClient = useQueryClient();
     return useMutation({
@@ -148,7 +181,26 @@ export const useSetProgress = () => {
             );
             if (error) throw error;
         },
-        onSuccess: () => queryClient.invalidateQueries({ queryKey: SURVEY_KEYS.myProgress }),
+        onMutate: async (input) => {
+            await queryClient.cancelQueries({ queryKey: SURVEY_KEYS.myProgress });
+            const userId = await currentUserId();
+            const previous = queryClient.getQueryData<ProgressRow[]>(SURVEY_KEYS.myProgress) ?? [];
+            const next = [
+                ...previous.filter((row) => row.object_slug !== input.objectSlug),
+                {
+                    user_id: userId,
+                    object_slug: input.objectSlug,
+                    status: input.status,
+                    updated_at: new Date().toISOString(),
+                },
+            ];
+            queryClient.setQueryData(SURVEY_KEYS.myProgress, next);
+            return { previous };
+        },
+        onError: (_error, _input, context) => {
+            if (context?.previous)
+                queryClient.setQueryData(SURVEY_KEYS.myProgress, context.previous);
+        },
     });
 };
 
