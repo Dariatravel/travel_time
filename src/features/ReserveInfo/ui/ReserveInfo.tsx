@@ -9,6 +9,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { BookingCardButton } from '@/features/BookingCard/ui/BookingCardButton';
 import { buildFallbackReserveHistory } from '@/features/ReserveInfo/lib/formatReserveHistory';
 import {
     getReserveFormDefaultDates,
@@ -832,6 +833,7 @@ const ReserveInfoForm: FC<ReserveInfoProps> = ({
                         onAccept={submitReserveForm}
                         isActionDisabled={isExternalReserveReadOnly}
                     />
+                    {isEdit && <BookingCardButton currentReserve={currentReserve} />}
                     {isEdit && (
                         <ReserveHistory
                             entries={historyEntries}

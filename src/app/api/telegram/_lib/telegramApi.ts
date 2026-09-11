@@ -80,6 +80,87 @@ const sendDirect = async (chatId: number | string, text: string, replyTo?: numbe
     }
 };
 
+/** Файлу нужно больше времени, чем тексту, но ждать вечно тоже нельзя. */
+const DOCUMENT_TIMEOUT_MS = 12000;
+
+export type TelegramDocument = {
+    name: string;
+    bytes: Uint8Array;
+    mime?: string;
+};
+
+/**
+ * Прямая отправка файла (sendDocument). Обходного пути через GitHub здесь
+ * нет намеренно: воркфлоу telegram-send.yml умеет только текст. Для файлов
+ * обход — telegram-send-file.yml, он берёт файл из Supabase Storage;
+ * см. sendDocumentViaGithub.
+ */
+export const sendDocumentDirect = async (
+    chatId: number | string,
+    document: TelegramDocument,
+    caption?: string,
+) => {
+    const form = new FormData();
+    form.append('chat_id', String(chatId));
+    if (caption) form.append('caption', caption);
+    form.append(
+        'document',
+        new Blob([document.bytes], { type: document.mime ?? 'application/pdf' }),
+        document.name,
+    );
+
+    const response = await fetch(`https://api.telegram.org/bot${getToken()}/sendDocument`, {
+        method: 'POST',
+        body: form,
+        signal: AbortSignal.timeout(DOCUMENT_TIMEOUT_MS),
+    });
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+
+        throw new Error(`Telegram sendDocument: ${response.status} ${body}`.trim());
+    }
+};
+
+/** Обход для файла: GitHub Actions скачивает его из Storage и шлёт в Telegram. */
+export const sendDocumentViaGithub = async (input: {
+    chatId: number | string;
+    storagePath: string;
+    fileName: string;
+    caption?: string;
+}) => {
+    const token = process.env.GITHUB_DISPATCH_TOKEN;
+    if (!token) throw new Error('Обходная отправка не настроена (нет GITHUB_DISPATCH_TOKEN)');
+
+    const response = await fetch(
+        `https://api.github.com/repos/${OWNER}/${REPO}/actions/workflows/telegram-send-file.yml/dispatches`,
+        {
+            method: 'POST',
+            headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: 'application/vnd.github+json',
+                'X-GitHub-Api-Version': '2022-11-28',
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                ref: 'main',
+                inputs: {
+                    chat_id: String(input.chatId),
+                    storage_path: input.storagePath,
+                    file_name: input.fileName,
+                    caption: input.caption ?? '',
+                },
+            }),
+        },
+    );
+
+    if (!response.ok) {
+        const body = await response.text().catch(() => '');
+
+        throw new Error(`GitHub dispatch (file): ${response.status} ${body}`.trim());
+    }
+};
+
 const sendViaGithub = async (chatId: number | string, text: string, replyTo?: number) => {
     const token = process.env.GITHUB_DISPATCH_TOKEN;
     if (!token) throw new Error('Обходная отправка не настроена (нет GITHUB_DISPATCH_TOKEN)');
