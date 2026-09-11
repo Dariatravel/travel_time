@@ -19,10 +19,20 @@ These resources are isolated from production:
 - API Gateway: `travel-time-staging`
 - Image repository: `cr.yandex/crpf4seergfpqlkg7iih/travel-time-staging:<commit>`
 - Workflow: `.github/workflows/deploy-yandex-staging.yml`
+- Supabase: отдельный проект `travel-time-staging` (ref `ofvgsxzkxhmpxqezapaz`,
+  London, Free). Рабочая база — проект `travel_time` (ref `mgsotfnghyolearhqolv`).
+- Адрес: https://d5dll34lp2juu75979f4.p8361f8z.apigw.yandexcloud.net
 
-The staging workflow enables both `YANDEX_BACKEND_PROXY_ENABLED=true` and
-`NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true`. Production remains unchanged because
-this workflow deploys only `travel-time-staging`.
+Как устроено (с 11.09.2026): пароль тестовой базы нигде не хранится — воркфлоу
+перевыпускает его через Supabase Management API при каждом запуске (нужен только
+секрет `SUPABASE_ACCESS_TOKEN`). Схема берётся из рабочей базы `pg_dump
+--schema-only` (только чтение), данные копируются без персональных сведений:
+брони обезличены, отели получают префикс «[ТЕСТ] », учётные записи менеджеров
+копируются, чтобы вход работал. Подключаться к тестовой базе постоянным паролем
+нельзя — только через Dashboard или новым запуском воркфлоу.
+
+Staging сейчас собирается БЕЗ бэкенд-прокси (`YANDEX_BACKEND_PROXY_ENABLED=false`),
+как и production; включать прокси для проверки — отдельным изменением воркфлоу.
 
 ## Added Routes
 
