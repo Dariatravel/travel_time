@@ -9,8 +9,10 @@ import {
     formatMoney,
     groupByStage,
     importTableForFile,
+    normalizePhone,
     parseJsonl,
     SALES_STAGES,
+    sanitizeRows,
     STAGE_LABELS,
     type DealRow,
 } from './crm';
@@ -128,10 +130,45 @@ describe('импорт', () => {
 });
 
 describe('поиск клиентов', () => {
-    it('телефон — по цифрам, имя — по тексту', () => {
+    it('телефон — по цифрам, имя — по тексту; ведущая 8 → 7', () => {
         expect(clientSearchTerm('8 (900) 123-45-67')).toEqual({ phoneDigits: '79001234567', name: null });
         expect(clientSearchTerm('+7 900')).toEqual({ phoneDigits: '7900', name: null });
+        expect(clientSearchTerm('8900')).toEqual({ phoneDigits: '7900', name: null });
         expect(clientSearchTerm('Иванова')).toEqual({ phoneDigits: null, name: 'Иванова' });
         expect(clientSearchTerm('  ')).toEqual({ phoneDigits: null, name: null });
+    });
+
+    it('нормализация телефона как в скрипте подготовки', () => {
+        expect(normalizePhone('8 (900) 123-45-67')).toBe('+79001234567');
+        expect(normalizePhone('9001234567')).toBe('+79001234567');
+        expect(normalizePhone('+375 29 123 45 67')).toBe('+375291234567');
+        expect(normalizePhone('12-34')).toBeNull();
+    });
+});
+
+describe('пачка импорта', () => {
+    const spec = { conflict: 'oko_message_id', columns: ['oko_message_id', 'text'] };
+
+    it('оставляет строки с ключом, схлопывает повторы, режет лишние колонки', () => {
+        const rows = sanitizeRows(
+            [
+                { oko_message_id: 1, text: 'a', extra: true },
+                { oko_message_id: 1, text: 'b' },
+                { oko_message_id: null, text: 'no key' },
+                'мусор',
+                null,
+                { text: 'без ключа' },
+                { oko_message_id: 2, text: 'c' },
+            ],
+            spec,
+        );
+        expect(rows).toEqual([
+            { oko_message_id: 1, text: 'b' },
+            { oko_message_id: 2, text: 'c' },
+        ]);
+    });
+
+    it('не массив — пусто', () => {
+        expect(sanitizeRows({ a: 1 }, spec)).toEqual([]);
     });
 });

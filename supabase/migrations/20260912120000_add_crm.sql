@@ -75,10 +75,14 @@ CREATE INDEX IF NOT EXISTS deals_client_idx ON public.deals (client_id);
 CREATE INDEX IF NOT EXISTS deals_oko_contact_idx ON public.deals (oko_contact_id);
 CREATE INDEX IF NOT EXISTS deals_created_idx ON public.deals (oko_created_at DESC);
 
+-- Переписка в OKO принадлежит контакту («Чаты с клиентами»), а не сделке:
+-- чат хранится у клиента, сделка — справочная ссылка.
 CREATE TABLE IF NOT EXISTS public.deal_messages (
     id             bigserial   PRIMARY KEY,
     oko_message_id bigint      UNIQUE,
-    deal_id        uuid        REFERENCES public.deals (id) ON DELETE CASCADE,
+    client_id      uuid        REFERENCES public.clients (id) ON DELETE CASCADE,
+    oko_contact_id bigint,                   -- для связки при импорте, до client_id
+    deal_id        uuid        REFERENCES public.deals (id) ON DELETE SET NULL,
     oko_lead_id    bigint,                   -- для связки при импорте, до deal_id
     direction      text        NOT NULL CHECK (direction IN ('in', 'out')),
     author_type    text,
@@ -90,8 +94,8 @@ CREATE TABLE IF NOT EXISTS public.deal_messages (
     created_at     timestamptz NOT NULL DEFAULT now()
 );
 
+CREATE INDEX IF NOT EXISTS deal_messages_client_idx ON public.deal_messages (client_id, sent_at);
 CREATE INDEX IF NOT EXISTS deal_messages_deal_idx ON public.deal_messages (deal_id, sent_at);
-CREATE INDEX IF NOT EXISTS deal_messages_oko_lead_idx ON public.deal_messages (oko_lead_id);
 
 ALTER TABLE public.clients       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.deals         ENABLE ROW LEVEL SECURITY;
@@ -130,32 +134,30 @@ $$;
 REVOKE ALL ON FUNCTION public.crm_stage_stats(text) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.crm_stage_stats(text) TO authenticated;
 
--- Связка импортированных строк: клиент по oko_contact_id, сообщения по oko_lead_id.
-CREATE OR REPLACE FUNCTION public.crm_link_imported()
-RETURNS TABLE (deals_linked bigint, messages_linked bigint)
-LANGUAGE plpgsql
-SECURITY DEFINER
+-- Поиск контактов: имя — подстрокой, телефон — по цифрам в любом из номеров
+-- (в базе 36 тыс. контактов, искать «7900…» перебором на клиенте нельзя).
+CREATE OR REPLACE FUNCTION public.crm_search_clients(p_name text, p_digits text, p_limit integer DEFAULT 100)
+RETURNS SETOF public.clients
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
 SET search_path = ''
 AS $$
-DECLARE
-    d bigint;
-    m bigint;
-BEGIN
-    UPDATE public.deals AS dl
-       SET client_id = c.id
+    SELECT c.*
       FROM public.clients AS c
-     WHERE dl.client_id IS NULL AND dl.oko_contact_id IS NOT NULL AND c.oko_contact_id = dl.oko_contact_id;
-    GET DIAGNOSTICS d = ROW_COUNT;
-    UPDATE public.deal_messages AS dm
-       SET deal_id = dl.id
-      FROM public.deals AS dl
-     WHERE dm.deal_id IS NULL AND dm.oko_lead_id IS NOT NULL AND dl.oko_lead_id = dm.oko_lead_id;
-    GET DIAGNOSTICS m = ROW_COUNT;
-    RETURN QUERY SELECT d, m;
-END;
+     WHERE (p_name IS NULL OR p_name = '' OR c.name ILIKE '%' || p_name || '%')
+       AND (p_digits IS NULL OR p_digits = '' OR EXISTS (
+                SELECT 1 FROM unnest(c.phones) AS ph
+                 WHERE regexp_replace(ph, '\D', '', 'g') LIKE '%' || p_digits || '%'))
+     ORDER BY c.oko_created_at DESC NULLS LAST, c.created_at DESC
+     LIMIT LEAST(GREATEST(p_limit, 1), 500)
 $$;
 
-REVOKE ALL ON FUNCTION public.crm_link_imported() FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.crm_link_imported() TO service_role;
+REVOKE ALL ON FUNCTION public.crm_search_clients(text, text, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.crm_search_clients(text, text, integer) TO authenticated;
+
+-- Связка импортированных строк (клиент по oko_contact_id, сделка по oko_lead_id)
+-- делается в роуте импорта по каждой пачке: один UPDATE на 220 тысяч строк не
+-- уложился бы в 30 секунд контейнера.
 
 COMMIT;

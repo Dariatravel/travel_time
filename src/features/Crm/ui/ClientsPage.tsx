@@ -13,10 +13,8 @@ import { Search } from 'lucide-react';
 import { FC, useEffect, useState } from 'react';
 
 import { useClientDeals, useClients } from '../api/crm';
-import { dealTitle, formatDate, formatMoney, STAGE_LABELS, type ClientRow, type DealRow } from '../lib/crm';
+import { dealTitle, formatDate, formatMoney, RESPONSIBLES, STAGE_LABELS, type ClientRow, type DealRow } from '../lib/crm';
 import { DealModal } from './DealModal';
-
-const RESPONSIBLES = ['Анастасия Семенова', 'Варвара', 'Виктория', 'Дарья Ботова', 'Лера', 'Май Анастасия', 'Настя', 'Светлана/Вероника'];
 
 const ClientDialog: FC<{ client: ClientRow; onClose: () => void; actor: string }> = ({ client, onClose, actor }) => {
     const { data: deals = [], isPending } = useClientDeals(client.id);

@@ -51,6 +51,49 @@ export const STAGE_LABELS: Record<Stage, string> = Object.fromEntries(
 
 export const DEAL_SOURCES = ['Avito', 'VK', 'WhatsApp', 'Telegram', 'Max'] as const;
 
+/** Ответственные — как в справочнике OKO. */
+export const RESPONSIBLES = [
+    'Анастасия Семенова',
+    'Варвара',
+    'Виктория',
+    'Дарья Ботова',
+    'Лера',
+    'Май Анастасия',
+    'Настя',
+    'Светлана/Вероника',
+] as const;
+
+/** Телефон к виду +7XXXXXXXXXX — так же, как oko_prepare_import.normalize_phone. */
+export const normalizePhone = (raw: string): string | null => {
+    let digits = raw.replace(/\D/g, '');
+    if (digits.length === 11 && (digits[0] === '7' || digits[0] === '8')) digits = '7' + digits.slice(1);
+    else if (digits.length === 10) digits = '7' + digits;
+    if (digits.length < 10) return null;
+
+    return `+${digits}`;
+};
+
+/**
+ * Пачка для импорта: только объекты с ключом, без повторов по ключу
+ * (последняя строка побеждает), только разрешённые колонки.
+ */
+export const sanitizeRows = (
+    rows: unknown,
+    spec: { conflict: string; columns: string[] },
+): Record<string, unknown>[] => {
+    if (!Array.isArray(rows)) return [];
+    const byKey = new Map<string, Record<string, unknown>>();
+    for (const raw of rows) {
+        if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
+        const row = raw as Record<string, unknown>;
+        const key = row[spec.conflict];
+        if (key == null || key === '') continue;
+        byKey.set(String(key), Object.fromEntries(spec.columns.filter((c) => c in row).map((c) => [c, row[c]])));
+    }
+
+    return [...byKey.values()];
+};
+
 export type DealRow = {
     id: string;
     oko_lead_id: number | null;
@@ -81,6 +124,7 @@ export type DealRow = {
     tags: string[];
     oko_created_at: string | null;
     oko_updated_at: string | null;
+    oko_closed_at?: string | null;
     arrived_stage_at: string | null;
     oko_url: string | null;
     created_at: string;
@@ -213,7 +257,8 @@ export const clientSearchTerm = (raw: string): { phoneDigits: string | null; nam
     if (!trimmed) return { phoneDigits: null, name: null };
     const digits = trimmed.replace(/\D/g, '');
     if (digits.length >= 4 && digits.length >= trimmed.replace(/[\s()+-]/g, '').length) {
-        return { phoneDigits: digits.length === 11 && digits[0] === '8' ? '7' + digits.slice(1) : digits, name: null };
+        // В базе номера хранятся как +7…; ввод «8 900…» ищем как «7900…».
+        return { phoneDigits: digits[0] === '8' ? '7' + digits.slice(1) : digits, name: null };
     }
 
     return { phoneDigits: null, name: trimmed };

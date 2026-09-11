@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
 import {
     clientSearchTerm,
+    normalizePhone,
     type ClientRow,
     type DealMessageRow,
     type DealRow,
@@ -13,7 +14,7 @@ import {
 export const CRM_KEYS = {
     deals: (pipeline: Pipeline) => ['crm', 'deals', pipeline] as const,
     deal: (id: string) => ['crm', 'deal', id] as const,
-    messages: (dealId: string) => ['crm', 'messages', dealId] as const,
+    messages: (clientId: string) => ['crm', 'messages', clientId] as const,
     clients: (term: string) => ['crm', 'clients', term] as const,
     clientDeals: (clientId: string) => ['crm', 'client-deals', clientId] as const,
     counts: ['crm', 'counts'] as const,
@@ -27,12 +28,16 @@ const messagesTable = () => supabase.from('deal_messages');
 const DEAL_SELECT = '*, clients(id, name, phones, emails, responsible, oko_contact_id)';
 /** Колонки «Заявка» и «Думают» в OKO держат тысячи сделок; для канбана хватает свежих. */
 export const DEALS_PER_STAGE = 60;
+/** Переписка: последние N сообщений (самые длинные чаты в выгрузке — до 770). */
+export const MESSAGES_LIMIT = 800;
 
 const authHeaders = async (): Promise<HeadersInit> => {
     const { data } = await supabase.auth.getSession();
     const token = data.session?.access_token;
 
-    return token ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json' };
+    return token
+        ? { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }
+        : { 'Content-Type': 'application/json' };
 };
 
 /** Сделки воронки: по каждому этапу — последние DEALS_PER_STAGE + точный счётчик и сумма. */
@@ -49,7 +54,7 @@ export const useDealsBoard = (pipeline: Pipeline, stages: Stage[]) =>
                             .select(DEAL_SELECT)
                             .eq('pipeline', pipeline)
                             .eq('stage', stage)
-                            .order('arrived_stage_at', { ascending: false, nullsFirst: false })
+                            .order('arrived_stage_at', { ascending: false })
                             .limit(DEALS_PER_STAGE);
                         if (error) throw error;
 
@@ -70,19 +75,20 @@ export const useDealsBoard = (pipeline: Pipeline, stages: Stage[]) =>
         },
     });
 
-export const useDealMessages = (dealId?: string, enabled = true) =>
+/** Переписка клиента (в OKO чат — на контакт): последние MESSAGES_LIMIT, в хронологическом порядке. */
+export const useClientMessages = (clientId?: string | null, enabled = true) =>
     useQuery({
-        queryKey: CRM_KEYS.messages(dealId ?? ''),
-        enabled: !!dealId && enabled,
+        queryKey: CRM_KEYS.messages(clientId ?? ''),
+        enabled: !!clientId && enabled,
         queryFn: async () => {
             const { data, error } = await messagesTable()
                 .select('*')
-                .eq('deal_id', dealId)
-                .order('sent_at', { ascending: true })
-                .limit(500);
+                .eq('client_id', clientId)
+                .order('sent_at', { ascending: false })
+                .limit(MESSAGES_LIMIT);
             if (error) throw error;
 
-            return (data ?? []) as DealMessageRow[];
+            return ((data ?? []) as DealMessageRow[]).reverse();
         },
     });
 
@@ -91,7 +97,7 @@ export type DealPatch = Partial<
         DealRow,
         | 'title' | 'stage' | 'pipeline' | 'source' | 'responsible' | 'hotel_title' | 'check_in' | 'check_out'
         | 'people' | 'price_per_night' | 'nights' | 'service_note' | 'total' | 'prepaid' | 'to_pay'
-        | 'payment_bank' | 'payment_date' | 'comment' | 'reserve_id'
+        | 'payment_bank' | 'payment_date' | 'comment' | 'refund_amount' | 'penalty' | 'reserve_id'
     >
 >;
 
@@ -99,9 +105,15 @@ export const useSaveDeal = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (input: { id: string; patch: DealPatch; actor: string }) => {
+        mutationFn: async (input: { id: string; patch: DealPatch; actor: string; stageChanged: boolean }) => {
+            const now = new Date().toISOString();
             const { error } = await dealsTable()
-                .update({ ...input.patch, updated_at: new Date().toISOString(), updated_by: input.actor })
+                .update({
+                    ...input.patch,
+                    ...(input.stageChanged ? { arrived_stage_at: now } : {}),
+                    updated_at: now,
+                    updated_by: input.actor,
+                })
                 .eq('id', input.id);
             if (error) throw error;
         },
@@ -109,24 +121,30 @@ export const useSaveDeal = () => {
     });
 };
 
+/** Найти клиента по номеру или создать. Номер приводится к +7…, дубли не плодятся. */
+const findOrCreateClient = async (name: string, phoneRaw: string, responsible: string): Promise<string | null> => {
+    const phone = phoneRaw ? normalizePhone(phoneRaw) : null;
+    if (phone) {
+        const { data, error } = await clientsTable().select('id').filter('phones', 'cs', `{${phone}}`).limit(1);
+        if (error) throw error;
+        if (data && data.length > 0) return (data[0] as { id: string }).id;
+    }
+    if (!name && !phone) return null;
+    const { data, error } = await clientsTable()
+        .insert({ name: name || null, phones: phone ? [phone] : [], responsible })
+        .select('id')
+        .single();
+    if (error) throw error;
+
+    return (data as { id: string }).id;
+};
+
 export const useCreateDeal = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
         mutationFn: async (input: { title: string; source: string | null; responsible: string; clientName: string; clientPhone: string }) => {
-            let clientId: string | null = null;
-            if (input.clientName || input.clientPhone) {
-                const { data, error } = await clientsTable()
-                    .insert({
-                        name: input.clientName || null,
-                        phones: input.clientPhone ? [input.clientPhone] : [],
-                        responsible: input.responsible,
-                    })
-                    .select('id')
-                    .single();
-                if (error) throw error;
-                clientId = (data as { id: string }).id;
-            }
+            const clientId = await findOrCreateClient(input.clientName, input.clientPhone, input.responsible);
             const { error } = await dealsTable().insert({
                 title: input.title || null,
                 client_id: clientId,
@@ -143,30 +161,20 @@ export const useCreateDeal = () => {
     });
 };
 
-/** Клиенты: без запроса — последние; по телефону — цифры; по имени — подстрока. */
+/** Клиенты: без запроса — последние; поиск на сервере по имени или цифрам номера. */
 export const useClients = (term: string) =>
     useQuery({
         queryKey: CRM_KEYS.clients(term),
         queryFn: async () => {
             const { phoneDigits, name } = clientSearchTerm(term);
-            let query = clientsTable().select('*').order('oko_created_at', { ascending: false, nullsFirst: false }).limit(100);
-            if (name) query = query.ilike('name', `%${name.replace(/[%_]/g, '')}%`);
-            if (phoneDigits) query = query.filter('phones', 'cs', `{+${phoneDigits}}`);
-            const { data, error } = await query;
+            const { data, error } = await supabase.rpc('crm_search_clients', {
+                p_name: name ? name.replace(/[%_*]/g, '') : null,
+                p_digits: phoneDigits,
+                p_limit: 100,
+            });
             if (error) throw error;
-            const rows = (data ?? []) as ClientRow[];
-            // Поиск по части номера: точное совпадение массива не найдёт «+7900…» по «7900» — добираем на клиенте.
-            if (phoneDigits && rows.length === 0) {
-                const { data: wide, error: wideError } = await clientsTable()
-                    .select('*')
-                    .order('oko_created_at', { ascending: false, nullsFirst: false })
-                    .limit(2000);
-                if (wideError) throw wideError;
 
-                return ((wide ?? []) as ClientRow[]).filter((c) => c.phones.some((p) => p.replace(/\D/g, '').includes(phoneDigits))).slice(0, 100);
-            }
-
-            return rows;
+            return (data ?? []) as ClientRow[];
         },
     });
 
@@ -178,7 +186,7 @@ export const useClientDeals = (clientId?: string) =>
             const { data, error } = await dealsTable()
                 .select(DEAL_SELECT)
                 .eq('client_id', clientId)
-                .order('oko_created_at', { ascending: false, nullsFirst: false })
+                .order('created_at', { ascending: false })
                 .limit(50);
             if (error) throw error;
 
@@ -213,17 +221,5 @@ export const importBatch = async (table: 'clients' | 'deals' | 'deal_messages', 
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(payload?.error ?? `HTTP ${response.status}`);
 
-    return payload as { ok: true; written: number };
-};
-
-export const importLink = async () => {
-    const response = await fetch('/api/crm/import', {
-        method: 'POST',
-        headers: await authHeaders(),
-        body: JSON.stringify({ action: 'link' }),
-    });
-    const payload = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(payload?.error ?? `HTTP ${response.status}`);
-
-    return payload as { ok: true; deals_linked?: number; messages_linked?: number };
+    return payload as { ok: true; written: number; skipped: number };
 };

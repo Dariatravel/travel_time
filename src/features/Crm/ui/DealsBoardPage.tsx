@@ -26,13 +26,12 @@ import {
     formatMoney,
     groupByStage,
     PIPELINES,
+    RESPONSIBLES,
     type DealRow,
     type Pipeline,
     type StageColumn,
 } from '../lib/crm';
 import { DealModal } from './DealModal';
-
-const RESPONSIBLES = ['Анастасия Семенова', 'Варвара', 'Виктория', 'Дарья Ботова', 'Лера', 'Май Анастасия', 'Настя', 'Светлана/Вероника'];
 
 const DealCard: FC<{ deal: DealRow; nowMs: number; onOpen: (deal: DealRow) => void }> = ({ deal, nowMs, onOpen }) => {
     const client = clientOf(deal);

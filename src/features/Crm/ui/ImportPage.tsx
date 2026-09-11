@@ -6,26 +6,75 @@ import { isCrmEnabled } from '@/shared/config/featureFlags';
 import { $user } from '@/shared/models/auth';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useUnit } from 'effector-react/compat';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 
-import { importBatch, importLink, useCrmCounts } from '../api/crm';
-import { chunk, importTableForFile, parseJsonl } from '../lib/crm';
+import { importBatch, useCrmCounts } from '../api/crm';
+import { importTableForFile } from '../lib/crm';
 
 const BATCH = 500;
+const ORDER = { clients: 0, deals: 1, deal_messages: 2 } as const;
 
-type Progress = { file: string; table: string; total: number; done: number; broken: number; error?: string };
+type Progress = {
+    id: number;
+    file: string;
+    table: string;
+    sent: number;
+    written: number;
+    skipped: number;
+    broken: number;
+    done: boolean;
+    error?: string;
+};
+
+/**
+ * Читает JSONL-файл потоком, по строкам, и отдаёт пачки — файл переписок
+ * весит ~100 МБ, целиком в памяти вкладки его держать нельзя.
+ */
+async function* readJsonlBatches(file: File, size: number, onBroken: () => void) {
+    const reader = file.stream().pipeThrough(new TextDecoderStream()).getReader();
+    let tail = '';
+    let batch: Record<string, unknown>[] = [];
+    const push = (line: string) => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        try {
+            const value = JSON.parse(trimmed);
+            if (value && typeof value === 'object' && !Array.isArray(value)) batch.push(value as Record<string, unknown>);
+            else onBroken();
+        } catch {
+            onBroken();
+        }
+    };
+    for (;;) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        const parts = (tail + value).split('\n');
+        tail = parts.pop() ?? '';
+        for (const line of parts) {
+            push(line);
+            if (batch.length >= size) {
+                yield batch;
+                batch = [];
+            }
+        }
+    }
+    push(tail);
+    if (batch.length > 0) yield batch;
+}
 
 /**
  * Импорт из OKO: файлы clients/deals/messages.jsonl (их готовит
- * oko_prepare_import.py на Mac mini) читаются в браузере и уходят на сервер
- * пачками по 500 строк. Повторный импорт безопасен — строки обновляются по
- * идентификатору OKO.
+ * oko_prepare_import.py на Mac mini) читаются в браузере потоком и уходят
+ * на сервер пачками по 500 строк. Повторный импорт безопасен: строки
+ * обновляются по идентификатору OKO, а сделки, которые уже правили в
+ * шахматке, не трогаются.
  */
 export const ImportPage = () => {
     const user = useUnit($user);
     const { data: counts, refetch } = useCrmCounts();
     const [progress, setProgress] = useState<Progress[]>([]);
     const [busy, setBusy] = useState(false);
+    const stopRef = useRef(false);
 
     if (!isCrmEnabled(user?.role)) {
         return (
@@ -38,41 +87,52 @@ export const ImportPage = () => {
         );
     }
 
+    const update = (id: number, patch: Partial<Progress>) =>
+        setProgress((p) => p.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+
     const onFiles = async (files: FileList | null) => {
         if (!files || files.length === 0) return;
-        setBusy(true);
-        const list = Array.from(files).sort((a, b) => {
-            // Сначала клиенты, потом сделки, потом сообщения — чтобы связка сработала.
-            const order = { clients: 0, deals: 1, deal_messages: 2 } as const;
+        const list = Array.from(files).sort(
+            (a, b) => (ORDER[importTableForFile(a.name) ?? 'deal_messages'] ?? 9) - (ORDER[importTableForFile(b.name) ?? 'deal_messages'] ?? 9),
+        );
+        const summary = list.map((f) => `${f.name} (${Math.round(f.size / 1024 / 1024)} МБ)`).join(', ');
+        if (!window.confirm(`Загрузить в базу: ${summary}? Сделки, которые уже правили в шахматке, не изменятся.`)) return;
 
-            return (order[importTableForFile(a.name) ?? 'deal_messages'] ?? 9) - (order[importTableForFile(b.name) ?? 'deal_messages'] ?? 9);
-        });
+        setBusy(true);
+        stopRef.current = false;
         try {
             for (const file of list) {
+                const id = Date.now() + Math.random();
                 const table = importTableForFile(file.name);
+                const item: Progress = { id, file: file.name, table: table ?? '—', sent: 0, written: 0, skipped: 0, broken: 0, done: false };
+                setProgress((p) => [...p, item]);
                 if (!table) {
-                    setProgress((p) => [...p, { file: file.name, table: '—', total: 0, done: 0, broken: 0, error: 'Имя файла должно начинаться с clients / deals / messages' }]);
+                    update(id, { error: 'Имя файла должно начинаться с clients / deals / messages', done: true });
                     continue;
                 }
-                const text = await file.text();
-                const { rows, broken } = parseJsonl(text);
-                const item: Progress = { file: file.name, table, total: rows.length, done: 0, broken };
-                setProgress((p) => [...p, item]);
-                for (const batch of chunk(rows, BATCH)) {
-                    await importBatch(table, batch);
-                    item.done += batch.length;
-                    setProgress((p) => p.map((x) => (x.file === item.file ? { ...item } : x)));
+                try {
+                    for await (const batch of readJsonlBatches(file, BATCH, () => {
+                        item.broken += 1;
+                    })) {
+                        if (stopRef.current) throw new Error('Остановлено');
+                        const result = await importBatch(table, batch);
+                        item.sent += batch.length;
+                        item.written += result.written;
+                        item.skipped += result.skipped;
+                        update(id, { sent: item.sent, written: item.written, skipped: item.skipped, broken: item.broken });
+                    }
+                    update(id, { done: true, broken: item.broken });
+                } catch (error) {
+                    update(id, { error: error instanceof Error ? error.message : 'Импорт не удался', done: true });
+                    throw error;
                 }
             }
-            const link = await importLink();
-            showToast(`Импорт завершён. Связано сделок: ${link.deals_linked ?? 0}, сообщений: ${link.messages_linked ?? 0}`, 'success');
-            void refetch();
+            showToast('Импорт завершён', 'success');
         } catch (error) {
-            const message = error instanceof Error ? error.message : 'Импорт не удался';
-            setProgress((p) => p.map((x, i) => (i === p.length - 1 ? { ...x, error: message } : x)));
-            showToast(message, 'error');
+            showToast(error instanceof Error ? error.message : 'Импорт не удался', 'error');
         } finally {
             setBusy(false);
+            void refetch();
         }
     };
 
@@ -82,36 +142,45 @@ export const ImportPage = () => {
                 <CardHeader className="p-4">
                     <CardTitle>Импорт из OKO</CardTitle>
                     <CardDescription>
-                        Выберите файлы clients.jsonl, deals.jsonl, messages.jsonl из папки oko-импорт на Mac mini (можно все сразу).
-                        Загрузка идёт пачками, повторный импорт не создаёт дублей. В базе сейчас: клиентов {counts?.clients ?? '…'},
-                        сделок {counts?.deals ?? '…'}, сообщений {counts?.messages ?? '…'}.
+                        Выберите файлы clients.jsonl, deals.jsonl, messages.jsonl из папки oko-импорт на Mac mini (можно все сразу —
+                        порядок выставится сам). Загрузка идёт пачками; повторный импорт не создаёт дублей и не трогает сделки,
+                        которые уже правили здесь. В базе сейчас: клиентов {counts?.clients ?? '…'}, сделок {counts?.deals ?? '…'},
+                        сообщений {counts?.messages ?? '…'}.
                     </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 p-4 pt-0">
-                    <input
-                        type="file"
-                        accept=".jsonl,.json,.txt"
-                        multiple
-                        disabled={busy}
-                        onChange={(e) => {
-                            void onFiles(e.target.files);
-                            e.target.value = '';
-                        }}
-                    />
+                    <div className="flex flex-wrap items-center gap-3">
+                        <input
+                            type="file"
+                            accept=".jsonl,.json,.txt"
+                            multiple
+                            disabled={busy}
+                            onChange={(e) => {
+                                void onFiles(e.target.files);
+                                e.target.value = '';
+                            }}
+                        />
+                        {busy && (
+                            <Button type="button" size="sm" variant="outline" onClick={() => (stopRef.current = true)}>
+                                Остановить
+                            </Button>
+                        )}
+                    </div>
                     {progress.length > 0 && (
                         <ul className="space-y-1 text-sm">
                             {progress.map((p) => (
-                                <li key={p.file} className={p.error ? 'text-destructive' : ''}>
-                                    {p.file} → {p.table}: {p.done} / {p.total}
-                                    {p.broken > 0 ? ` (битых строк: ${p.broken})` : ''}
-                                    {p.error ? ` — ${p.error}` : p.done === p.total && p.total > 0 ? ' ✓' : ''}
+                                <li key={p.id} className={p.error ? 'text-destructive' : ''}>
+                                    {p.file} → {p.table}: отправлено {p.sent}, записано {p.written}
+                                    {p.skipped > 0 ? `, пропущено ${p.skipped}` : ''}
+                                    {p.broken > 0 ? `, битых строк ${p.broken}` : ''}
+                                    {p.error ? ` — ${p.error}` : p.done ? ' ✓' : ' …'}
                                 </li>
                             ))}
                         </ul>
                     )}
-                    <Button type="button" variant="outline" disabled={busy} onClick={() => importLink().then((r) => showToast(`Связано сделок: ${r.deals_linked ?? 0}, сообщений: ${r.messages_linked ?? 0}`, 'success')).catch((e: unknown) => showToast(e instanceof Error ? e.message : 'Ошибка', 'error'))}>
-                        Связать сделки с клиентами и переписками
-                    </Button>
+                    <p className="text-xs text-muted-foreground">
+                        Если загрузка оборвалась — просто выберите тот же файл ещё раз: уже загруженные строки обновятся без дублей.
+                    </p>
                 </CardContent>
             </Card>
         </div>

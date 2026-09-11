@@ -9,9 +9,9 @@ import { Textarea } from '@/components/ui/textarea';
 import { TravelDialog } from '@/shared/ui/TravelDialog/TravelDialog';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import dayjs from 'dayjs';
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useDealMessages, useSaveDeal, type DealPatch } from '../api/crm';
+import { useClientMessages, useSaveDeal, type DealPatch } from '../api/crm';
 import {
     clientOf,
     DEAL_SOURCES,
@@ -20,6 +20,7 @@ import {
     PIPELINES,
     STAGE_LABELS,
     type DealRow,
+    type Pipeline,
     type Stage,
 } from '../lib/crm';
 
@@ -28,7 +29,7 @@ export interface DealModalProps {
     onClose: () => void;
     deal: DealRow;
     actor: string;
-    responsibles: string[];
+    responsibles: readonly string[];
 }
 
 type Tab = 'main' | 'chat';
@@ -47,64 +48,65 @@ const numberOrNull = (value: string): number | null => {
 
 const asInput = (value: number | string | null | undefined) => (value == null ? '' : String(value));
 
+const formFromDeal = (deal: DealRow) => ({
+    title: deal.title ?? '',
+    pipeline: deal.pipeline,
+    stage: deal.stage,
+    source: deal.source ?? '',
+    responsible: deal.responsible ?? '',
+    hotel_title: deal.hotel_title ?? '',
+    check_in: deal.check_in ?? '',
+    check_out: deal.check_out ?? '',
+    people: asInput(deal.people),
+    price_per_night: asInput(deal.price_per_night),
+    nights: asInput(deal.nights),
+    service_note: deal.service_note ?? '',
+    total: asInput(deal.total),
+    prepaid: asInput(deal.prepaid),
+    to_pay: asInput(deal.to_pay),
+    payment_bank: deal.payment_bank ?? '',
+    payment_date: deal.payment_date ?? '',
+    comment: deal.comment ?? '',
+    refund_amount: asInput(deal.refund_amount),
+    penalty: asInput(deal.penalty),
+});
+
 /**
  * Карточка сделки — по образцу OKO: слева «Основное» с теми же полями,
- * справа вкладки «Лента/Чат». Стадия меняется выпадающим списком.
+ * справа «Лента» и «Чат» (переписка клиента — в OKO чат на контакт).
+ * Этап меняется выпадающим списком; воронку можно сменить (продажи → возврат).
  */
 export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, responsibles }) => {
     const save = useSaveDeal();
     const [tab, setTab] = useState<Tab>('main');
-    const { data: messages = [], isPending: isChatPending } = useDealMessages(deal.id, isOpen && tab === 'chat');
     const client = clientOf(deal);
-    const stages = useMemo(() => PIPELINES.find((p) => p.key === deal.pipeline)?.stages ?? [], [deal.pipeline]);
+    const { data: messages = [], isPending: isChatPending } = useClientMessages(
+        deal.client_id ?? client?.id ?? null,
+        isOpen && tab === 'chat',
+    );
 
-    const [form, setForm] = useState({
-        title: deal.title ?? '',
-        stage: deal.stage,
-        source: deal.source ?? '',
-        responsible: deal.responsible ?? '',
-        hotel_title: deal.hotel_title ?? '',
-        check_in: deal.check_in ?? '',
-        check_out: deal.check_out ?? '',
-        people: asInput(deal.people),
-        price_per_night: asInput(deal.price_per_night),
-        nights: asInput(deal.nights),
-        service_note: deal.service_note ?? '',
-        total: asInput(deal.total),
-        prepaid: asInput(deal.prepaid),
-        to_pay: asInput(deal.to_pay),
-        payment_bank: deal.payment_bank ?? '',
-        payment_date: deal.payment_date ?? '',
-        comment: deal.comment ?? '',
-    });
-
+    const [form, setForm] = useState(() => formFromDeal(deal));
+    // Форма заполняется из сделки только когда сделка реально изменилась (updated_at),
+    // а не при каждом перечитывании списка — несохранённые правки не пропадают.
+    const loadedVersion = useRef<string>(deal.updated_at);
     useEffect(() => {
-        setForm({
-            title: deal.title ?? '',
-            stage: deal.stage,
-            source: deal.source ?? '',
-            responsible: deal.responsible ?? '',
-            hotel_title: deal.hotel_title ?? '',
-            check_in: deal.check_in ?? '',
-            check_out: deal.check_out ?? '',
-            people: asInput(deal.people),
-            price_per_night: asInput(deal.price_per_night),
-            nights: asInput(deal.nights),
-            service_note: deal.service_note ?? '',
-            total: asInput(deal.total),
-            prepaid: asInput(deal.prepaid),
-            to_pay: asInput(deal.to_pay),
-            payment_bank: deal.payment_bank ?? '',
-            payment_date: deal.payment_date ?? '',
-            comment: deal.comment ?? '',
-        });
+        if (loadedVersion.current === deal.updated_at) return;
+        loadedVersion.current = deal.updated_at;
+        setForm(formFromDeal(deal));
     }, [deal]);
 
+    const stages = useMemo(() => PIPELINES.find((p) => p.key === form.pipeline)?.stages ?? [], [form.pipeline]);
     const set = (key: keyof typeof form) => (value: string) => setForm((f) => ({ ...f, [key]: value }));
+    const setPipeline = (value: string) => {
+        const pipeline = value as Pipeline;
+        const first = PIPELINES.find((p) => p.key === pipeline)?.stages[0]?.key ?? form.stage;
+        setForm((f) => ({ ...f, pipeline, stage: first }));
+    };
 
     const onSave = async () => {
         const patch: DealPatch = {
             title: form.title || null,
+            pipeline: form.pipeline,
             stage: form.stage as Stage,
             source: form.source || null,
             responsible: form.responsible || null,
@@ -121,9 +123,16 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
             payment_bank: form.payment_bank || null,
             payment_date: form.payment_date || null,
             comment: form.comment || null,
+            refund_amount: numberOrNull(form.refund_amount),
+            penalty: numberOrNull(form.penalty),
         };
         try {
-            await save.mutateAsync({ id: deal.id, patch, actor });
+            await save.mutateAsync({
+                id: deal.id,
+                patch,
+                actor,
+                stageChanged: form.stage !== deal.stage || form.pipeline !== deal.pipeline,
+            });
             showToast('Сделка сохранена', 'success');
         } catch (error) {
             showToast(error instanceof Error ? error.message : 'Не сохранилось', 'error');
@@ -136,6 +145,8 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
             <Input type={type} value={form[key]} placeholder="Введите значение" onChange={(e) => set(key)(e.target.value)} />
         </div>
     );
+
+    const stageIndex = stages.findIndex((x) => x.key === form.stage);
 
     return (
         <TravelDialog
@@ -156,34 +167,42 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
                             <Label>Название сделки</Label>
                             <Input value={form.title} placeholder="Название сделки" onChange={(e) => set('title')(e.target.value)} />
                         </div>
-                        <div className="space-y-1">
-                            <Label>Этап</Label>
-                            <Select value={form.stage} onValueChange={set('stage')}>
-                                <SelectTrigger>
-                                    <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {stages.map((s) => (
-                                        <SelectItem key={s.key} value={s.key}>
-                                            {s.label}
-                                        </SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <div className="flex gap-1">
-                                {stages.map((s) => (
-                                    <span
-                                        key={s.key}
-                                        className="h-1 flex-1 rounded"
-                                        style={{
-                                            background:
-                                                stages.findIndex((x) => x.key === s.key) <= stages.findIndex((x) => x.key === form.stage)
-                                                    ? s.color
-                                                    : '#e5e7eb',
-                                        }}
-                                    />
-                                ))}
+                        <div className="grid gap-2 sm:grid-cols-2">
+                            <div className="space-y-1">
+                                <Label>Воронка</Label>
+                                <Select value={form.pipeline} onValueChange={setPipeline}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {PIPELINES.map((p) => (
+                                            <SelectItem key={p.key} value={p.key}>
+                                                {p.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                             </div>
+                            <div className="space-y-1">
+                                <Label>Этап</Label>
+                                <Select value={form.stage} onValueChange={set('stage')}>
+                                    <SelectTrigger>
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {stages.map((s) => (
+                                            <SelectItem key={s.key} value={s.key}>
+                                                {s.label}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        </div>
+                        <div className="flex gap-1">
+                            {stages.map((s, i) => (
+                                <span key={s.key} className="h-1 flex-1 rounded" style={{ background: i <= stageIndex ? s.color : '#e5e7eb' }} />
+                            ))}
                         </div>
                         <div className="grid gap-2 sm:grid-cols-2">
                             <div className="space-y-1">
@@ -253,6 +272,12 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
                             </div>
                             {text('Дата брони', 'payment_date', 'date')}
                         </div>
+                        {form.pipeline === 'refund' && (
+                            <div className="grid gap-2 sm:grid-cols-2">
+                                {text('Сумма возврата', 'refund_amount', 'number')}
+                                {text('Сумма штрафа', 'penalty', 'number')}
+                            </div>
+                        )}
                         <div className="space-y-1">
                             <Label>Комментарий</Label>
                             <Textarea rows={3} value={form.comment} onChange={(e) => set('comment')(e.target.value)} />
@@ -280,20 +305,14 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
                     <div className="space-y-3">
                         <div className="flex gap-2">
                             {(['main', 'chat'] as Tab[]).map((key) => (
-                                <Button
-                                    key={key}
-                                    type="button"
-                                    size="sm"
-                                    variant={tab === key ? 'default' : 'outline'}
-                                    onClick={() => setTab(key)}
-                                >
+                                <Button key={key} type="button" size="sm" variant={tab === key ? 'default' : 'outline'} onClick={() => setTab(key)}>
                                     {key === 'main' ? 'Лента' : 'Чат'}
                                 </Button>
                             ))}
                         </div>
                         {tab === 'main' && (
                             <div className="space-y-1 text-sm text-muted-foreground">
-                                <div>Создана: {deal.oko_created_at ? dayjs(deal.oko_created_at).format('DD.MM.YYYY HH:mm') : dayjs(deal.created_at).format('DD.MM.YYYY HH:mm')}</div>
+                                <div>Создана: {dayjs(deal.oko_created_at ?? deal.created_at).format('DD.MM.YYYY HH:mm')}</div>
                                 {deal.arrived_stage_at && <div>На этапе с: {dayjs(deal.arrived_stage_at).format('DD.MM.YYYY HH:mm')}</div>}
                                 {deal.updated_by && <div>Последняя правка: {deal.updated_by}</div>}
                                 <div>Сумма: {formatMoney(deal.total)} · предоплата {formatMoney(deal.prepaid)}</div>
@@ -306,13 +325,10 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
                                     <div className="text-muted-foreground">Переписки нет (или ещё не импортирована).</div>
                                 )}
                                 {messages.map((m) => (
-                                    <div
-                                        key={m.id}
-                                        className={`max-w-[85%] rounded-lg px-3 py-2 ${m.direction === 'in' ? 'bg-white' : 'ml-auto bg-green-50'}`}
-                                    >
+                                    <div key={m.id} className={`max-w-[85%] rounded-lg px-3 py-2 ${m.direction === 'in' ? 'bg-white' : 'ml-auto bg-green-50'}`}>
                                         <div className="text-[11px] text-muted-foreground">
                                             {m.author_name ?? (m.direction === 'in' ? 'Клиент' : 'Менеджер')} ·{' '}
-                                            {m.sent_at ? dayjs(m.sent_at).format('DD.MM HH:mm') : ''}
+                                            {m.sent_at ? dayjs(m.sent_at).format('DD.MM.YY HH:mm') : ''}
                                         </div>
                                         {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
                                         {m.files.length > 0 && <div className="text-xs">📎 {m.files.join(', ')}</div>}
