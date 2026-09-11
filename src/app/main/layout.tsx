@@ -7,8 +7,16 @@ import { isStaffRole } from '@/shared/lib/userRoles';
 import { useAuth } from '@/shared/lib/useAuth';
 import { $user } from '@/shared/models/auth';
 import { useUnit } from 'effector-react';
-import { isBookingCardEnabled } from '@/shared/config/featureFlags';
-import { Building2, Calendar, ClipboardList, HomeIcon, LayoutDashboard, UserCog } from 'lucide-react';
+import { isBookingCardEnabled, isMorningEnabled } from '@/shared/config/featureFlags';
+import {
+    Building2,
+    Calendar,
+    ClipboardList,
+    HomeIcon,
+    LayoutDashboard,
+    Sunrise,
+    UserCog,
+} from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
@@ -47,7 +55,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   label: 'Операционный центр',
                   icon: LayoutDashboard,
               },
-              // Карточки броней (этап 1 единой программы) — за флагом/для admin.
+              // «Утро менеджера» (этап 2) и карточки броней (этап 1) — за флагом/для admin.
+              ...(isMorningEnabled(user?.role)
+                  ? [{ href: routes[PagesEnum.MORNING], label: 'Утро', icon: Sunrise }]
+                  : []),
               ...(isBookingCardEnabled(user?.role)
                   ? [{ href: routes[PagesEnum.BOOKINGS], label: 'Брони', icon: ClipboardList }]
                   : []),

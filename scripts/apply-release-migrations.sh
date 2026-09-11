@@ -14,6 +14,7 @@ migrations=(
     "supabase/migrations/20260827100000_assignable_users_with_surname.sql"
     "supabase/migrations/20260909120000_add_hotel_survey.sql"
     "supabase/migrations/20260911160000_add_booking_cards.sql"
+    "supabase/migrations/20260912090000_add_guest_touchpoints.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.
