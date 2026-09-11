@@ -6,12 +6,19 @@
 
 import { createClient } from '@supabase/supabase-js';
 
+import { requestError, withRequestRetry } from './lib/retryRequest.mjs';
+
 const NIGHT = 86400;
 const MIRROR_SOURCE_TAG = 'mirror_shelter';
 const FD_AVAILABLE_DATES = 'https://pms.frontdesk24.ru/api/online/getAvailableDates';
 const FD_VARIANTS = 'https://pms.frontdesk24.ru/api/online/getVariants';
 const HORIZON_DAYS = 365;
 const FETCH_BATCH = 8;
+// FrontDesk24 отвечает медленно и время от времени срывается. Без повтора одна
+// осечка из сотен запросов отменяла синхронизацию всего отеля.
+const FD_TIMEOUT_MS = 30_000;
+const FD_RETRIES = 2;
+const FD_RETRY_DELAY_MS = 400;
 const transactionalIcalSyncEnabled =
     process.env.TRANSACTIONAL_ICAL_SYNC_ENABLED?.trim().toLowerCase() !== 'false';
 const configuredMinRetainedRatio =
@@ -112,21 +119,30 @@ const dateOfNight = (night) => new Date(night * NIGHT * 1000);
 
 // getVariants → число свободных номеров по категориям на конкретный день.
 const fetchAvailableRooms = async (token, dateFrom, dateTo) => {
-    const res = await fetch(FD_VARIANTS, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        cache: 'no-store',
-        body: JSON.stringify({
-            token,
-            language: 'ru',
-            dateFrom,
-            dateTo,
-            currency: 'RUB',
-            rooms: [{ adults: 2, children: [] }],
-            onlyRostourismProgram: 0,
-        }),
-    });
-    if (!res.ok) throw new Error(`FrontDesk24 getVariants: ${res.status}`);
+    // Повтор здесь решает судьбу всего отеля: запрос делается на КАЖДУЮ
+    // свободную ночь горизонта (до 365), и одна осечка из сотен помечала ответ
+    // источника неполным — занятость тогда не обновлялась вовсе.
+    const res = await withRequestRetry(async () => {
+        const response = await fetch(FD_VARIANTS, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            cache: 'no-store',
+            signal: AbortSignal.timeout(FD_TIMEOUT_MS),
+            body: JSON.stringify({
+                token,
+                language: 'ru',
+                dateFrom,
+                dateTo,
+                currency: 'RUB',
+                rooms: [{ adults: 2, children: [] }],
+                onlyRostourismProgram: 0,
+            }),
+        });
+        // Статус кладём в ошибку: повтор сам отличит временный сбой от отказа.
+        if (!response.ok) throw requestError(`FrontDesk24 getVariants: ${response.status}`, response.status);
+
+        return response;
+    }, { retries: FD_RETRIES, baseDelayMs: FD_RETRY_DELAY_MS });
     const json = await res.json();
     if (!Array.isArray(json?.data) || (json.data.length > 0 && !Array.isArray(json.data[0]))) {
         throw new Error('FrontDesk24 getVariants: некорректный ответ');
@@ -158,19 +174,26 @@ const readOccupancy = async (token, categories) => {
     let failedProbes = 0;
     let freeDateRows = [];
     try {
-        const res = await fetch(FD_AVAILABLE_DATES, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            cache: 'no-store',
-            body: JSON.stringify({
-                token,
-                language: 'ru',
-                dateFrom: isoDate(today),
-                dateTo: isoDate(end),
-                currency: 'RUB',
-            }),
-        });
-        if (!res.ok) throw new Error(`FrontDesk24 getAvailableDates: ${res.status}`);
+        const res = await withRequestRetry(async () => {
+            const response = await fetch(FD_AVAILABLE_DATES, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                cache: 'no-store',
+                signal: AbortSignal.timeout(FD_TIMEOUT_MS),
+                body: JSON.stringify({
+                    token,
+                    language: 'ru',
+                    dateFrom: isoDate(today),
+                    dateTo: isoDate(end),
+                    currency: 'RUB',
+                }),
+            });
+            if (!response.ok) {
+                throw requestError(`FrontDesk24 getAvailableDates: ${response.status}`, response.status);
+            }
+
+            return response;
+        }, { retries: FD_RETRIES, baseDelayMs: FD_RETRY_DELAY_MS });
         const json = await res.json();
         if (!Array.isArray(json?.data)) {
             throw new Error('FrontDesk24 getAvailableDates: некорректный ответ');

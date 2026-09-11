@@ -203,18 +203,51 @@ const main = async () => {
     const incidents = buildIncidents(snapshot, staleWorkflows);
     const plan = planAlertStateChanges(incidents, storedStates ?? [], now.toISOString());
 
+    let deliveryError = null;
+
     if (plan.notifications.length > 0) {
         // Сначала в лог: если Telegram сломан (битый chat_id, лежит API),
         // суть инцидента всё равно видна прямо в прогоне GitHub Actions.
         for (const notification of plan.notifications) {
             console.log(`ИНЦИДЕНТ: ${JSON.stringify(notification)}`);
         }
-        for (const message of chunkAlertMessages(plan.notifications)) {
-            await sendTelegram(message);
+        try {
+            for (const message of chunkAlertMessages(plan.notifications)) {
+                await sendTelegram(message);
+            }
+        } catch (error) {
+            deliveryError = error;
         }
     }
 
-    await saveStates(plan.activeStates, plan.resolvedStates);
+    // Состояния сохраняем ДАЖЕ когда сообщение не ушло. Раньше сбой отправки
+    // прерывал прогон до этой строки, и не сохранялось вообще ничего: ни
+    // погашенные инциденты, ни давно известные. Следующий прогон снова считал
+    // всё новым и снова падал — так проверка свежести падала каждый запуск с
+    // 05.09.2026, хотя про сами инциденты было известно с первого раза.
+    //
+    // Но инциденты, о которых сообщить НЕ удалось, оповещёнными не помечаем:
+    // иначе они замолчат навсегда, и починка чата их уже не вернёт. Их состояние
+    // не сохраняем — на следующем прогоне они снова попадут в отправку.
+    const undeliveredKeys = deliveryError
+        ? new Set(plan.notifications.map((notification) => notification.alertKey))
+        : new Set();
+    const statesToSave = plan.activeStates.filter((state) => !undeliveredKeys.has(state.alert_key));
+
+    await saveStates(statesToSave, plan.resolvedStates);
+
+    if (deliveryError) {
+        console.error(
+            deliveryError instanceof Error ? deliveryError.message : String(deliveryError),
+        );
+        console.error(
+            `Инцидентов не доставлено: ${undeliveredKeys.size}. ` +
+                'Они остаются неоповещёнными и уйдут повторно, когда чат заработает.',
+        );
+        process.exitCode = 1;
+
+        return;
+    }
 
     console.log(JSON.stringify({
         status: 'ok',

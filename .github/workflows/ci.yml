@@ -58,6 +58,7 @@ jobs:
         run: |
           npm run short-links:test
           npm run bnovo:test
+          npm run retry:test
 
       - name: Build
         run: npm run build
