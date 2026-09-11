@@ -57,7 +57,9 @@ jobs:
           sudo apt-get install -y -qq postgresql-common >/dev/null
           sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
           sudo apt-get install -y -qq postgresql-client-17 >/dev/null
-          pg_dump --version
+          # В образе runner уже стоит клиент 16 и он первый в PATH; рабочая база — 17.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Rotate staging database password and build its URL
         env:
