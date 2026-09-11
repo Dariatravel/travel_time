@@ -172,6 +172,10 @@ const readOccupancy = async (token, categories) => {
 
     let sourceComplete = true;
     let failedProbes = 0;
+    // Причины неполноты копим текстом: сообщение «источник вернул неполный
+    // ответ» одинаково для случайной осечки сети и для исчезнувшей категории,
+    // а чинятся они по-разному. Без этого причину приходилось угадывать.
+    const reasons = [];
     let freeDateRows = [];
     try {
         const res = await withRequestRetry(async () => {
@@ -199,9 +203,10 @@ const readOccupancy = async (token, categories) => {
             throw new Error('FrontDesk24 getAvailableDates: некорректный ответ');
         }
         freeDateRows = json.data;
-    } catch {
+    } catch (error) {
         sourceComplete = false;
         failedProbes += 1;
+        reasons.push(`getAvailableDates не ответил: ${error instanceof Error ? error.message : error}`);
     }
 
     const freeByCat = new Map();
@@ -220,6 +225,7 @@ const readOccupancy = async (token, categories) => {
         ) {
             sourceComplete = false;
             failedProbes += 1;
+            reasons.push('в ответе getAvailableDates есть запись без даты или категории');
             continue;
         }
         const set = freeByCat.get(categoryId);
@@ -258,6 +264,7 @@ const readOccupancy = async (token, categories) => {
             if (!complete) {
                 sourceComplete = false;
                 failedProbes += 1;
+                reasons.push(`ночь ${isoDate(dateOfNight(night))}: getVariants не ответил`);
             }
             availByNight.set(night, avail);
         }
@@ -270,8 +277,15 @@ const readOccupancy = async (token, categories) => {
         const free = freeByCat.get(c.categoryId);
         const maxNight = maxNightByCat.get(c.categoryId);
         if (maxNight < todayNight) {
+            // Категории нет в ответе вовсе либо у неё не осталось свободных дат
+            // в горизонте. Повторы тут не помогут: либо отельер поменял состав
+            // категорий, либо объект действительно распродан на год вперёд.
             sourceComplete = false;
             failedProbes += 1;
+            reasons.push(
+                `категория ${c.categoryId}: в ответе нет свободных дат от сегодня и дальше ` +
+                    '(категорию переименовали/удалили либо всё распродано)',
+            );
         }
         const byNight = new Map();
         for (let night = todayNight; night <= maxNight; night += 1) {
@@ -293,7 +307,7 @@ const readOccupancy = async (token, categories) => {
             (byNight) =>
                 byNight.size > 0 && [...byNight.values()].every((occupied) => occupied === 0),
         );
-    return { occupancy: occ, sourceComplete, confirmedEmpty, failedProbes };
+    return { occupancy: occ, sourceComplete, confirmedEmpty, failedProbes, reasons };
 };
 
 const computeMarkers = (categories, ourByRoom, occ) => {
@@ -459,7 +473,16 @@ const syncIcalSource = async (supabase, src) => {
         });
         if (rpcError) throw new Error(rpcError.message);
         if (data?.status === 'error' && typeof data?.error === 'string') {
-            throw new Error(data.error);
+            // К отказу базы прикладываем причины неполноты: иначе в журнале
+            // остаётся только «источник вернул неполный ответ», и непонятно,
+            // чинить сеть, состав категорий или самому отельеру открыть продажи.
+            const why = occupancyResult.reasons.length
+                ? ` Причины: ${occupancyResult.reasons.slice(0, 5).join('; ')}` +
+                  (occupancyResult.reasons.length > 5
+                      ? ` и ещё ${occupancyResult.reasons.length - 5}`
+                      : '')
+                : '';
+            throw new Error(`${data.error}.${why}`);
         }
         if (
             !['ok', 'partial'].includes(data?.status) ||
