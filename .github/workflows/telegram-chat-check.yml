@@ -1,0 +1,96 @@
+# Проверить, до каких чатов бот реально достучится.
+#
+# Зачем: когда оповещение не уходит, в журнале видно только «чат ***: chat not
+# found» — сам id GitHub затирает как секрет, и понять, какая именно запись в
+# TELEGRAM_MANAGER_CHAT_IDS испортилась, невозможно. Эта проверка спрашивает у
+# Telegram каждый чат из списка и печатает его НАЗВАНИЕ, а не id: названия не
+# секрет, и по ним сразу видно, чего не хватает.
+#
+# Частый случай: группа стала супергруппой, её id сменился, а в секрете остался
+# старый. Так уже было с чатом менеджеров.
+#
+# Только читает: ничего никуда не отправляет.
+name: Telegram Chat Check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Check manager chats
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Ask Telegram about each configured chat
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_MANAGER_CHAT_IDS: ${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }}
+        run: |
+          set -uo pipefail
+
+          if [ -z "${TELEGRAM_BOT_TOKEN}" ]; then
+            echo "Не задан секрет TELEGRAM_BOT_TOKEN"
+            exit 1
+          fi
+          if [ -z "${TELEGRAM_MANAGER_CHAT_IDS}" ]; then
+            echo "Не задан секрет TELEGRAM_MANAGER_CHAT_IDS"
+            exit 1
+          fi
+
+          curl -sS --max-time 30 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" > me.json
+
+          TOTAL=0
+          OK=0
+          echo "=== ЧАТЫ ИЗ TELEGRAM_MANAGER_CHAT_IDS ==="
+
+          IFS=',' read -ra CHAT_IDS <<< "${TELEGRAM_MANAGER_CHAT_IDS}"
+          for RAW_ID in "${CHAT_IDS[@]}"; do
+            CHAT_ID="$(echo "${RAW_ID}" | xargs)"
+            [ -z "${CHAT_ID}" ] && continue
+            TOTAL=$((TOTAL + 1))
+
+            curl -sS --max-time 30 \
+              --data-urlencode "chat_id=${CHAT_ID}" \
+              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getChat" > chat.json || echo '{}' > chat.json
+
+            if CHAT_LINE="$(python3 - <<'PY'
+          import json, sys
+
+          try:
+              data = json.load(open('chat.json', encoding='utf-8'))
+          except Exception:
+              print('  ✗ ответ Telegram не разобрать')
+              sys.exit(1)
+
+          if data.get('ok') is True:
+              chat = data.get('result', {})
+              title = chat.get('title') or chat.get('username') or chat.get('first_name') or '(без названия)'
+              print(f"  ✓ «{title}» — тип {chat.get('type', '?')}, бот в чате состоит")
+              sys.exit(0)
+
+          print(f"  ✗ Telegram отказал: {data.get('description', 'без объяснения')}")
+          sys.exit(1)
+          PY
+          )"; then
+              OK=$((OK + 1))
+            fi
+            echo "${CHAT_LINE}"
+          done
+
+          echo ""
+          echo "Всего чатов в списке: ${TOTAL}, доступно боту: ${OK}"
+
+          if [ "${OK}" -eq 0 ]; then
+            echo ""
+            echo "Ни один чат недоступен — оповещения не дойдут никуда."
+            echo "Что делать: добавить бота в чат менеджеров и взять свежий id."
+            echo "Если группу повысили до супергруппы, id сменился — старый больше не работает."
+            exit 1
+          fi
+
+          if [ "${OK}" -lt "${TOTAL}" ]; then
+            echo ""
+            echo "Часть чатов недоступна. Оповещения дойдут, но не всем:"
+            echo "уберите лишние записи из TELEGRAM_MANAGER_CHAT_IDS, чтобы проверка свежести не падала."
+          fi
