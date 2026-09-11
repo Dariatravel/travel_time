@@ -11,3 +11,6 @@ import { isAdminRole } from '@/shared/lib/userRoles';
  * requireStaff в роуте и isStaffRole здесь.
  */
 export const isBookingCardEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/** «Утро менеджера» (этап 2) — те же правила доступа, что и у карточки брони. */
+export const isMorningEnabled = (role?: string | null): boolean => isAdminRole(role);
