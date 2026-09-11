@@ -1,0 +1,74 @@
+name: Backup Supabase (encrypted)
+
+# Ежедневная резервная копия РАБОЧЕЙ базы шахматки.
+#
+# Репозиторий публичный, поэтому дамп никогда не лежит в открытом виде:
+# он шифруется ключом age, закрытая половина которого есть только на Mac mini
+# (~/.config/rental-ai/backup-age.key). Зашифрованный файл сохраняется как
+# артефакт запуска на 30 дней; Mac mini каждое утро забирает свежий и
+# расшифровывает в ~/backups/supabase/ (apps/server/scripts/fetch_supabase_backup.sh
+# в репозитории rental-ai). Рабочая база при этом только читается.
+#
+# Что внутри дампа: схемы public, app_private и auth (учётные записи), формат
+# pg_dump -Fc — восстанавливать через pg_restore, можно выборочно по таблицам.
+
+on:
+  schedule:
+    - cron: "30 2 * * *"   # 05:30 по Москве
+  workflow_dispatch:
+
+concurrency:
+  group: backup-supabase
+  cancel-in-progress: false
+
+env:
+  # Публичная половина ключа age с Mac mini. Расшифровать может только закрытая.
+  AGE_RECIPIENT: age1gsmfudtmxpklhp5e7qtrq68dsptg397dydjw3lhy3jwl8kwcxs5sfvqwnq
+
+jobs:
+  backup:
+    name: Dump, encrypt, upload
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+
+    steps:
+      - name: Install PostgreSQL 17 client and age
+        run: |
+          sudo apt-get install -y -qq postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 age >/dev/null
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
+          age --version
+
+      - name: Dump production database (read-only)
+        env:
+          PROD_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          test -n "$PROD_DB_URL"
+          stamp="$(date -u +%Y-%m-%d)"
+          echo "STAMP=$stamp" >> "$GITHUB_ENV"
+          pg_dump "$PROD_DB_URL" -Fc --no-owner --no-privileges \
+            --schema=public --schema=app_private --schema=auth \
+            -f "travel_time-$stamp.pgc"
+          # Проверка, что дамп читается и в нём есть таблица броней.
+          pg_restore --list "travel_time-$stamp.pgc" | grep -q 'TABLE DATA public reserves'
+          echo "dump size: $(du -h "travel_time-$stamp.pgc" | cut -f1)"
+
+      - name: Encrypt
+        run: |
+          set -euo pipefail
+          age -r "$AGE_RECIPIENT" -o "travel_time-$STAMP.pgc.age" "travel_time-$STAMP.pgc"
+          shred -u "travel_time-$STAMP.pgc"
+          echo "encrypted size: $(du -h "travel_time-$STAMP.pgc.age" | cut -f1)"
+
+      - name: Upload encrypted backup as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ env.STAMP }}
+          path: travel_time-${{ env.STAMP }}.pgc.age
+          retention-days: 30
+          if-no-files-found: error

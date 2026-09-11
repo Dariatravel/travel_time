@@ -48,6 +48,16 @@ export default function RootLayout({
             </head>
             <body className={`${geistSans.variable} ${geistMono.variable}`}>
                 {process.env.NODE_ENV === 'development' && <EffectorLogger />}
+                {/* Тестовый контур внешне не отличим от рабочего, а логины те же:
+                    без этой полосы менеджер может внести настоящую бронь в копию. */}
+                {process.env.NEXT_PUBLIC_APP_ENV === 'staging' && (
+                    <div
+                        role="status"
+                        className="sticky top-0 z-[1000] w-full bg-amber-400 px-3 py-1 text-center text-sm font-semibold text-black"
+                    >
+                        ТЕСТОВЫЙ КОНТУР — это копия, настоящие брони здесь не вносить
+                    </div>
+                )}
 
                 <QueryClientProvider client={queryClient}>
                     <SafeHydrate>

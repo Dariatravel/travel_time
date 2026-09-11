@@ -275,6 +275,7 @@ jobs:
             NEXT_PUBLIC_SUPABASE_URL=${{ env.STAGING_SUPABASE_URL }}
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.STAGING_ANON_KEY }}
             NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false
+            NEXT_PUBLIC_APP_ENV=staging
 
       - name: Fetch staging service key (only now, right before deploy)
         env:
