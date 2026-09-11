@@ -17,6 +17,7 @@ import Link from 'next/link';
 import { FC, useEffect, useMemo, useState } from 'react';
 
 import {
+    MORNING_ROW_LIMIT,
     useMarkTouchpoint,
     useMessageTemplates,
     useMorningReserves,
@@ -79,6 +80,7 @@ const toCurrentReserve = (reserve: MorningReserve): CurrentReserveType =>
             price: reserve.price,
             quantity: reserve.quantity,
             prepayment: reserve.prepayment,
+            comment: reserve.comment ?? undefined,
             created_at: reserve.created_at ?? undefined,
         },
         room: reserve.rooms ? { id: reserve.rooms.id, title: reserve.rooms.title } : null,
@@ -210,7 +212,9 @@ const TaskList: FC<{
                                         Скопировать текст
                                     </Button>
                                 )}
-                                {TASK_ACTIONS[kind].map((action) => (
+                                {TASK_ACTIONS[kind]
+                                    .filter((action) => action !== 'postponed' || task.canPostpone)
+                                    .map((action) => (
                                     <Button
                                         key={action}
                                         type="button"
@@ -306,9 +310,18 @@ export const MorningPage = () => {
     const user = useUnit($user);
     const actor = [user?.name, user?.surname].filter(Boolean).join(' ') || 'менеджер';
     // «Сейчас» берём после монтирования — правило линтера о чистом рендере.
+    // И обновляем при возврате во вкладку и по кнопке: вкладка, открытая с вечера,
+    // утром должна показывать сегодняшний день, а не вчерашний.
     const [nowUnix, setNowUnix] = useState<number | null>(null);
+    const refreshNow = () => setNowUnix(Math.floor(Date.now() / 1000));
     useEffect(() => {
-        setNowUnix(Math.floor(Date.now() / 1000));
+        refreshNow();
+        const onVisible = () => {
+            if (document.visibilityState === 'visible') refreshNow();
+        };
+        document.addEventListener('visibilitychange', onVisible);
+
+        return () => document.removeEventListener('visibilitychange', onVisible);
     }, []);
 
     const { data: reserves = [], isPending, error, refetch, isFetching } = useMorningReserves(nowUnix);
@@ -345,11 +358,14 @@ export const MorningPage = () => {
         }
         setBusyKey(task.key);
         try {
+            // «Сегодня» считаем в момент нажатия, а не от открытия вкладки.
+            const today = moscowDay(Math.floor(Date.now() / 1000));
             await mark.mutateAsync({
                 reserveId: task.reserve.id,
                 kind: task.kind,
-                patch: touchpointPatch(action, board.today, actor, new Date().toISOString()),
+                patch: touchpointPatch(action, today, actor, new Date().toISOString()),
             });
+            if (today !== board.today) refreshNow();
             showToast(ACTION_LABELS[action], 'success');
         } catch (e) {
             showToast(e instanceof Error ? e.message : 'Не получилось', 'error');
@@ -385,7 +401,15 @@ export const MorningPage = () => {
                     <Link href={routes[PagesEnum.BOOKINGS]} className="text-sm underline">
                         Все брони
                     </Link>
-                    <Button type="button" variant="outline" onClick={() => refetch()} disabled={isFetching}>
+                    <Button
+                        type="button"
+                        variant="outline"
+                        onClick={() => {
+                            refreshNow();
+                            void refetch();
+                        }}
+                        disabled={isFetching}
+                    >
                         <RefreshCw className={`size-4 ${isFetching ? 'animate-spin' : ''}`} />
                         Обновить
                     </Button>
@@ -413,23 +437,14 @@ export const MorningPage = () => {
                         ))}
                     </div>
 
-                    <div className="grid gap-4 lg:grid-cols-2">
-                        <ReserveList
-                            title="Заезды сегодня"
-                            hint="Заезд с 14:00. Проверьте, что отель ждёт гостя."
-                            items={board.arrivals}
-                            empty="Сегодня заездов нет."
-                            onOpen={setSelected}
-                        />
-                        <ReserveList
-                            title="Выезды сегодня"
-                            hint="Выезд до 12:00. Через 7 дней появится задача «Запросить отзыв»."
-                            items={board.departures}
-                            empty="Сегодня выездов нет."
-                            onOpen={setSelected}
-                        />
-                    </div>
+                    {reserves.length >= MORNING_ROW_LIMIT && (
+                        <p className="rounded-md border border-amber-300 bg-amber-50 p-2 text-sm text-amber-900">
+                            Броней больше {MORNING_ROW_LIMIT} — список обрезан, часть будущих заездов может не
+                            показываться.
+                        </p>
+                    )}
 
+                    {/* Сначала то, что ждёт действия (просроченное — первым), потом день. */}
                     <div className="grid gap-4 lg:grid-cols-3">
                         <TaskList
                             kind="reminder"
@@ -456,6 +471,23 @@ export const MorningPage = () => {
                             today={board.today}
                             busyKey={busyKey}
                             onAction={onAction}
+                        />
+                    </div>
+
+                    <div className="grid gap-4 lg:grid-cols-2">
+                        <ReserveList
+                            title="Заезды сегодня"
+                            hint="Заезд с 14:00. Проверьте, что отель ждёт гостя."
+                            items={board.arrivals}
+                            empty="Сегодня заездов нет."
+                            onOpen={setSelected}
+                        />
+                        <ReserveList
+                            title="Выезды сегодня"
+                            hint="Выезд до 12:00. Через 7 дней появится задача «Запросить отзыв»."
+                            items={board.departures}
+                            empty="Сегодня выездов нет."
+                            onOpen={setSelected}
                         />
                     </div>
 

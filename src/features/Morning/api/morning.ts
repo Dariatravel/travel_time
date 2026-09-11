@@ -4,9 +4,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { MorningReserve, TouchpointKind, TouchpointRow, TouchpointStatus } from '../lib/morning';
 
 const DAY = 86400;
-/** Окно выборки: отзывы просят через 7 дней после выезда, проверяют ещё через 2 и могут откладывать. */
-const PAST_DAYS = 45;
+/**
+ * Окно выборки. Отзыв просят через 7 дней после выезда, проверяют ещё через 2,
+ * «позже» +3, переносы — не больше 14 дней просрочки; 90 дней назад хватает
+ * с запасом, дальше открытых задач быть не может.
+ */
+const PAST_DAYS = 90;
 const FUTURE_DAYS = 14;
+/** При таком числе строк выборка обрезана — экран покажет предупреждение. */
+export const MORNING_ROW_LIMIT = 1500;
 
 export const MORNING_KEYS = {
     reserves: ['morning', 'reserves'] as const,
@@ -36,12 +42,12 @@ export const useMorningReserves = (nowUnix: number | null) =>
             const { data, error } = await supabase
                 .from('reserves')
                 .select(
-                    'id, guest, phone, start, end, price, quantity, prepayment, created_at, external_source, rooms(id, title, hotels(id, title, address, phone)), booking_cards(status, hotel_notified_at, manager, source), guest_touchpoints(*)',
+                    'id, guest, phone, start, end, price, quantity, prepayment, comment, created_at, external_source, rooms(id, title, hotels(id, title, address, phone)), booking_cards(status, hotel_notified_at, manager, source), guest_touchpoints(*)',
                 )
                 .gte('end', now - PAST_DAYS * DAY)
                 .lte('start', now + FUTURE_DAYS * DAY)
                 .order('start', { ascending: true })
-                .limit(1500);
+                .limit(MORNING_ROW_LIMIT);
             if (error) throw error;
 
             return (data ?? []) as unknown as MorningReserve[];

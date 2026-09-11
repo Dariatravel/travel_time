@@ -6,11 +6,17 @@
  *   просьба об отзыве  — через 7 дней после выезда;
  *   проверка отзыва    — через 2 дня после того, как отзыв запрошен;
  *   «перенести на завтра» — +1 день, «обещали позже» — +3 дня;
- *   задача закрывается действием и больше не показывается.
+ *   задача показывается только когда срок наступил, закрывается действием
+ *   и больше не показывается; при просрочке больше 14 дней перенос недоступен.
  * Задачи не хранятся — считаются каждый раз; хранится только то, что менеджер
  * отметил (guest_touchpoints).
+ *
+ * Сознательные отличия от панели Иры (согласовать с Дарьей):
+ *   «Не приехали» закрывает все касания по брони, а не только одно;
+ *   отменённая или перенесённая карточка брони закрывает все касания.
  */
 
+import { MOSCOW_UTC_OFFSET_HOURS } from '@/shared/lib/moscowTime';
 import { parsePrepayment } from '@/shared/lib/parsePrepayment';
 
 export type TouchpointKind = 'reminder' | 'review_request' | 'review_check';
@@ -45,6 +51,7 @@ export type MorningReserve = {
     price: number;
     quantity: number;
     prepayment: string | number | null;
+    comment?: string | null;
     created_at: string | null;
     external_source: string | null;
     rooms: {
@@ -63,8 +70,11 @@ export type MorningTask = {
     key: string;
     kind: TouchpointKind;
     reserve: MorningReserve;
-    dueDay: number; // индекс московских суток
+    /** Срок с учётом переносов (индекс московских суток). */
+    dueDay: number;
     overdueDays: number; // > 0 — просрочено
+    /** Перенос недоступен: просрочка больше 14 дней — только закрывающие действия. */
+    canPostpone: boolean;
     touchpoint: TouchpointRow | null;
 };
 
@@ -87,10 +97,10 @@ export const REVIEW_CHECK_DAYS_AFTER = 2;
 export const POSTPONE_DAYS = 1;
 export const REVIEW_LATER_DAYS = 3;
 export const THINKING_HOURS = 15;
-/** Горизонт: задачи «на потом» показываем не дальше, чем за столько дней. */
-export const LOOKAHEAD_DAYS = 7;
+/** Как в панели Иры: при просрочке больше стольких дней кнопки «перенести» нет. */
+export const MAX_POSTPONE_OVERDUE_DAYS = 14;
 
-const MOSCOW_OFFSET_SECONDS = 3 * 3600;
+const MOSCOW_OFFSET_SECONDS = MOSCOW_UTC_OFFSET_HOURS * 3600;
 const DAY = 86400;
 
 /** Индекс московских суток для unix-секунд. */
@@ -130,9 +140,10 @@ const touchpointOf = (reserve: MorningReserve, kind: TouchpointKind): Touchpoint
 
 const CLOSED_FOR_ALL: TouchpointStatus[] = ['not_arrived', 'cancelled'];
 
-/** Гость не приехал или бронь отменена — все касания по брони закрыты. */
-const isReserveClosed = (reserve: MorningReserve): boolean => {
-    if (cardOf(reserve)?.status === 'cancelled') return true;
+/** Гость не приехал, бронь отменена или перенесена — все касания по брони закрыты. */
+export const isReserveClosed = (reserve: MorningReserve): boolean => {
+    const cardStatus = cardOf(reserve)?.status;
+    if (cardStatus === 'cancelled' || cardStatus === 'transferred') return true;
 
     return (reserve.guest_touchpoints ?? []).some((t) => CLOSED_FOR_ALL.includes(t.status));
 };
@@ -143,8 +154,12 @@ const isKindClosed = (t: TouchpointRow | null): boolean => {
     return ['done', 'not_arrived', 'cancelled', 'review_found', 'checked'].includes(t.status);
 };
 
-const isSnoozed = (t: TouchpointRow | null, today: number): boolean =>
-    !!t?.snooze_until && dayFromIsoDate(t.snooze_until) > today;
+/** Срок с учётом переноса: пока перенос не истёк — его дата, потом она же как «срок». */
+const effectiveDue = (baseDue: number, t: TouchpointRow | null): number => {
+    if (!t?.snooze_until) return baseDue;
+
+    return Math.max(baseDue, dayFromIsoDate(t.snooze_until));
+};
 
 export const hasPhone = (reserve: MorningReserve): boolean =>
     (reserve.phone ?? '').replace(/\D/g, '').length >= 7;
@@ -152,19 +167,23 @@ export const hasPhone = (reserve: MorningReserve): boolean =>
 const makeTask = (
     reserve: MorningReserve,
     kind: TouchpointKind,
-    dueDay: number,
+    baseDue: number,
     today: number,
 ): MorningTask | null => {
-    if (dueDay > today + LOOKAHEAD_DAYS) return null;
     const touchpoint = touchpointOf(reserve, kind);
-    if (isKindClosed(touchpoint) || isSnoozed(touchpoint, today)) return null;
+    if (isKindClosed(touchpoint)) return null;
+    const dueDay = effectiveDue(baseDue, touchpoint);
+    // Срок ещё не наступил — не показываем (как в панели Иры).
+    if (dueDay > today) return null;
+    const overdueDays = today - dueDay;
 
     return {
         key: `${reserve.id}:${kind}`,
         kind,
         reserve,
         dueDay,
-        overdueDays: Math.max(0, today - dueDay),
+        overdueDays,
+        canPostpone: overdueDays <= MAX_POSTPONE_OVERDUE_DAYS,
         touchpoint,
     };
 };
@@ -199,17 +218,22 @@ export const buildMorningBoard = (reserves: MorningReserve[], nowUnix: number): 
         if (startDay === today && !closed) board.arrivals.push(reserve);
         if (endDay === today && !closed) board.departures.push(reserve);
 
+        // Внешние брони (iCal, зеркала) приходят без телефона и без карточки —
+        // напоминать им нельзя, чинить нечего: синхронизация пересоздаёт строки.
+        if (reserve.external_source || closed) continue;
+
         // Без телефона гостю не написать — отдельная корзина, в задачи не попадает.
         if (!hasPhone(reserve)) {
-            if (!closed && endDay >= today) board.noPhone.push(reserve);
+            if (endDay >= today) board.noPhone.push(reserve);
             continue;
         }
-        if (closed) continue;
 
-        // Напоминание о заезде: за 3 дня; задним числом (гость уже заехал) не создаём.
-        if (startDay > today) {
+        // Напоминание о заезде: за 3 дня; после заезда задним числом не создаём,
+        // но уже начатое (перенесённое) — остаётся до закрытия.
+        const reminderTouch = touchpointOf(reserve, 'reminder');
+        if (startDay >= today || reminderTouch) {
             const task = makeTask(reserve, 'reminder', startDay - REMINDER_DAYS_BEFORE, today);
-            if (task) board.reminders.push(task);
+            if (task && (startDay >= today || task.touchpoint)) board.reminders.push(task);
         }
 
         // Просьба об отзыве: через 7 дней после выезда.
@@ -231,14 +255,13 @@ export const buildMorningBoard = (reserves: MorningReserve[], nowUnix: number): 
         }
 
         // Бронь без подтверждения отеля — будущий заезд, отельеру не отправлено.
-        if (startDay >= today && !card?.hotel_notified_at && !reserve.external_source) {
+        if (startDay >= today && !card?.hotel_notified_at) {
             board.unconfirmedByHotel.push(reserve);
         }
 
-        // «Думают»: бронь есть, предоплаты нет дольше 15 часов, заезд впереди.
+        // «Думают»: бронь на будущее, предоплаты нет дольше 15 часов.
         if (
-            startDay >= today &&
-            !reserve.external_source &&
+            startDay > today &&
             parsePrepayment(reserve.prepayment) === 0 &&
             reserve.created_at &&
             nowUnix - Math.floor(new Date(reserve.created_at).getTime() / 1000) > THINKING_HOURS * 3600
@@ -293,7 +316,7 @@ export const ACTION_LABELS: Record<TouchpointStatus, string> = {
 
 /** Какие кнопки у задачи каждого вида — как в панели Иры. */
 export const TASK_ACTIONS: Record<TouchpointKind, TouchpointStatus[]> = {
-    reminder: ['done', 'postponed', 'not_arrived'],
+    reminder: ['done', 'postponed'],
     review_request: ['done', 'postponed', 'not_arrived'],
     review_check: ['review_found', 'review_later', 'checked', 'postponed'],
 };
@@ -304,12 +327,22 @@ export const DONE_LABELS: Record<TouchpointKind, string> = {
     review_check: 'Отзыв есть',
 };
 
+/**
+ * Имя гостя для обращения. Бронь хранит «Фамилия Имя Отчество» (как в OKO и
+ * в таблице Иры), поэтому берём второе слово; если слово одно — его.
+ */
+export const guestFirstName = (guest: string): string => {
+    const parts = guest.trim().split(/\s+/).filter(Boolean);
+
+    return parts[1] ?? parts[0] ?? '';
+};
+
 /** Подстановка {имя} {отель} {даты} {заезд} {выезд} в шаблон сообщения. */
 export const fillTemplate = (body: string, reserve: MorningReserve): string => {
     const hotel = reserve.rooms?.hotels?.title ?? '';
     const checkIn = formatDay(moscowDay(reserve.start));
     const checkOut = formatDay(moscowDay(reserve.end));
-    const name = reserve.guest.trim().split(/\s+/)[0] ?? '';
+    const name = guestFirstName(reserve.guest);
     const values: Record<string, string> = {
         имя: name,
         Имя: name,

@@ -4,8 +4,11 @@ import {
     buildMorningBoard,
     dayFromIsoDate,
     fillTemplate,
+    guestFirstName,
+    hasPhone,
     isoDateFromDay,
     moscowDay,
+    moscowDayOf,
     touchpointPatch,
     type MorningReserve,
     type TouchpointRow,
@@ -20,6 +23,7 @@ const DAY = 86400;
 const checkIn = (offsetDays: number) => (TODAY + offsetDays) * DAY + 11 * 3600;
 /** unix-момент 12:00 МСК. */
 const checkOut = (offsetDays: number) => (TODAY + offsetDays) * DAY + 9 * 3600;
+const isoDaysAgo = (days: number) => new Date((NOW - days * DAY) * 1000).toISOString();
 
 const reserve = (
     id: string,
@@ -28,14 +32,14 @@ const reserve = (
     extra: Partial<MorningReserve> = {},
 ): MorningReserve => ({
     id,
-    guest: 'Иванова Анна',
+    guest: 'Иванова Анна Петровна',
     phone: '+7 900 000-00-00',
     start: checkIn(startOffset),
     end: checkOut(endOffset),
     price: 4000,
     quantity: 2,
     prepayment: '8000',
-    created_at: new Date((NOW - 3 * DAY) * 1000).toISOString(),
+    created_at: isoDaysAgo(3),
     external_source: null,
     rooms: { id: 'r', title: 'Стандарт', hotels: { id: 'h', title: 'Мулберри' } },
     booking_cards: { status: 'booked', hotel_notified_at: '2026-09-10T10:00:00Z', manager: null, source: null },
@@ -43,7 +47,11 @@ const reserve = (
     ...extra,
 });
 
-const touch = (kind: TouchpointRow['kind'], status: TouchpointRow['status'], extra: Partial<TouchpointRow> = {}): TouchpointRow => ({
+const touch = (
+    kind: TouchpointRow['kind'],
+    status: TouchpointRow['status'],
+    extra: Partial<TouchpointRow> = {},
+): TouchpointRow => ({
     reserve_id: 'x',
     kind,
     status,
@@ -55,6 +63,25 @@ const touch = (kind: TouchpointRow['kind'], status: TouchpointRow['status'], ext
     ...extra,
 });
 
+const ids = (tasks: { reserve: { id: string } }[]) => tasks.map((t) => t.reserve.id);
+
+describe('московские сутки', () => {
+    it('заезд 14:00 и выезд 12:00 МСК попадают в свой день', () => {
+        expect(moscowDay(checkIn(0))).toBe(TODAY);
+        expect(moscowDay(checkOut(0))).toBe(TODAY);
+    });
+
+    it('22:30 UTC — это уже следующий день по Москве', () => {
+        expect(moscowDayOf('2026-09-15T22:30:00Z')).toBe(dayFromIsoDate('2026-09-16'));
+        expect(moscowDayOf('2026-09-15T20:30:00Z')).toBe(dayFromIsoDate('2026-09-15'));
+    });
+
+    it('даты туда и обратно', () => {
+        expect(dayFromIsoDate(isoDateFromDay(TODAY))).toBe(TODAY);
+        expect(isoDateFromDay(TODAY)).toBe('2026-09-15');
+    });
+});
+
 describe('заезды и выезды дня', () => {
     it('считает по московским суткам', () => {
         const board = buildMorningBoard([reserve('a', 0, 3), reserve('b', -2, 0), reserve('c', 1, 4)], NOW);
@@ -62,11 +89,14 @@ describe('заезды и выезды дня', () => {
         expect(board.departures.map((r) => r.id)).toEqual(['b']);
     });
 
-    it('отменённая карточка не попадает никуда', () => {
-        const board = buildMorningBoard(
-            [reserve('a', 0, 3, { booking_cards: { status: 'cancelled', hotel_notified_at: null, manager: null, source: null } })],
-            NOW,
-        );
+    it('отменённая и перенесённая карточки не попадают никуда', () => {
+        const cancelled = reserve('a', 0, 3, {
+            booking_cards: { status: 'cancelled', hotel_notified_at: null, manager: null, source: null },
+        });
+        const transferred = reserve('b', 3, 6, {
+            booking_cards: { status: 'transferred', hotel_notified_at: null, manager: null, source: null },
+        });
+        const board = buildMorningBoard([cancelled, transferred], NOW);
         expect(board.arrivals).toEqual([]);
         expect(board.unconfirmedByHotel).toEqual([]);
         expect(board.reminders).toEqual([]);
@@ -74,21 +104,30 @@ describe('заезды и выезды дня', () => {
 });
 
 describe('напоминание о заезде', () => {
-    it('появляется за 3 дня и раньше — нет', () => {
+    it('появляется ровно за 3 дня, раньше — нет', () => {
         const board = buildMorningBoard([reserve('soon', 3, 6), reserve('later', 4, 7), reserve('far', 20, 25)], NOW);
-        expect(board.reminders.map((t) => t.reserve.id)).toEqual(['soon', 'later']);
+        expect(ids(board.reminders)).toEqual(['soon']);
         expect(board.reminders[0].overdueDays).toBe(0);
-        expect(board.reminders[1].dueDay).toBe(TODAY + 1);
+        expect(board.reminders[0].canPostpone).toBe(true);
     });
 
-    it('просрочка считается в днях, задним числом после заезда не создаётся', () => {
-        const board = buildMorningBoard([reserve('late', 1, 4), reserve('arrived', -1, 3)], NOW);
-        expect(board.reminders.map((t) => t.reserve.id)).toEqual(['late']);
-        expect(board.reminders[0].overdueDays).toBe(2);
-        expect(board.overdue).toBe(1);
+    it('просрочка в днях; в день заезда ещё показывается; после заезда задним числом — нет', () => {
+        const board = buildMorningBoard([reserve('late', 1, 4), reserve('today', 0, 3), reserve('gone', -1, 3)], NOW);
+        // Сортировка по сроку: сначала самое просроченное.
+        expect(ids(board.reminders)).toEqual(['today', 'late']);
+        expect(board.reminders[0].overdueDays).toBe(3);
+        expect(board.reminders[1].overdueDays).toBe(2);
+        expect(board.overdue).toBe(2);
     });
 
-    it('закрывается отметкой «сделано» и не показывается, пока перенесена', () => {
+    it('начатое (перенесённое) напоминание остаётся и после заезда', () => {
+        const r = reserve('kept', -1, 3, {
+            guest_touchpoints: [touch('reminder', 'postponed', { snooze_until: isoDateFromDay(TODAY - 1) })],
+        });
+        expect(ids(buildMorningBoard([r], NOW).reminders)).toEqual(['kept']);
+    });
+
+    it('закрывается отметкой «сделано»; перенесённое скрыто до срока, потом срок = дата переноса', () => {
         const done = reserve('done', 2, 5, { guest_touchpoints: [touch('reminder', 'done')] });
         const snoozed = reserve('snoozed', 2, 5, {
             guest_touchpoints: [touch('reminder', 'postponed', { snooze_until: isoDateFromDay(TODAY + 1) })],
@@ -97,48 +136,71 @@ describe('напоминание о заезде', () => {
             guest_touchpoints: [touch('reminder', 'postponed', { snooze_until: isoDateFromDay(TODAY) })],
         });
         const board = buildMorningBoard([done, snoozed, expired], NOW);
-        expect(board.reminders.map((t) => t.reserve.id)).toEqual(['expired']);
+        expect(ids(board.reminders)).toEqual(['expired']);
+        // Перенесли на сегодня — это «сегодня», а не «просрочено».
+        expect(board.reminders[0].overdueDays).toBe(0);
     });
 
-    it('«не приехали» закрывает все касания по брони', () => {
-        const r = reserve('na', -10, -8, { guest_touchpoints: [touch('reminder', 'not_arrived')] });
+    it('при просрочке больше 14 дней перенос недоступен', () => {
+        const r = reserve('old', -20, -17, {
+            guest_touchpoints: [touch('reminder', 'postponed', { snooze_until: isoDateFromDay(TODAY - 16) })],
+        });
         const board = buildMorningBoard([r], NOW);
-        expect(board.reviewRequests).toEqual([]);
+        expect(board.reminders[0].canPostpone).toBe(false);
     });
 });
 
 describe('отзывы', () => {
-    it('просьба об отзыве через 7 дней после выезда', () => {
+    it('просьба об отзыве ровно через 7 дней после выезда, раньше — нет', () => {
         const board = buildMorningBoard(
-            [reserve('r7', -12, -7), reserve('r6', -11, -6), reserve('far', -5, 1)],
+            [reserve('r7', -12, -7), reserve('r6', -11, -6), reserve('r9', -14, -9), reserve('far', -5, 1)],
             NOW,
         );
-        // r7 — срок сегодня; r6 — завтра (в горизонте 7 дней); far ещё не выехал.
-        expect(board.reviewRequests.map((t) => t.reserve.id)).toEqual(['r7', 'r6']);
-        expect(board.reviewRequests[0].overdueDays).toBe(0);
-        expect(board.reviewRequests[1].dueDay).toBe(TODAY + 1);
+        expect(ids(board.reviewRequests)).toEqual(['r9', 'r7']);
+        expect(board.reviewRequests[0].overdueDays).toBe(2);
+        expect(board.reviewRequests[1].overdueDays).toBe(0);
+        expect(board.overdue).toBe(1);
     });
 
-    it('проверка отзыва через 2 дня после запроса; «обещали позже» откладывает на 3', () => {
-        const requested = reserve('chk', -20, -15, {
+    it('«не приехали» по запросу отзыва закрывает и проверку, и напоминание', () => {
+        const r = reserve('na', -10, -8, {
             guest_touchpoints: [
-                touch('review_request', 'done', { done_at: new Date((NOW - 2 * DAY) * 1000).toISOString() }),
+                touch('review_request', 'not_arrived'),
             ],
+        });
+        const board = buildMorningBoard([r], NOW);
+        expect(board.reviewRequests).toEqual([]);
+        expect(board.reviewChecks).toEqual([]);
+    });
+
+    it('проверка отзыва через 2 дня после запроса; «позже» откладывает на 3; найденный закрывает', () => {
+        const requested = reserve('chk', -20, -15, {
+            guest_touchpoints: [touch('review_request', 'done', { done_at: isoDaysAgo(2) })],
+        });
+        const early = reserve('early', -20, -15, {
+            guest_touchpoints: [touch('review_request', 'done', { done_at: isoDaysAgo(1) })],
         });
         const later = reserve('later', -20, -15, {
             guest_touchpoints: [
-                touch('review_request', 'done', { done_at: new Date((NOW - 5 * DAY) * 1000).toISOString() }),
+                touch('review_request', 'done', { done_at: isoDaysAgo(5) }),
                 touch('review_check', 'review_later', { snooze_until: isoDateFromDay(TODAY + 2) }),
             ],
         });
         const found = reserve('found', -20, -15, {
             guest_touchpoints: [
-                touch('review_request', 'done', { done_at: new Date((NOW - 5 * DAY) * 1000).toISOString() }),
+                touch('review_request', 'done', { done_at: isoDaysAgo(5) }),
                 touch('review_check', 'review_found'),
             ],
         });
-        const board = buildMorningBoard([requested, later, found], NOW);
-        expect(board.reviewChecks.map((t) => t.reserve.id)).toEqual(['chk']);
+        const postponed = reserve('pp', -20, -15, {
+            guest_touchpoints: [
+                touch('review_request', 'done', { done_at: isoDaysAgo(5) }),
+                touch('review_check', 'postponed', { snooze_until: isoDateFromDay(TODAY) }),
+            ],
+        });
+        const board = buildMorningBoard([requested, early, later, found, postponed], NOW);
+        // Оба на сегодня; порядок — как в исходном списке.
+        expect(ids(board.reviewChecks)).toEqual(['chk', 'pp']);
         expect(board.reviewRequests).toEqual([]);
     });
 });
@@ -147,17 +209,23 @@ describe('без подтверждения отеля, думают, без т�
     it('бронь без отметки «отельеру» и без предоплаты дольше 15 часов', () => {
         const unconfirmed = reserve('u', 5, 8, { booking_cards: null });
         const thinking = reserve('t', 5, 8, { prepayment: null });
+        const arrivingToday = reserve('today', 0, 3, { prepayment: null });
         const fresh = reserve('f', 5, 8, { prepayment: '', created_at: new Date((NOW - 3600) * 1000).toISOString() });
         const external = reserve('e', 5, 8, { prepayment: null, external_source: 'ical', booking_cards: null });
-        const board = buildMorningBoard([unconfirmed, thinking, fresh, external], NOW);
+        const board = buildMorningBoard([unconfirmed, thinking, arrivingToday, fresh, external], NOW);
         expect(board.unconfirmedByHotel.map((r) => r.id)).toEqual(['u']);
         expect(board.thinking.map((r) => r.id)).toEqual(['t']);
     });
 
-    it('без телефона — отдельная корзина, задач не создаёт', () => {
-        const board = buildMorningBoard([reserve('np', 2, 5, { phone: '' })], NOW);
+    it('без телефона — отдельная корзина, задач не создаёт; внешние брони в неё не попадают', () => {
+        const board = buildMorningBoard(
+            [reserve('np', 2, 5, { phone: '' }), reserve('ext', 2, 5, { phone: '', external_source: 'mirror' })],
+            NOW,
+        );
         expect(board.noPhone.map((r) => r.id)).toEqual(['np']);
         expect(board.reminders).toEqual([]);
+        expect(hasPhone({ phone: '12-34' } as MorningReserve)).toBe(false);
+        expect(hasPhone({ phone: '8 (900) 123-45-67' } as MorningReserve)).toBe(true);
     });
 });
 
@@ -176,13 +244,15 @@ describe('отметки и шаблоны', () => {
         });
     });
 
-    it('даты туда и обратно', () => {
-        expect(dayFromIsoDate(isoDateFromDay(TODAY))).toBe(TODAY);
-        expect(isoDateFromDay(TODAY)).toBe('2026-09-15');
+    it('обращение — по имени, а не по фамилии', () => {
+        expect(guestFirstName('Иванова Анна Петровна')).toBe('Анна');
+        expect(guestFirstName('Петров Сергей')).toBe('Сергей');
+        expect(guestFirstName('Ольга')).toBe('Ольга');
+        expect(guestFirstName('')).toBe('');
     });
 
-    it('подставляет имя, отель и даты', () => {
-        const text = fillTemplate('{имя}, заезд {заезд} в {отель}, даты {даты}. {неизвестно}', reserve('a', 3, 6));
-        expect(text).toBe('Иванова, заезд 18.09 в Мулберри, даты 18.09–21.09. {неизвестно}');
+    it('подставляет имя, отель и даты; неизвестные поля оставляет', () => {
+        const text = fillTemplate('{имя}, заезд {заезд} в {отель}, даты {даты}. {Имя} {name} {неизвестно}', reserve('a', 3, 6));
+        expect(text).toBe('Анна, заезд 18.09 в Мулберри, даты 18.09–21.09. Анна Анна {неизвестно}');
     });
 });
