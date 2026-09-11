@@ -215,6 +215,8 @@ jobs:
           context: .
           platforms: linux/amd64
           push: true
+          provenance: false
+          sbom: false
           tags: ${{ env.IMAGE }}
           build-args: |
             NEXT_PUBLIC_SUPABASE_URL=${{ env.STAGING_SUPABASE_URL }}
