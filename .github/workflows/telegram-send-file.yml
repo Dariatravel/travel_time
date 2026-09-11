@@ -11,9 +11,10 @@ on:
   workflow_dispatch:
     inputs:
       chat_id:
-        description: Куда отправить
-        required: true
+        description: Игнорируется — чат берётся из vars.TELEGRAM_BOOKING_CHAT_ID (защита от отправки в чужой чат)
+        required: false
         type: string
+        default: ""
       storage_path:
         description: Путь в Storage вида vouchers/<reserve>/<файл>
         required: true
@@ -38,12 +39,13 @@ jobs:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          CHAT_ID: ${{ inputs.chat_id }}
+          CHAT_ID: ${{ vars.TELEGRAM_BOOKING_CHAT_ID }}
           STORAGE_PATH: ${{ inputs.storage_path }}
           FILE_NAME: ${{ inputs.file_name }}
           CAPTION: ${{ inputs.caption }}
         run: |
           set -euo pipefail
+          test -n "$CHAT_ID" || { echo "::error::vars.TELEGRAM_BOOKING_CHAT_ID не задан"; exit 1; }
           echo "::add-mask::$FILE_NAME"
           echo "::add-mask::$CAPTION"
           case "$STORAGE_PATH" in

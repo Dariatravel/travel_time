@@ -122,10 +122,19 @@ export type SendToChatInput = {
     reserveId: string;
     kind: 'booking' | 'cancel' | 'transfer' | 'change';
     caption: string;
+    actor: string;
+    /** Новый статус карточки — ставит роут в одной операции с отметкой отправки. */
+    status?: BookingStatus;
     file?: { blob: Blob; name: string } | null;
 };
 
-export type SendToChatResult = { ok: true; delivery: 'direct' | 'github' | 'text'; sentAt: string };
+export type SendToChatResult = {
+    ok: true;
+    delivery: 'direct' | 'github' | 'text';
+    sentAt: string;
+    /** Отправлено, но не записано — повторно не отправлять. */
+    warning?: string;
+};
 
 /** Отправка в чат «Королева Абхазии» — через серверный роут, только по клику. */
 export const useSendToChat = () => {
@@ -137,6 +146,8 @@ export const useSendToChat = () => {
             form.append('reserveId', input.reserveId);
             form.append('kind', input.kind);
             form.append('caption', input.caption);
+            form.append('actor', input.actor);
+            if (input.status) form.append('status', input.status);
             if (input.file) form.append('file', input.file.blob, input.file.name);
 
             const response = await fetch('/api/booking-card/send', {
@@ -174,7 +185,7 @@ export type BookingListRow = {
         hotels: {
             id: string;
             title: string;
-            type: string | null;
+            type?: string | null;
             address: string | null;
             phone: string | null;
         } | null;
@@ -202,7 +213,8 @@ export const useBookingList = (
             const { data, error } = await supabase
                 .from('reserves')
                 .select(
-                    'id, guest, phone, start, end, price, quantity, prepayment, comment, created_at, external_source, rooms(id, title, hotels(id, title, type, address, phone)), booking_cards(*)',
+                    // hotels.type намеренно не запрашиваем: столбец убран из типов, в базе может отсутствовать.
+                    'id, guest, phone, start, end, price, quantity, prepayment, comment, created_at, external_source, rooms(id, title, hotels(id, title, address, phone)), booking_cards(*)',
                 )
                 .gte('start', fromUnix)
                 .is('external_source', null)

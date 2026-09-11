@@ -8,6 +8,8 @@
  * (см. abhazbereg-ideas/ВАУЧЕР-спецификация.md).
  */
 
+import { parsePrepayment } from '@/shared/lib/parsePrepayment';
+
 export type VoucherKind = 'standard' | 'nonrefundable';
 export type BookingStatus = 'booked' | 'changed' | 'transferred' | 'cancelled';
 
@@ -34,8 +36,13 @@ export const BOOKING_STATUS_LABELS: Record<BookingStatus, string> = {
     cancelled: 'Отменена',
 };
 
-/** Подпись менеджера в ваучере — как в шаблонах OKO. */
-export const MANAGER_LINE = 'Ваш менеджер: Дарья +7 940 900-33-40 WhatsApp/Telegram/MAX';
+/**
+ * Подпись менеджера в ваучере — как в шаблонах OKO. Телефон задаётся
+ * переменной сборки NEXT_PUBLIC_VOUCHER_MANAGER_LINE (репозиторий публичный,
+ * номер в коде не держим); без неё — подпись без телефона.
+ */
+export const MANAGER_LINE =
+    process.env.NEXT_PUBLIC_VOUCHER_MANAGER_LINE?.trim() || 'Ваш менеджер: Дарья WhatsApp/Telegram/MAX';
 
 /** Строка карточки брони (таблица public.booking_cards). */
 export type BookingCardRow = {
@@ -129,12 +136,8 @@ const moscowDayIndex = (value: number | Date) =>
 export const countNights = (start: number | Date, end: number | Date): number =>
     Math.max(0, moscowDayIndex(end) - moscowDayIndex(start));
 
-const toMoney = (value: number | string | null | undefined): number => {
-    if (value == null || value === '') return 0;
-    const parsed = Number(value);
-
-    return Number.isFinite(parsed) ? parsed : 0;
-};
+// Единая точка приведения денег — та же, что у формы брони и экспорта.
+const toMoney = parsePrepayment;
 
 /** «12 000» — разряды через неразрывный пробел; парсер напоминаний цифры не теряет. */
 export const formatMoney = (value: number): string =>
@@ -149,18 +152,27 @@ const formatPaymentDate = (iso: string | null | undefined): string => {
 
 /**
  * Шапка отеля. Парсер напоминаний ждёт «Абхазия,» и «Тел:» до строки
- * «Ваучер На Проживание» — поэтому адрес всегда с префиксом страны.
+ * «Ваучер На Проживание» — поэтому обе строки печатаются ВСЕГДА, даже если
+ * адрес или телефон пусты (тогда карточка отеля не заполнена — см.
+ * voucherHotelProblems, модалка такой ваучер не выпускает).
  */
 export const buildHotelHeader = (hotel: VoucherHotel): string[] => {
     const type = (hotel.type ?? '').trim();
     const title = type ? `${type} «${hotel.title}»` : `«${hotel.title}»`;
     const address = (hotel.address ?? '').trim();
-    const addressLine = /абхази/i.test(address) ? address : `Абхазия, ${address}`.replace(/,\s*$/, '');
-    const lines = [title, addressLine];
+    const addressLine = /^абхазия\s*,/i.test(address) ? address : `Абхазия, ${address}`;
     const phone = (hotel.phone ?? '').trim();
-    if (phone) lines.push(`Тел: ${phone}`);
 
-    return lines;
+    return [title, addressLine, `Тел: ${phone}`];
+};
+
+/** Чего не хватает в карточке отеля, чтобы ваучер прочитала ночная программа. */
+export const voucherHotelProblems = (hotel: VoucherHotel): string[] => {
+    const problems: string[] = [];
+    if (!(hotel.address ?? '').trim()) problems.push('нет адреса отеля');
+    if (!(hotel.phone ?? '').trim()) problems.push('нет телефона отеля');
+
+    return problems;
 };
 
 const STANDARD_CONDITIONS = [
@@ -276,7 +288,7 @@ export const voucherFileName = (v: VoucherModel, copyIndex = 0): string => {
 };
 
 export const transferVoucherFileName = (v: VoucherModel): string =>
-    `${safeFileName(`Перенос брони ${v.hotelTitle} ${v.guest}`)}.pdf`;
+    `${safeFileName(`Перенос брони ${v.guest}`)}.pdf`;
 
 /** Подпись к файлу в чате «Королева Абхазии» — хештег читает программа напоминаний. */
 export const chatCaption = (

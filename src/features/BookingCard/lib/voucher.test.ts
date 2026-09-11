@@ -12,6 +12,7 @@ import {
     transferVoucherFileName,
     transferVoucherLines,
     voucherFileName,
+    voucherHotelProblems,
     voucherLines,
 } from './voucher';
 
@@ -68,10 +69,26 @@ describe('шапка отеля', () => {
         ]);
     });
 
-    it('не дублирует страну, если она уже в адресе', () => {
+    it('не дублирует страну, если адрес уже начинается с неё', () => {
         expect(buildHotelHeader({ ...hotel, address: 'Абхазия, г. Гагра' })[1]).toBe(
             'Абхазия, г. Гагра',
         );
+        // «Республика Абхазия» в конце — это не префикс: парсер ждёт «Абхазия,» в начале.
+        expect(buildHotelHeader({ ...hotel, address: 'г. Гагра, Республика Абхазия' })[1]).toBe(
+            'Абхазия, г. Гагра, Республика Абхазия',
+        );
+    });
+
+    it('строки «Абхазия,» и «Тел:» печатаются даже при пустых полях', () => {
+        expect(buildHotelHeader({ title: 'Парус' })).toEqual(['«Парус»', 'Абхазия, ', 'Тел: ']);
+    });
+
+    it('сообщает, чего не хватает в карточке отеля', () => {
+        expect(voucherHotelProblems(hotel)).toEqual([]);
+        expect(voucherHotelProblems({ title: 'Парус', address: '', phone: null })).toEqual([
+            'нет адреса отеля',
+            'нет телефона отеля',
+        ]);
     });
 });
 
@@ -170,9 +187,7 @@ describe('ваучер переноса', () => {
     });
 
     it('имя файла', () => {
-        expect(transferVoucherFileName(model)).toBe(
-            'Перенос брони Мулберри Иванова Анна Петровна.pdf',
-        );
+        expect(transferVoucherFileName(model)).toBe('Перенос брони Иванова Анна Петровна.pdf');
     });
 });
 
@@ -188,7 +203,7 @@ describe('пустые поля', () => {
         expect(model.toPay).toBe(22500);
         expect(text).toContain('Перевод на карту\n');
         expect(text).toContain('Комментарий: —');
-        expect(model.hotelHeader).toEqual(['«Парус»', 'Абхазия']);
+        expect(model.hotelHeader).toEqual(['«Парус»', 'Абхазия, ', 'Тел: ']);
     });
 
     it('запрещённые в имени файла символы вычищаются', () => {

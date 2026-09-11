@@ -70,6 +70,8 @@ export const BookingsPage = () => {
     const user = useUnit($user);
     const [filter, setFilter] = useState<Filter>('incomplete');
     const [selected, setSelected] = useState<BookingListRow | null>(null);
+    // Один объект на выбранную строку — иначе модалка пересчитывала бы ваучер каждый рендер.
+    const selectedReserve = useMemo(() => (selected ? toCurrentReserve(selected) : null), [selected]);
 
     // Брони с заездом от «вчера» и позже; прошлое в чек-листе не нужно.
     // Момент «сейчас» берём после монтирования — правило линтера о чистом рендере.
@@ -222,11 +224,11 @@ export const BookingsPage = () => {
                 </CardContent>
             </Card>
 
-            {selected && (
+            {selectedReserve && (
                 <BookingCardModal
-                    isOpen={!!selected}
+                    isOpen={!!selectedReserve}
                     onClose={() => setSelected(null)}
-                    currentReserve={toCurrentReserve(selected)}
+                    currentReserve={selectedReserve}
                 />
             )}
         </div>

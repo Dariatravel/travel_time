@@ -37,9 +37,12 @@ CREATE TABLE IF NOT EXISTS public.booking_cards (
     updated_by           text
 );
 
+-- Лента событий переживает удаление брони (SET NULL, не CASCADE): след
+-- «ушло в чат #бронь», «отельеру отправлено» нужен как раз тогда, когда
+-- бронь отменили и удалили. Гость/отель — в details.
 CREATE TABLE IF NOT EXISTS public.booking_card_events (
     id          bigserial   PRIMARY KEY,
-    reserve_id  uuid        NOT NULL REFERENCES public.reserves (id) ON DELETE CASCADE,
+    reserve_id  uuid        REFERENCES public.reserves (id) ON DELETE SET NULL,
     event       text        NOT NULL,              -- voucher_generated / chat_sent / hotel_notified / …
     details     jsonb,
     created_at  timestamptz NOT NULL DEFAULT now(),
@@ -48,8 +51,6 @@ CREATE TABLE IF NOT EXISTS public.booking_card_events (
 
 CREATE INDEX IF NOT EXISTS booking_card_events_reserve_idx
     ON public.booking_card_events (reserve_id, created_at DESC);
-CREATE INDEX IF NOT EXISTS booking_cards_status_idx
-    ON public.booking_cards (status);
 
 ALTER TABLE public.booking_cards       ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.booking_card_events ENABLE ROW LEVEL SECURITY;

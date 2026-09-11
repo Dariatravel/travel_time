@@ -194,6 +194,29 @@ const sendViaGithub = async (chatId: number | string, text: string, replyTo?: nu
     }
 };
 
+/**
+ * Строгая отправка текста: если не вышло ни напрямую, ни в обход — бросает
+ * ошибку. Нужна там, где «отправлено» записывается в базу (карточка брони):
+ * обычный sendMessage ошибки глотает, и #отмена могла бы «уйти» только на словах.
+ */
+export const sendMessageStrict = async (chatId: number | string, text: string) => {
+    let delivery: 'direct' | 'github' = 'direct';
+    for (const chunk of splitMessage(text)) {
+        try {
+            await sendDirect(chatId, chunk);
+        } catch (directError) {
+            console.warn(
+                'Прямая отправка в Telegram не удалась, уходим в обход:',
+                directError instanceof Error ? directError.message : directError,
+            );
+            await sendViaGithub(chatId, chunk);
+            delivery = 'github';
+        }
+    }
+
+    return delivery;
+};
+
 export const sendMessage = async (chatId: number | string, text: string, replyTo?: number) => {
     for (const chunk of splitMessage(text)) {
         try {

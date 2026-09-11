@@ -18,13 +18,14 @@ import { showToast } from '@/shared/ui/Toast/Toast';
 import dayjs from 'dayjs';
 import { useUnit } from 'effector-react/compat';
 import { Check, Circle, Download, Send } from 'lucide-react';
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
     useBookingCard,
     useBookingCardEvents,
     useSaveBookingCard,
     useSendToChat,
+    type SendToChatResult,
 } from '../api/bookingCard';
 import {
     BOOKING_SOURCES,
@@ -39,6 +40,7 @@ import {
     PAYMENT_BANKS,
     transferVoucherFileName,
     voucherFileName,
+    voucherHotelProblems,
     type BookingStep,
     type BookingStatus,
     type VoucherKind,
@@ -70,6 +72,9 @@ const EVENT_LABELS: Record<string, string> = {
     card_saved: 'Карточка сохранена',
 };
 
+const STEP_ORDER: BookingStep[] = ['voucher', 'chat', 'chessmate', 'hotel'];
+const DEFAULT_PAYMENT_PHONE = process.env.NEXT_PUBLIC_VOUCHER_PAYMENT_PHONE ?? '';
+
 const formatStamp = (iso?: string | null) => (iso ? dayjs(iso).format('DD.MM HH:mm') : '');
 
 const copyText = async (text: string) => {
@@ -82,7 +87,13 @@ const copyText = async (text: string) => {
     }
 };
 
-const STEP_ORDER: BookingStep[] = ['voucher', 'chat', 'chessmate', 'hotel'];
+const describeDelivery = (result: SendToChatResult, okText: string) => {
+    if (result.warning) return result.warning;
+
+    return result.delivery === 'github'
+        ? 'Отправлено через обход — появится в чате в течение минуты'
+        : okText;
+};
 
 export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, currentReserve }) => {
     const reserve = currentReserve.reserve;
@@ -103,25 +114,30 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
         voucher_kind: 'standard',
         payment_bank: '',
         payment_date: '',
-        payment_phone: process.env.NEXT_PUBLIC_VOUCHER_PAYMENT_PHONE ?? '',
+        payment_phone: DEFAULT_PAYMENT_PHONE,
         service_note: '',
     });
     const [busy, setBusy] = useState<string | null>(null);
+    // Форма заполняется из карточки только когда карточка реально изменилась
+    // (updated_at), а не при каждом фоновом перечитывании — иначе несохранённые
+    // правки менеджера пропадали бы при возврате из мессенджера в окно.
+    const loadedVersion = useRef<string | null>(null);
 
     useEffect(() => {
         if (!card) return;
+        const version = card.updated_at ?? 'initial';
+        if (loadedVersion.current === version) return;
+        loadedVersion.current = version;
         setForm({
             source: card.source ?? '',
             manager: card.manager ?? actor,
             voucher_kind: card.voucher_kind ?? 'standard',
             payment_bank: card.payment_bank ?? '',
             payment_date: card.payment_date ?? '',
-            payment_phone: card.payment_phone ?? process.env.NEXT_PUBLIC_VOUCHER_PAYMENT_PHONE ?? '',
+            payment_phone: card.payment_phone ?? DEFAULT_PAYMENT_PHONE,
             service_note: card.service_note ?? '',
         });
-        // actor намеренно не в зависимостях: форма заполняется из карточки один раз
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [card]);
+    }, [card, actor]);
 
     const model = useMemo(() => {
         if (!reserve || !hotel || reserve.start == null || reserve.end == null) return null;
@@ -150,8 +166,14 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
         });
     }, [reserve, hotel, room, form]);
 
+    const hotelProblems = useMemo(
+        () => (hotel ? voucherHotelProblems({ title: hotel.title ?? '', address: hotel.address, phone: hotel.phone }) : []),
+        [hotel],
+    );
+
     const status: BookingStatus = card?.status ?? 'booked';
     const steps = bookingSteps(card, reserve?.created_at ?? null);
+    const isClosedStatus = status === 'transferred' || status === 'cancelled';
 
     if (!reserveId || !model) return null;
 
@@ -176,6 +198,13 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
         }
     };
 
+    /** Ваучер без адреса/телефона отеля ночная программа не прочитает — не выпускаем. */
+    const assertHotelComplete = () => {
+        if (hotelProblems.length > 0) {
+            throw new Error(`Заполните карточку отеля: ${hotelProblems.join(', ')}`);
+        }
+    };
+
     const onSave = () =>
         run('save', async () => {
             await saveCard.mutateAsync({ reserveId, patch: patchFromForm(), actor });
@@ -184,6 +213,7 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
 
     const onDownloadVoucher = () =>
         run('voucher', async () => {
+            assertHotelComplete();
             const blob = await renderVoucherPdf(model);
             const fileName = voucherFileName(model);
             downloadBlob(blob, fileName);
@@ -198,19 +228,23 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
 
     const onSendChat = () =>
         run('chat', async () => {
+            assertHotelComplete();
+            if (isClosedStatus) {
+                throw new Error('Бронь перенесена или отменена — #бронь заново не отправляем');
+            }
             await saveCard.mutateAsync({ reserveId, patch: patchFromForm(), actor });
             const blob = await renderVoucherPdf(model);
+            const kind = status === 'changed' ? 'change' : 'booking';
             const result = await sendToChat.mutateAsync({
                 reserveId,
-                kind: status === 'changed' ? 'change' : 'booking',
-                caption: chatCaption(model, status === 'changed' ? 'change' : 'booking'),
+                kind,
+                caption: chatCaption(model, kind),
+                actor,
                 file: { blob, name: voucherFileName(model) },
             });
             showToast(
-                result.delivery === 'github'
-                    ? 'Отправлено через обход — файл появится в чате в течение минуты'
-                    : 'Отправлено в чат «Королева Абхазии»',
-                'success',
+                describeDelivery(result, 'Отправлено в чат «Королева Абхазии»'),
+                result.warning ? 'error' : 'success',
             );
         });
 
@@ -246,47 +280,55 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
             );
         });
 
+    /**
+     * Смена статуса = отправка в чат + новый статус одной операцией на сервере.
+     * Если запись после отправки не удалась, роут вернёт warning — и статус
+     * менеджер поправит руками, но дубля в чате не будет.
+     */
     const changeStatus = (next: BookingStatus, label: string) =>
         run(next, async () => {
             if (!window.confirm(`${label}? Это уйдёт в чат «Королева Абхазии».`)) return;
+            await saveCard.mutateAsync({ reserveId, patch: patchFromForm(), actor });
 
+            let result: SendToChatResult;
             if (next === 'transferred') {
+                assertHotelComplete();
                 const seasonYear = Number(model.checkIn.slice(-4)) || new Date().getFullYear();
                 const blob = await renderTransferVoucherPdf(model, seasonYear);
-                await sendToChat.mutateAsync({
+                result = await sendToChat.mutateAsync({
                     reserveId,
                     kind: 'transfer',
                     caption: chatCaption(model, 'transfer'),
+                    actor,
+                    status: next,
                     file: { blob, name: transferVoucherFileName(model) },
                 });
                 downloadBlob(blob, transferVoucherFileName(model));
             } else if (next === 'changed') {
+                assertHotelComplete();
                 const blob = await renderVoucherPdf(model);
-                await sendToChat.mutateAsync({
+                result = await sendToChat.mutateAsync({
                     reserveId,
                     kind: 'change',
                     caption: chatCaption(model, 'change'),
+                    actor,
+                    status: next,
                     file: { blob, name: voucherFileName(model) },
                 });
-            } else if (next === 'cancelled') {
-                await sendToChat.mutateAsync({
+            } else {
+                result = await sendToChat.mutateAsync({
                     reserveId,
                     kind: 'cancel',
                     caption: chatCaption(model, 'cancel'),
+                    actor,
+                    status: next,
                 });
             }
 
-            await saveCard.mutateAsync({
-                reserveId,
-                patch: {
-                    ...patchFromForm(),
-                    status: next,
-                    ...(next === 'changed' ? { voucher_generated_at: new Date().toISOString() } : {}),
-                },
-                actor,
-                event: { event: 'status_changed', details: { from: status, to: next } },
-            });
-            showToast(`Статус: ${BOOKING_STATUS_LABELS[next]}`, 'success');
+            showToast(
+                describeDelivery(result, `Статус: ${BOOKING_STATUS_LABELS[next]}, в чат отправлено`),
+                result.warning ? 'error' : 'success',
+            );
         });
 
     const field = (label: string, value: string) => (
@@ -424,6 +466,12 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
                         <div className="text-xs text-muted-foreground">
                             Гость, телефон, даты и суммы берутся из брони — менять их в форме брони.
                         </div>
+                        {hotelProblems.length > 0 && (
+                            <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900">
+                                В карточке отеля {hotelProblems.join(' и ')}. Без них ваучер не
+                                прочитает программа напоминаний — сначала заполните отель.
+                            </div>
+                        )}
                     </div>
 
                     {/* Правая панель — чек-лист и лента */}
@@ -461,15 +509,23 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
                             <Button
                                 type="button"
                                 variant="outline"
-                                disabled={!!busy}
+                                disabled={!!busy || hotelProblems.length > 0}
                                 onClick={onDownloadVoucher}
                             >
                                 <Download className="size-4" />
                                 {busy === 'voucher' ? 'Формирую…' : 'Ваучер (PDF)'}
                             </Button>
-                            <Button type="button" disabled={!!busy} onClick={onSendChat}>
+                            <Button
+                                type="button"
+                                disabled={!!busy || hotelProblems.length > 0 || isClosedStatus}
+                                onClick={onSendChat}
+                            >
                                 <Send className="size-4" />
-                                {busy === 'chat' ? 'Отправляю…' : 'Отправить в чат #бронь'}
+                                {busy === 'chat'
+                                    ? 'Отправляю…'
+                                    : status === 'changed'
+                                      ? 'Отправить в чат #изменения'
+                                      : 'Отправить в чат #бронь'}
                             </Button>
                             <Button
                                 type="button"
@@ -489,13 +545,13 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
                             </Button>
                         </div>
 
-                        {status !== 'cancelled' && (
+                        {!isClosedStatus && (
                             <div className="flex flex-wrap gap-2">
                                 <Button
                                     type="button"
                                     size="sm"
                                     variant="secondary"
-                                    disabled={!!busy}
+                                    disabled={!!busy || hotelProblems.length > 0}
                                     onClick={() => changeStatus('changed', 'Изменения в брони')}
                                 >
                                     Изменения
@@ -504,7 +560,7 @@ export const BookingCardModal: FC<BookingCardModalProps> = ({ isOpen, onClose, c
                                     type="button"
                                     size="sm"
                                     variant="secondary"
-                                    disabled={!!busy}
+                                    disabled={!!busy || hotelProblems.length > 0}
                                     onClick={() => changeStatus('transferred', 'Перенос брони')}
                                 >
                                     Перенос
