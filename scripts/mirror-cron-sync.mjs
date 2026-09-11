@@ -473,16 +473,7 @@ const syncIcalSource = async (supabase, src) => {
         });
         if (rpcError) throw new Error(rpcError.message);
         if (data?.status === 'error' && typeof data?.error === 'string') {
-            // К отказу базы прикладываем причины неполноты: иначе в журнале
-            // остаётся только «источник вернул неполный ответ», и непонятно,
-            // чинить сеть, состав категорий или самому отельеру открыть продажи.
-            const why = occupancyResult.reasons.length
-                ? ` Причины: ${occupancyResult.reasons.slice(0, 5).join('; ')}` +
-                  (occupancyResult.reasons.length > 5
-                      ? ` и ещё ${occupancyResult.reasons.length - 5}`
-                      : '')
-                : '';
-            throw new Error(`${data.error}.${why}`);
+            throw new Error(data.error);
         }
         if (
             !['ok', 'partial'].includes(data?.status) ||
@@ -598,7 +589,16 @@ const main = async () => {
         });
         if (rpcError) throw new Error(rpcError.message);
         if (data?.status === 'error' && typeof data?.error === 'string') {
-            throw new Error(data.error);
+            // К отказу базы прикладываем причины неполноты: иначе в журнале
+            // остаётся только «источник вернул неполный ответ», и непонятно,
+            // чинить сеть, состав категорий или самому отельеру открыть продажи.
+            const why = occupancyResult.reasons.length
+                ? ` Причины: ${occupancyResult.reasons.slice(0, 5).join('; ')}` +
+                  (occupancyResult.reasons.length > 5
+                      ? ` и ещё ${occupancyResult.reasons.length - 5}`
+                      : '')
+                : '';
+            throw new Error(`${data.error}.${why}`);
         }
         if (
             !['ok', 'partial'].includes(data?.status) ||
