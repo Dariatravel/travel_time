@@ -141,8 +141,11 @@ jobs:
           echo "tables in staging public:"
           psql "$STAGING_DB_URL" -Atc "select count(*) from information_schema.tables where table_schema='public'"
           # Контроль: закрытая функция должна остаться закрытой и в тестовой базе.
-          open_fn="$(psql "$STAGING_DB_URL" -Atc "select has_function_privilege('anon','public.get_raw_user_meta_data()','execute')")"
-          test "$open_fn" = "f" || { echo "::error::get_raw_user_meta_data открыта для anon в тестовой базе"; exit 1; }
+          open_fn="$(psql "$STAGING_DB_URL" -Atc "select coalesce(bool_or(has_function_privilege('anon', p.oid, 'execute')), false)
+              from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+              where n.nspname = 'public'
+                and p.proname in ('get_raw_user_meta_data', 'list_assignable_users', 'sync_external_occupancy')")"
+          test "$open_fn" = "f" || { echo "::error::служебные функции открыты для anon в тестовой базе"; exit 1; }
 
       - name: Copy non-personal data and anonymised reserves
         env:
