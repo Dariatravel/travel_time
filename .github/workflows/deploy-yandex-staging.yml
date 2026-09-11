@@ -133,6 +133,9 @@ jobs:
             --schema=public --schema=app_private > schema.sql
           # Схема public уже создана с нужными правами, повторное CREATE SCHEMA не нужно.
           sed -i -E '/^CREATE SCHEMA (public|app_private);$/d' schema.sql
+          # ALTER DEFAULT PRIVILEGES FOR ROLE supabase_admin … пользователю postgres
+          # не разрешено; нужные умолчания уже выставлены в шаге сброса схемы.
+          sed -i -E '/^ALTER DEFAULT PRIVILEGES /d' schema.sql
           echo "CREATE SCHEMA IF NOT EXISTS app_private;" | cat - schema.sql > schema.full.sql
           psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 -q -f schema.full.sql
           echo "tables in staging public:"
