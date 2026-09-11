@@ -7,12 +7,14 @@ import { isStaffRole } from '@/shared/lib/userRoles';
 import { useAuth } from '@/shared/lib/useAuth';
 import { $user } from '@/shared/models/auth';
 import { useUnit } from 'effector-react';
-import { isBookingCardEnabled, isMorningEnabled } from '@/shared/config/featureFlags';
+import { isBookingCardEnabled, isCrmEnabled, isMorningEnabled } from '@/shared/config/featureFlags';
 import {
     Building2,
     Calendar,
     ClipboardList,
+    Contact,
     HomeIcon,
+    KanbanSquare,
     LayoutDashboard,
     Sunrise,
     UserCog,
@@ -61,6 +63,13 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                   : []),
               ...(isBookingCardEnabled(user?.role)
                   ? [{ href: routes[PagesEnum.BOOKINGS], label: 'Брони', icon: ClipboardList }]
+                  : []),
+              // Клиенты и сделки (этап 3) — канбан как в OKO.
+              ...(isCrmEnabled(user?.role)
+                  ? [
+                        { href: routes[PagesEnum.DEALS], label: 'Сделки', icon: KanbanSquare },
+                        { href: routes[PagesEnum.CLIENTS], label: 'Клиенты', icon: Contact },
+                    ]
                   : []),
           ]
         : [];
