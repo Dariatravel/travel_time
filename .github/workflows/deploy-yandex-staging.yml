@@ -1,5 +1,25 @@
 name: Deploy Yandex Cloud Staging
 
+# Тестовый контур шахматки: ОТДЕЛЬНЫЙ проект Supabase (travel-time-staging,
+# ref ofvgsxzkxhmpxqezapaz) + отдельный контейнер в Яндекс-облаке.
+#
+# Раньше этот воркфлоу требовал секрет SUPABASE_STAGING_DB_URL, которого не было,
+# а сам контейнер собирался с адресом РАБОЧЕЙ базы. Теперь пароль тестовой базы
+# нигде не хранится: при каждом запуске он перевыпускается через Supabase
+# Management API (токен SUPABASE_ACCESS_TOKEN уже есть в секретах), живёт только
+# внутри одного запуска и в журнал не попадает.
+#
+# Что делает запуск:
+#   1. Сносит схему public в тестовой базе и заливает СХЕМУ рабочей базы
+#      (pg_dump --schema-only с рабочей SUPABASE_DB_URL — только чтение).
+#   2. Копирует данные без персональных сведений: отели, номера, закрытия
+#      номеров, роли, реестр миграций. Брони копирует ОБЕЗЛИЧЕННО: имя гостя,
+#      телефон и комментарий заменяются заглушками. Переписки, история правок и
+#      события вебхуков не копируются.
+#   3. Копирует учётные записи (auth.users/identities), чтобы входы менеджеров
+#      работали и на тестовом контуре.
+#   4. Прогоняет реестр миграций и выкатывает контейнер с ключами ТЕСТОВОЙ базы.
+
 on:
   workflow_dispatch:
 
@@ -10,10 +30,13 @@ env:
   YC_CONTAINER_NAME: travel-time-staging
   YC_API_GATEWAY_NAME: travel-time-staging
   YC_SERVICE_ACCOUNT_ID: ajengmf1j6jbk729ut5q
+  STAGING_REF: ofvgsxzkxhmpxqezapaz
+  STAGING_SUPABASE_URL: https://ofvgsxzkxhmpxqezapaz.supabase.co
+  PROD_REF: mgsotfnghyolearhqolv
 
 jobs:
   deploy-staging:
-    name: Build and deploy staging mirror
+    name: Refresh staging database and deploy
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,15 +45,142 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply Supabase staging migrations
-        env:
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_STAGING_DB_URL }}
+      - name: Guard against pointing at production
         run: |
-          test -n "$SUPABASE_DB_URL" || {
-            echo "::error::SUPABASE_STAGING_DB_URL is required before deploying this image"
-            exit 1
+          case "${{ secrets.SUPABASE_DB_URL }}" in
+            *"$STAGING_REF"*) echo "::error::SUPABASE_DB_URL указывает на тестовый проект"; exit 1;;
+          esac
+          test "$STAGING_REF" != "$PROD_REF"
+
+      - name: Install PostgreSQL 17 client
+        run: |
+          sudo apt-get install -y -qq postgresql-common >/dev/null
+          sudo /usr/share/postgresql-common/pgdg/apt.postgresql.org.sh -y >/dev/null
+          sudo apt-get install -y -qq postgresql-client-17 >/dev/null
+          pg_dump --version
+
+      - name: Rotate staging database password and build its URL
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          api="https://api.supabase.com/v1/projects/$STAGING_REF"
+          auth="Authorization: Bearer $SUPABASE_ACCESS_TOKEN"
+          password="$(openssl rand -hex 24)"
+          echo "::add-mask::$password"
+          curl -sSf -X PATCH "$api/database/password" -H "$auth" \
+            -H 'Content-Type: application/json' \
+            -d "{\"password\":\"$password\"}" >/dev/null
+          # Пул сессий (порт 5432) работает по IPv4 — прямой адрес базы только IPv6.
+          pooler="$(curl -sSf "$api/config/database/pooler" -H "$auth")"
+          host="$(echo "$pooler" | jq -r '.[] | select(.database_type=="PRIMARY") | .db_host')"
+          user="$(echo "$pooler" | jq -r '.[] | select(.database_type=="PRIMARY") | .db_user')"
+          test -n "$host" && test -n "$user"
+          url="postgresql://$user:$password@$host:5432/postgres?sslmode=require"
+          echo "::add-mask::$url"
+          echo "STAGING_DB_URL=$url" >> "$GITHUB_ENV"
+          # Пароль применяется не мгновенно — ждём, пока пустят.
+          for attempt in $(seq 1 20); do
+            if psql "$url" -Atc 'select 1' >/dev/null 2>&1; then
+              echo "staging db reachable (attempt $attempt)"; break
+            fi
+            test "$attempt" -lt 20 || { echo "::error::staging db not reachable"; exit 1; }
+            sleep 6
+          done
+
+      - name: Reset staging public schema
+        run: |
+          set -euo pipefail
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          DROP SCHEMA IF EXISTS public CASCADE;
+          DROP SCHEMA IF EXISTS app_private CASCADE;
+          CREATE SCHEMA public;
+          GRANT USAGE ON SCHEMA public TO anon, authenticated, service_role;
+          GRANT ALL ON SCHEMA public TO postgres;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON FUNCTIONS TO anon, authenticated, service_role;
+          ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;
+          TRUNCATE auth.identities, auth.users CASCADE;
+          SQL
+
+      - name: Copy production schema (read-only on production)
+        env:
+          PROD_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          # Расширения, которые использует рабочая база, должны быть и в тестовой.
+          psql "$PROD_DB_URL" -Atc \
+            "select 'CREATE EXTENSION IF NOT EXISTS \"'||extname||'\" WITH SCHEMA \"'||n.nspname||'\";' \
+             from pg_extension e join pg_namespace n on n.oid=e.extnamespace \
+             where extname not in ('plpgsql')" > extensions.sql
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=0 -f extensions.sql || true
+          pg_dump "$PROD_DB_URL" --schema-only --no-owner --no-privileges \
+            --schema=public --schema=app_private > schema.sql
+          # Схема public уже создана с нужными правами, повторное CREATE SCHEMA не нужно.
+          sed -i -E '/^CREATE SCHEMA (public|app_private);$/d' schema.sql
+          echo "CREATE SCHEMA IF NOT EXISTS app_private;" | cat - schema.sql > schema.full.sql
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 -q -f schema.full.sql
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          GRANT ALL ON ALL TABLES IN SCHEMA public TO anon, authenticated, service_role;
+          GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO anon, authenticated, service_role;
+          GRANT ALL ON ALL FUNCTIONS IN SCHEMA public TO anon, authenticated, service_role;
+          SQL
+          echo "tables in staging public:"
+          psql "$STAGING_DB_URL" -Atc "select count(*) from information_schema.tables where table_schema='public'"
+
+      - name: Copy non-personal data and anonymised reserves
+        env:
+          PROD_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          copy_table() {
+            pg_dump "$PROD_DB_URL" --data-only --no-owner --no-privileges -t "$1" \
+              | psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 -q
           }
-          bash scripts/apply-release-migrations.sh
+          # Учётные записи — чтобы вход работал; пароли остаются хэшами.
+          copy_table auth.users
+          copy_table auth.identities
+          # Справочники без персональных данных.
+          copy_table public.hotels
+          copy_table public.rooms
+          copy_table public.room_closures
+          copy_table public.user_roles
+          copy_table app_private.deployment_migrations
+          # Брони: триггеры истории/защиты от дублей на время загрузки выключаем.
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 -c "ALTER TABLE public.reserves DISABLE TRIGGER USER"
+          copy_table public.reserves
+          psql "$STAGING_DB_URL" -v ON_ERROR_STOP=1 <<'SQL'
+          UPDATE public.reserves SET
+            guest = 'Гость ' || left(id::text, 4),
+            phone = '+70000000000',
+            comment = CASE WHEN comment IS NULL THEN NULL ELSE 'комментарий скрыт' END;
+          ALTER TABLE public.reserves ENABLE TRIGGER USER;
+          SQL
+          echo "rows: hotels=$(psql "$STAGING_DB_URL" -Atc 'select count(*) from public.hotels') rooms=$(psql "$STAGING_DB_URL" -Atc 'select count(*) from public.rooms') reserves=$(psql "$STAGING_DB_URL" -Atc 'select count(*) from public.reserves') users=$(psql "$STAGING_DB_URL" -Atc 'select count(*) from auth.users')"
+          # Контроль: в тестовой базе не должно остаться настоящих телефонов.
+          leaked="$(psql "$STAGING_DB_URL" -Atc "select count(*) from public.reserves where phone <> '+70000000000'")"
+          test "$leaked" = "0" || { echo "::error::в тестовой базе остались телефоны: $leaked"; exit 1; }
+
+      - name: Apply release migrations to staging
+        env:
+          SUPABASE_DB_URL: ${{ env.STAGING_DB_URL }}
+        run: bash scripts/apply-release-migrations.sh
+
+      - name: Fetch staging API keys
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          keys="$(curl -sSf "https://api.supabase.com/v1/projects/$STAGING_REF/api-keys?reveal=true" \
+            -H "Authorization: Bearer $SUPABASE_ACCESS_TOKEN")"
+          anon="$(echo "$keys" | jq -r '.[] | select(.name=="anon") | .api_key')"
+          service="$(echo "$keys" | jq -r '.[] | select(.name=="service_role") | .api_key')"
+          test -n "$anon" && test "$anon" != "null"
+          test -n "$service" && test "$service" != "null"
+          echo "::add-mask::$anon"
+          echo "::add-mask::$service"
+          echo "STAGING_ANON_KEY=$anon" >> "$GITHUB_ENV"
+          echo "STAGING_SERVICE_KEY=$service" >> "$GITHUB_ENV"
 
       - name: Install Yandex Cloud CLI
         run: |
@@ -65,9 +215,9 @@ jobs:
           push: true
           tags: ${{ env.IMAGE }}
           build-args: |
-            NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=true
+            NEXT_PUBLIC_SUPABASE_URL=${{ env.STAGING_SUPABASE_URL }}
+            NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.STAGING_ANON_KEY }}
+            NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false
 
       - name: Deploy staging serverless container revision
         run: |
@@ -79,7 +229,7 @@ jobs:
             --cores 1 \
             --execution-timeout 30s \
             --concurrency 16 \
-            --environment "NODE_ENV=production,NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }},NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }},YANDEX_BACKEND_PROXY_ENABLED=true,YANDEX_BACKEND_PROXY_CACHE_TTL_MS=10000"
+            --environment "NODE_ENV=production,APP_ENV=staging,NEXT_PUBLIC_SUPABASE_URL=${STAGING_SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${STAGING_ANON_KEY},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false,SUPABASE_SERVICE_ROLE_KEY=${STAGING_SERVICE_KEY},TRANSACTIONAL_ICAL_SYNC_ENABLED=false,YANDEX_BACKEND_PROXY_ENABLED=false"
 
       - name: Create or update staging API Gateway
         run: |
@@ -106,3 +256,9 @@ jobs:
           else
             yc serverless api-gateway create "$YC_API_GATEWAY_NAME" --spec "$TMP_SPEC"
           fi
+
+      - name: Print staging address
+        run: |
+          domain="$(yc serverless api-gateway get "$YC_API_GATEWAY_NAME" --format json | node -e "let d='';process.stdin.on('data',c=>d+=c);process.stdin.on('end',()=>console.log(JSON.parse(d).domain))")"
+          echo "### Тестовый контур: https://$domain" >> "$GITHUB_STEP_SUMMARY"
+          echo "STAGING: https://$domain"
