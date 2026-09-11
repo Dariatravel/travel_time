@@ -276,6 +276,8 @@ jobs:
             NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ env.STAGING_ANON_KEY }}
             NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false
             NEXT_PUBLIC_APP_ENV=staging
+            NEXT_PUBLIC_VOUCHER_MANAGER_LINE=${{ vars.VOUCHER_MANAGER_LINE || '' }}
+            NEXT_PUBLIC_VOUCHER_PAYMENT_PHONE=${{ vars.VOUCHER_PAYMENT_PHONE || '' }}
 
       - name: Fetch staging service key (only now, right before deploy)
         env:
@@ -299,7 +301,7 @@ jobs:
             --cores 1 \
             --execution-timeout 30s \
             --concurrency 16 \
-            --environment "NODE_ENV=production,APP_ENV=staging,NEXT_PUBLIC_SUPABASE_URL=${STAGING_SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${STAGING_ANON_KEY},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false,SUPABASE_SERVICE_ROLE_KEY=${STAGING_SERVICE_KEY},TRANSACTIONAL_ICAL_SYNC_ENABLED=false,YANDEX_BACKEND_PROXY_ENABLED=false"
+            --environment "NODE_ENV=production,APP_ENV=staging,NEXT_PUBLIC_SUPABASE_URL=${STAGING_SUPABASE_URL},NEXT_PUBLIC_SUPABASE_ANON_KEY=${STAGING_ANON_KEY},NEXT_PUBLIC_USE_YANDEX_BACKEND_PROXY=false,SUPABASE_SERVICE_ROLE_KEY=${STAGING_SERVICE_KEY},TELEGRAM_BOOKING_CHAT_ID=${{ vars.TELEGRAM_BOOKING_CHAT_ID_STAGING || '' }},TRANSACTIONAL_ICAL_SYNC_ENABLED=false,YANDEX_BACKEND_PROXY_ENABLED=false"
 
       - name: Create or update staging API Gateway
         run: |

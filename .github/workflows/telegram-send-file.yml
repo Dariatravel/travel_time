@@ -1,0 +1,67 @@
+name: Telegram send file
+
+# Обходная отправка файла ботом: контейнер в Yandex Cloud не всегда
+# дотягивается до api.telegram.org (см. telegram-send.yml). Карточка брони
+# кладёт ваучер в Supabase Storage (bucket «vouchers», закрытый) и запускает
+# этот воркфлоу; отсюда файл скачивается сервисным ключом и уходит в чат.
+# Логи публичного репозитория видны всем — поэтому здесь не печатается ни
+# подпись, ни имя файла (в нём ФИО гостя).
+
+on:
+  workflow_dispatch:
+    inputs:
+      chat_id:
+        description: Игнорируется — чат берётся из vars.TELEGRAM_BOOKING_CHAT_ID (защита от отправки в чужой чат)
+        required: false
+        type: string
+        default: ""
+      storage_path:
+        description: Путь в Storage вида vouchers/<reserve>/<файл>
+        required: true
+        type: string
+      file_name:
+        description: Имя файла для получателя
+        required: true
+        type: string
+      caption:
+        description: Подпись к файлу
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Download from Storage and send
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          CHAT_ID: ${{ vars.TELEGRAM_BOOKING_CHAT_ID }}
+          STORAGE_PATH: ${{ inputs.storage_path }}
+          FILE_NAME: ${{ inputs.file_name }}
+          CAPTION: ${{ inputs.caption }}
+        run: |
+          set -euo pipefail
+          test -n "$CHAT_ID" || { echo "::error::vars.TELEGRAM_BOOKING_CHAT_ID не задан"; exit 1; }
+          echo "::add-mask::$FILE_NAME"
+          echo "::add-mask::$CAPTION"
+          case "$STORAGE_PATH" in
+            vouchers/*) ;;
+            *) echo "::error::допустим только bucket vouchers"; exit 1;;
+          esac
+          tmp="$(mktemp -d)"
+          curl -sSf -o "$tmp/file" \
+            -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+            "$SUPABASE_URL/storage/v1/object/$STORAGE_PATH"
+          size="$(wc -c < "$tmp/file")"
+          test "$size" -gt 0
+          echo "file size: $size bytes"
+          response="$(curl -sS -X POST "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendDocument" \
+            -F "chat_id=$CHAT_ID" \
+            -F "caption=$CAPTION" \
+            -F "document=@$tmp/file;filename=$FILE_NAME")"
+          echo "$response" | grep -q '"ok":true' || { echo "::error::Telegram отказал"; echo "$response" | sed -E 's/"file_name":"[^"]*"/"file_name":"…"/g'; exit 1; }
+          echo "sent"
