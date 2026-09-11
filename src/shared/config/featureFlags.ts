@@ -14,3 +14,6 @@ export const isBookingCardEnabled = (role?: string | null): boolean => isAdminRo
 
 /** «Утро менеджера» (этап 2) — те же правила доступа, что и у карточки брони. */
 export const isMorningEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/** Клиенты и сделки (этап 3): канбан, контакты, импорт из OKO. */
+export const isCrmEnabled = (role?: string | null): boolean => isAdminRole(role);
