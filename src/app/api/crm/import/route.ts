@@ -60,25 +60,23 @@ const importLinks = async (
     service: ReturnType<typeof createSupabaseServiceRoleClient>,
     rows: Row[],
 ): Promise<{ written: number; skipped: number }> => {
-    let written = 0;
-    let skipped = 0;
-    for (const row of rows) {
-        const contactId = row.oko_contact_id;
-        if (typeof contactId !== 'number') {
-            skipped += 1;
-            continue;
-        }
-        const { data, error } = await service.rpc('oko_link_client', {
-            p_contact_id: contactId,
-            p_messenger_ids: Array.isArray(row.oko_messenger_ids) ? row.oko_messenger_ids : [],
-            p_client_ids: Array.isArray(row.oko_client_ids) ? row.oko_client_ids : [],
-        });
-        if (error) throw new Error(`связи: ${error.message}`);
-        if (data === true) written += 1;
-        else skipped += 1;
-    }
+    // Одним запросом на всю пачку: по отдельному запросу на связь (их 2400)
+    // контейнер не уложился бы в отведённые 30 секунд.
+    const payload = rows
+        .filter((row) => typeof row.oko_contact_id === 'number')
+        .map((row) => ({
+            oko_contact_id: row.oko_contact_id,
+            oko_messenger_ids: Array.isArray(row.oko_messenger_ids) ? row.oko_messenger_ids : [],
+            oko_client_ids: Array.isArray(row.oko_client_ids) ? row.oko_client_ids : [],
+        }));
+    if (payload.length === 0) return { written: 0, skipped: rows.length };
 
-    return { written, skipped };
+    const { data, error } = await service.rpc('oko_link_clients_batch', { p_rows: payload });
+    if (error) throw new Error(`связи: ${error.message}`);
+    const written = typeof data === 'number' ? data : 0;
+
+    // Не нашлись — значит такого контакта в шахматке нет (сделка не переносилась).
+    return { written, skipped: rows.length - written };
 };
 
 const numbers = (rows: Row[], field: string): number[] =>

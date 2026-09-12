@@ -16,6 +16,12 @@
 -- public.oko_merge_clients(uuid, uuid); папка src/features/Inbox, src/app/main/inbox.
 BEGIN;
 
+-- Экран «Входящие» берёт последнее сообщение каждой переписки: нужен порядок
+-- (переписка, время) в одном индексе, иначе на 200 тысячах строк это перебор.
+CREATE INDEX IF NOT EXISTS deal_messages_inbox_idx
+    ON public.deal_messages (oko_contact_messenger_id, sent_at DESC)
+    WHERE oko_contact_messenger_id IS NOT NULL;
+
 /** Проставить клиенту идентификаторы ОКО (загрузка карты связей из выгрузки). */
 CREATE OR REPLACE FUNCTION public.oko_link_client(
     p_contact_id    bigint,
@@ -49,6 +55,49 @@ REVOKE ALL ON FUNCTION public.oko_link_client(bigint, bigint[], bigint[]) FROM P
 GRANT EXECUTE ON FUNCTION public.oko_link_client(bigint, bigint[], bigint[]) TO service_role;
 
 /**
+ * То же пачкой: связей две с половиной тысячи, по одному запросу на каждую
+ * импорт бы не уложился в 30 секунд, отведённые контейнеру.
+ * На вход — массив {oko_contact_id, oko_messenger_ids, oko_client_ids}.
+ */
+CREATE OR REPLACE FUNCTION public.oko_link_clients_batch(p_rows jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_updated integer;
+BEGIN
+    WITH input AS (
+        SELECT (r ->> 'oko_contact_id')::bigint AS contact_id,
+               COALESCE((SELECT array_agg(x::bigint) FROM jsonb_array_elements_text(r -> 'oko_messenger_ids') AS x), '{}') AS messenger_ids,
+               COALESCE((SELECT array_agg(x::bigint) FROM jsonb_array_elements_text(r -> 'oko_client_ids') AS x), '{}') AS client_ids
+          FROM jsonb_array_elements(p_rows) AS r
+         WHERE (r ->> 'oko_contact_id') IS NOT NULL
+    ),
+    updated AS (
+        UPDATE public.clients AS c
+           SET oko_messenger_ids = (
+                   SELECT COALESCE(array_agg(DISTINCT x), '{}')
+                     FROM unnest(c.oko_messenger_ids || i.messenger_ids) AS x WHERE x IS NOT NULL),
+               oko_client_ids = (
+                   SELECT COALESCE(array_agg(DISTINCT x), '{}')
+                     FROM unnest(c.oko_client_ids || i.client_ids) AS x WHERE x IS NOT NULL),
+               updated_at = now()
+          FROM input AS i
+         WHERE c.oko_contact_id = i.contact_id
+        RETURNING 1
+    )
+    SELECT count(*)::integer INTO v_updated FROM updated;
+
+    RETURN v_updated;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_link_clients_batch(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oko_link_clients_batch(jsonb) TO service_role;
+
+/**
  * Склеить временного клиента (заведённого по живому сообщению) с настоящим:
  * сообщения и сделки переезжают, идентификаторы ОКО добавляются, временная
  * карточка удаляется. Только для admin/operator — это ручное действие
@@ -67,6 +116,12 @@ BEGIN
     IF p_from = p_into OR p_from IS NULL OR p_into IS NULL THEN
         RAISE EXCEPTION 'Нужны два разных клиента';
     END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.clients WHERE id = p_from) THEN
+        RAISE EXCEPTION 'Карточка, которую переносим, не найдена';
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM public.clients WHERE id = p_into) THEN
+        RAISE EXCEPTION 'Клиент, к которому привязываем, не найден';
+    END IF;
 
     UPDATE public.clients AS target
        SET oko_messenger_ids = (
@@ -75,6 +130,13 @@ BEGIN
            oko_client_ids = (
                SELECT COALESCE(array_agg(DISTINCT x), '{}')
                  FROM unnest(target.oko_client_ids || source.oko_client_ids) AS x),
+           -- Телефон и почта временной карточки не должны пропасть при склейке.
+           phones = (SELECT COALESCE(array_agg(DISTINCT x), '{}')
+                       FROM unnest(target.phones || source.phones) AS x WHERE x <> ''),
+           emails = (SELECT COALESCE(array_agg(DISTINCT x), '{}')
+                       FROM unnest(target.emails || source.emails) AS x WHERE x <> ''),
+           name = COALESCE(NULLIF(btrim(target.name), ''), source.name),
+           telegram_user_id = COALESCE(target.telegram_user_id, source.telegram_user_id),
            last_incoming_at = GREATEST(
                COALESCE(target.last_incoming_at, source.last_incoming_at),
                COALESCE(source.last_incoming_at, target.last_incoming_at)),
@@ -131,11 +193,12 @@ AS $$
            AND m.sent_at >= now() - make_interval(days => GREATEST(1, LEAST(COALESCE(p_days, 14), 120)))
          ORDER BY m.oko_contact_messenger_id, m.sent_at DESC
     ),
-    counted AS (
-        SELECT m.oko_contact_messenger_id AS messenger_id, count(*) AS messages_count
-          FROM public.deal_messages AS m
-         WHERE m.oko_contact_messenger_id IS NOT NULL
-         GROUP BY m.oko_contact_messenger_id
+    -- Сначала отбираем те переписки, что попадут на экран, и только для них
+    -- считаем сообщения: пересчёт всей таблицы (200 тысяч строк) на каждое
+    -- открытие «Входящих» не нужен.
+    page AS (
+        SELECT * FROM last_msg ORDER BY sent_at DESC
+         LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 200), 500))
     )
     SELECT l.messenger_id,
            l.client_id,
@@ -150,9 +213,13 @@ AS $$
            COALESCE(n.messages_count, 0),
            d.id,
            d.stage
-      FROM last_msg AS l
+      FROM page AS l
       LEFT JOIN public.clients AS c ON c.id = l.client_id
-      LEFT JOIN counted AS n ON n.messenger_id = l.messenger_id
+      LEFT JOIN LATERAL (
+            SELECT count(*) AS messages_count
+              FROM public.deal_messages AS m
+             WHERE m.oko_contact_messenger_id = l.messenger_id
+      ) AS n ON true
       LEFT JOIN LATERAL (
             SELECT dl.id, dl.stage
               FROM public.deals AS dl
@@ -161,7 +228,6 @@ AS $$
              LIMIT 1
       ) AS d ON true
      ORDER BY l.sent_at DESC
-     LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 200), 500))
 $$;
 
 REVOKE ALL ON FUNCTION public.oko_inbox(integer, integer) FROM PUBLIC, anon;
