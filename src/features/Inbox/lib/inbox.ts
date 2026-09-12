@@ -15,8 +15,10 @@ export type InboxRow = {
     integration_id: number | null;
     last_text: string | null;
     last_direction: 'in' | 'out';
+    /** 'contact' — клиент, 'user' — менеджер, 'robot' — автоответчик ОКО. */
+    last_author_type: string | null;
     last_at: string;
-    /** Первое сообщение клиента без ответа; ответили — null. */
+    /** Первое сообщение клиента без ответа человека; ответили — null. */
     waiting_since: string | null;
     deal_id: string | null;
     deal_stage: string | null;
@@ -34,6 +36,14 @@ export const CHANNELS: Record<number, string> = {
 
 export const channelName = (id: number | null): string =>
     id == null ? '—' : (CHANNELS[id] ?? `канал ${id}`);
+
+/** Кто говорил последним: «клиент», «мы» или «робот» (автоответчик ОКО). */
+export const lastSpeaker = (row: Pick<InboxRow, 'last_direction' | 'last_author_type'>): string => {
+    if (row.last_direction === 'in') return 'клиент';
+    if (row.last_author_type === 'robot' || row.last_author_type === 'bot') return 'робот';
+
+    return 'мы';
+};
 
 export type InboxFilter = 'waiting' | 'overdue' | 'unknown' | 'all';
 

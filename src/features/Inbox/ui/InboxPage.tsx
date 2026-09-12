@@ -26,6 +26,7 @@ import {
     formatMoment,
     humanWait,
     isOverdue,
+    lastSpeaker,
     waitingHours,
     type InboxFilter,
     type InboxRow,
@@ -344,7 +345,7 @@ export const InboxPage = () => {
                                 <div className="truncate text-muted-foreground">{row.last_text || '—'}</div>
                                 <div className="text-xs text-muted-foreground">
                                     {channelName(row.integration_id)} · {formatMoment(row.last_at)} ·{' '}
-                                    {row.last_direction === 'in' ? 'клиент' : 'мы'}
+                                    {lastSpeaker(row)}
                                 </div>
                             </button>
                         );

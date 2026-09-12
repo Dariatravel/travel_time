@@ -7,6 +7,7 @@ import {
     formatMoment,
     humanWait,
     isOverdue,
+    lastSpeaker,
     waitingHours,
     type InboxRow,
 } from './inbox';
@@ -24,6 +25,7 @@ const row = (extra: Partial<InboxRow> = {}): InboxRow => ({
     integration_id: 30,
     last_text: 'здравствуйте',
     last_direction: 'in',
+    last_author_type: 'contact',
     last_at: hoursAgo(2),
     waiting_since: hoursAgo(2),
     deal_id: 'd1',
@@ -96,6 +98,13 @@ describe('отборы и счётчики', () => {
 });
 
 describe('мелочи', () => {
+    it('кто говорил последним: робот-автоответчик не выдаётся за нас', () => {
+        expect(lastSpeaker({ last_direction: 'in', last_author_type: 'contact' })).toBe('клиент');
+        expect(lastSpeaker({ last_direction: 'out', last_author_type: 'user' })).toBe('мы');
+        expect(lastSpeaker({ last_direction: 'out', last_author_type: 'robot' })).toBe('робот');
+        expect(lastSpeaker({ last_direction: 'out', last_author_type: null })).toBe('мы');
+    });
+
     it('называет каналы по номеру подключения', () => {
         expect(channelName(30)).toBe('Avito');
         expect(channelName(70)).toBe('WhatsApp');
