@@ -53,7 +53,6 @@ def describe(chat):
 def main():
     token = os.environ.get('TELEGRAM_BOT_TOKEN', '').strip()
     raw_ids = os.environ.get('TELEGRAM_MANAGER_CHAT_IDS', '').strip()
-    booking_id = os.environ.get('TELEGRAM_BOOKING_CHAT_ID', '').strip()
 
     if not token:
         print('Не задан секрет TELEGRAM_BOT_TOKEN')
@@ -118,23 +117,6 @@ def main():
                 f'Запись {number}: номер похож на настоящий, значит {bot_name} в этом чате '
                 'не состоит — его надо добавить участником.'
             )
-
-    # Чат карточки брони: он заведомо рабочий, и по нему видно, что дело не в
-    # токене. Заодно проверяем, не он ли уже вписан менеджерам.
-    if booking_id:
-        print('\n=== ДЛЯ СРАВНЕНИЯ: чат карточки брони ===')
-        answer = call(token, 'getChat', chat_id=booking_id)
-        if answer.get('ok'):
-            print(f'  ✓ {describe(answer.get("result", {}))}, бот в чате состоит')
-            print('  Токен рабочий: как минимум в один чат бот пишет.')
-            if booking_id in entries:
-                print('  Этот чат уже вписан и в TELEGRAM_MANAGER_CHAT_IDS.')
-            else:
-                print('  В TELEGRAM_MANAGER_CHAT_IDS его нет.')
-                print('  Если оповещения о синхронизации должны идти именно сюда —')
-                print('  скопируйте значение переменной TELEGRAM_BOOKING_CHAT_ID в секрет.')
-        else:
-            print(f'  ✗ Telegram отказал: {answer.get("description", "без объяснения")}')
 
     print(f'\nВсего записей: {len(entries)}, чатов доступно боту: {reachable}')
 
