@@ -20,6 +20,7 @@ migrations=(
     "supabase/migrations/20260912180000_add_hotelier_cabinet.sql"
     "supabase/migrations/20260913120000_add_oko_live.sql"
     "supabase/migrations/20260913150000_add_inbox.sql"
+    "supabase/migrations/20260913170000_inbox_robot.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.
