@@ -7,7 +7,12 @@ import { isStaffRole } from '@/shared/lib/userRoles';
 import { useAuth } from '@/shared/lib/useAuth';
 import { $user } from '@/shared/models/auth';
 import { useUnit } from 'effector-react';
-import { isBookingCardEnabled, isCrmEnabled, isMorningEnabled } from '@/shared/config/featureFlags';
+import {
+    isBookingCardEnabled,
+    isCrmEnabled,
+    isFinanceEnabled,
+    isMorningEnabled,
+} from '@/shared/config/featureFlags';
 import {
     Building2,
     Calendar,
@@ -18,6 +23,7 @@ import {
     LayoutDashboard,
     Sunrise,
     UserCog,
+    Wallet,
 } from 'lucide-react';
 import moment from 'moment/moment';
 import { useRouter } from 'next/navigation';
@@ -70,6 +76,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         { href: routes[PagesEnum.DEALS], label: 'Сделки', icon: KanbanSquare },
                         { href: routes[PagesEnum.CLIENTS], label: 'Клиенты', icon: Contact },
                     ]
+                  : []),
+              // Финансы с отелями (этап 4) — только Дарья.
+              ...(isFinanceEnabled(user?.role)
+                  ? [{ href: routes[PagesEnum.FINANCE], label: 'Финансы', icon: Wallet }]
                   : []),
           ]
         : [];

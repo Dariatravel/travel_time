@@ -17,3 +17,6 @@ export const isMorningEnabled = (role?: string | null): boolean => isAdminRole(r
 
 /** Клиенты и сделки (этап 3): канбан, контакты, импорт из OKO. */
 export const isCrmEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/** Финансы с отелями (этап 4): решение Дарьи — на старте только у неё. */
+export const isFinanceEnabled = (role?: string | null): boolean => isAdminRole(role);
