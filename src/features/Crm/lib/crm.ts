@@ -76,22 +76,30 @@ export const normalizePhone = (raw: string): string | null => {
 /**
  * Пачка для импорта: только объекты с ключом, без повторов по ключу
  * (последняя строка побеждает), только разрешённые колонки.
+ *
+ * collapse: false — для видов, где строки складываются, а не заменяют друг
+ * друга (связи переписок). Там схлопывание по ключу потеряло бы данные.
  */
 export const sanitizeRows = (
     rows: unknown,
-    spec: { conflict: string; columns: string[] },
+    spec: { conflict: string; columns: string[]; collapse?: boolean },
 ): Record<string, unknown>[] => {
     if (!Array.isArray(rows)) return [];
+    const pick = (row: Record<string, unknown>) =>
+        Object.fromEntries(spec.columns.filter((c) => c in row).map((c) => [c, row[c]]));
+    const collapse = spec.collapse !== false;
     const byKey = new Map<string, Record<string, unknown>>();
+    const kept: Record<string, unknown>[] = [];
     for (const raw of rows) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const row = raw as Record<string, unknown>;
         const key = row[spec.conflict];
         if (key == null || key === '') continue;
-        byKey.set(String(key), Object.fromEntries(spec.columns.filter((c) => c in row).map((c) => [c, row[c]])));
+        if (collapse) byKey.set(String(key), pick(row));
+        else kept.push(pick(row));
     }
 
-    return [...byKey.values()];
+    return collapse ? [...byKey.values()] : kept;
 };
 
 export type DealRow = {
@@ -151,6 +159,7 @@ export type DealMessageRow = {
     id: number;
     oko_message_id: number | null;
     deal_id: string | null;
+    client_id?: string | null;
     direction: 'in' | 'out';
     author_type: string | null;
     author_name: string | null;
@@ -158,6 +167,27 @@ export type DealMessageRow = {
     text: string | null;
     files: string[];
     sent_at: string | null;
+    /** Куда отвечать через ОКО — из последнего сообщения переписки. */
+    oko_client_id?: number | null;
+    oko_contact_messenger_id?: number | null;
+    source?: 'import' | 'webhook' | 'outbox';
+};
+
+/**
+ * Куда отправлять ответ клиенту через ОКО: берём из самого свежего сообщения,
+ * где есть идентификатор переписки. У старых импортированных сообщений его нет.
+ */
+export const replyTargetOf = (
+    messages: DealMessageRow[],
+): { okoClientId: number | null; contactMessengerId: number } | null => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const messengerId = messages[i]?.oko_contact_messenger_id;
+        if (messengerId) {
+            return { okoClientId: messages[i].oko_client_id ?? null, contactMessengerId: messengerId };
+        }
+    }
+
+    return null;
 };
 
 export const clientOf = (deal: DealRow): ClientRow | null => {
@@ -234,9 +264,13 @@ export const parseJsonl = (text: string): { rows: Record<string, unknown>[]; bro
     return { rows, broken };
 };
 
-/** Файл → таблица по имени: clients.jsonl, deals.jsonl, messages.jsonl. */
-export const importTableForFile = (fileName: string): 'clients' | 'deals' | 'deal_messages' | null => {
+export type ImportTable = 'clients' | 'deals' | 'deal_messages' | 'client_links';
+
+/** Файл → таблица по имени: clients, deals, messages, client_links. */
+export const importTableForFile = (fileName: string): ImportTable | null => {
     const name = fileName.toLowerCase();
+    // «client_links» проверяем раньше «clients»: иначе совпадёт по началу строки.
+    if (name.startsWith('client_links')) return 'client_links';
     if (name.startsWith('clients')) return 'clients';
     if (name.startsWith('deals')) return 'deals';
     if (name.startsWith('messages')) return 'deal_messages';

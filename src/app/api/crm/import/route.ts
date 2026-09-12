@@ -23,10 +23,16 @@ export const dynamic = 'force-dynamic';
 const MAX_ROWS = 500;
 const MAX_BODY_BYTES = 3 * 1024 * 1024;
 
-type Table = 'clients' | 'deals' | 'deal_messages';
+type Table = 'clients' | 'deals' | 'deal_messages' | 'client_links';
 type Row = Record<string, unknown>;
 
-const TABLES: Record<Table, { conflict: string; columns: string[] }> = {
+const TABLES: Record<Table, { conflict: string; columns: string[]; collapse?: boolean }> = {
+    client_links: {
+        conflict: 'oko_contact_id',
+        columns: ['oko_contact_id', 'oko_messenger_ids', 'oko_client_ids'],
+        // Связи складываются, а не заменяют друг друга: схлопывать нельзя.
+        collapse: false,
+    },
     clients: {
         conflict: 'oko_contact_id',
         columns: ['oko_contact_id', 'name', 'phones', 'emails', 'responsible', 'telegram_user_id', 'oko_created_at', 'oko_url'],
@@ -45,6 +51,36 @@ const TABLES: Record<Table, { conflict: string; columns: string[] }> = {
         conflict: 'oko_message_id',
         columns: ['oko_message_id', 'oko_contact_id', 'oko_lead_id', 'direction', 'author_type', 'author_name', 'integration_id', 'text', 'files', 'sent_at'],
     },
+};
+
+/**
+ * Связи переписок ОКО с уже перенесёнными клиентами: {oko_contact_id,
+ * oko_messenger_ids, oko_client_ids}. Идут не в таблицу, а функцией — она
+ * дописывает идентификаторы, не затирая уже имеющиеся.
+ */
+const importLinks = async (
+    service: ReturnType<typeof createSupabaseServiceRoleClient>,
+    rows: Row[],
+): Promise<{ written: number; skipped: number }> => {
+    // Одним запросом на всю пачку: по отдельному запросу на связь (их 2400)
+    // контейнер не уложился бы в отведённые 30 секунд.
+    const ids = (value: unknown): number[] =>
+        Array.isArray(value) ? value.filter((v): v is number => Number.isInteger(v) && (v as number) > 0) : [];
+    const payload = rows
+        .filter((row) => Number.isInteger(row.oko_contact_id))
+        .map((row) => ({
+            oko_contact_id: row.oko_contact_id,
+            oko_messenger_ids: ids(row.oko_messenger_ids),
+            oko_client_ids: ids(row.oko_client_ids),
+        }));
+    if (payload.length === 0) return { written: 0, skipped: rows.length };
+
+    const { data, error } = await service.rpc('oko_link_clients_batch', { p_rows: payload });
+    if (error) throw new Error(`связи: ${error.message}`);
+    const written = typeof data === 'number' ? data : 0;
+
+    // Не нашлись — значит такого контакта в шахматке нет (сделка не переносилась).
+    return { written, skipped: rows.length - written };
 };
 
 const numbers = (rows: Row[], field: string): number[] =>
@@ -75,6 +111,12 @@ export async function POST(request: NextRequest) {
         let rows = sanitizeRows(body.rows, spec);
         if (rows.length === 0) return NextResponse.json({ ok: true, written: 0, skipped: body.rows.length });
         let skipped = body.rows.length - rows.length;
+
+        if (table === 'client_links') {
+            const result = await importLinks(service, rows);
+
+            return NextResponse.json({ ok: true, written: result.written, skipped: skipped + result.skipped });
+        }
 
         if (table === 'clients') {
             rows = rows.map((r) => ({ ...r, created_at: r.oko_created_at ?? undefined }));

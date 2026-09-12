@@ -12,7 +12,8 @@ import { importBatch, useCrmCounts } from '../api/crm';
 import { importTableForFile } from '../lib/crm';
 
 const BATCH = 500;
-const ORDER = { clients: 0, deals: 1, deal_messages: 2 } as const;
+// Клиенты → сделки → сообщения → связи переписок (связи last: им нужны клиенты).
+const ORDER = { clients: 0, deals: 1, deal_messages: 2, client_links: 3 } as const;
 
 type Progress = {
     id: number;
@@ -107,7 +108,10 @@ export const ImportPage = () => {
                 const item: Progress = { id, file: file.name, table: table ?? '—', sent: 0, written: 0, skipped: 0, broken: 0, done: false };
                 setProgress((p) => [...p, item]);
                 if (!table) {
-                    update(id, { error: 'Имя файла должно начинаться с clients / deals / messages', done: true });
+                    update(id, {
+                        error: 'Имя файла должно начинаться с clients / deals / messages / client_links',
+                        done: true,
+                    });
                     continue;
                 }
                 try {

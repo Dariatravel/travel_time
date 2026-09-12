@@ -13,6 +13,7 @@ export enum PagesEnum {
     IMPORT = 'IMPORT',
     FINANCE = 'FINANCE',
     MY_FINANCE = 'MY_FINANCE',
+    INBOX = 'INBOX',
 }
 
 export const routes = {
@@ -27,6 +28,7 @@ export const routes = {
     [PagesEnum.IMPORT]: '/main/import',
     [PagesEnum.FINANCE]: '/main/finance',
     [PagesEnum.MY_FINANCE]: '/main/my-finance',
+    [PagesEnum.INBOX]: '/main/inbox',
     [PagesEnum.LOGIN]: '/login',
     [PagesEnum.ADVANCED_FILTERS]: '/advanced-filters',
     [PagesEnum.ADMIN_OPERATORS]: '/main/admin/operators',

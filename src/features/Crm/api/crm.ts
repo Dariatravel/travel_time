@@ -7,6 +7,7 @@ import {
     type ClientRow,
     type DealMessageRow,
     type DealRow,
+    type ImportTable,
     type Pipeline,
     type Stage,
 } from '../lib/crm';
@@ -211,8 +212,73 @@ export const useCrmCounts = () =>
         },
     });
 
+/**
+ * Ответ клиенту через ОКО: кладём задание в очередь, отправит Mac mini
+ * (токен ОКО только там, лимит 5 запросов в минуту). Само сообщение появится
+ * в переписке, когда ОКО пришлёт его обратно вебхуком.
+ */
+export const useSendOkoMessage = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (input: {
+            dealId: string | null;
+            clientId: string | null;
+            okoClientId: number | null;
+            contactMessengerId: number;
+            text: string;
+            actor: string;
+        }) => {
+            const { error } = await supabase.from('oko_outbox').insert({
+                kind: 'message',
+                priority: 1, // сообщения клиенту — вперёд остальных заданий
+                payload: {
+                    client_id: input.okoClientId,
+                    contact_messenger_id: input.contactMessengerId,
+                    text: input.text,
+                },
+                deal_id: input.dealId,
+                client_id: input.clientId,
+                created_by: input.actor,
+            });
+            if (error) throw error;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: ['crm'] }),
+    });
+};
+
+export type OutboxRow = {
+    id: string;
+    kind: string;
+    status: 'pending' | 'sending' | 'sent' | 'failed' | 'cancelled';
+    payload: { text?: string } & Record<string, unknown>;
+    last_error: string | null;
+    created_at: string;
+    sent_at: string | null;
+    created_by: string | null;
+};
+
+/** Что ещё не ушло в ОКО по этой сделке. */
+export const useOutboxForDeal = (dealId?: string, enabled = true) =>
+    useQuery({
+        queryKey: ['crm', 'outbox', dealId ?? ''],
+        enabled: !!dealId && enabled,
+        refetchInterval: 20_000,
+        queryFn: async () => {
+            const { data, error } = await supabase
+                .from('oko_outbox')
+                .select('*')
+                .eq('deal_id', dealId)
+                .order('created_at', { ascending: false })
+                .limit(20);
+            if (error) throw error;
+
+            return (data ?? []) as OutboxRow[];
+        },
+    });
+
 /** Пачка строк в серверный роут импорта. */
-export const importBatch = async (table: 'clients' | 'deals' | 'deal_messages', rows: Record<string, unknown>[]) => {
+export const importBatch = async (table: ImportTable, rows: Record<string, unknown>[]) => {
     const response = await fetch('/api/crm/import', {
         method: 'POST',
         headers: await authHeaders(),
