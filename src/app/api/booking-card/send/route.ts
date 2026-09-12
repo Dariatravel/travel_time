@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/app/api/admin/_lib/requireAdmin';
+import { requireStaff } from '@/app/api/survey/_lib/requireStaff';
 import {
     sendDocumentDirect,
     sendDocumentViaGithub,
@@ -42,7 +42,7 @@ const ensureBucket = async (client: ReturnType<typeof createSupabaseServiceRoleC
 const bad = (message: string, status = 400) => NextResponse.json({ error: message }, { status });
 
 export async function POST(request: NextRequest) {
-    const auth = await requireAdmin(request);
+    const auth = await requireStaff(request);
     if ('error' in auth) return auth.error;
 
     const chatId = process.env.TELEGRAM_BOOKING_CHAT_ID;
