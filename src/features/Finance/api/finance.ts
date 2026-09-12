@@ -195,6 +195,42 @@ export const useAddAdjustment = () => {
     });
 };
 
+export type HotelierFinanceData = {
+    accounting_start: string | null;
+    hotels: HotelRef[];
+    terms: HotelTermsRow[];
+    reserves: FinanceReserve[];
+    payouts: PayoutRow[];
+    adjustments: AdjustmentRow[];
+};
+
+/**
+ * Кабинет отельера: одна SQL-функция отдаёт только его отели с включённым
+ * hotelier_visible — без нашей комиссии, без телефонов и чужих данных.
+ */
+export const useHotelierFinanceData = (startDay: number, toDay: number, enabled: boolean) =>
+    useQuery({
+        queryKey: ['finance', 'hotelier', startDay, toDay],
+        enabled,
+        queryFn: async () => {
+            const { data, error } = await supabase.rpc('hotelier_finance_data', {
+                p_from: isoDateFromDay(startDay),
+                p_to: isoDateFromDay(toDay),
+            });
+            if (error) throw error;
+            const payload = (data ?? {}) as Partial<HotelierFinanceData>;
+
+            return {
+                accounting_start: payload.accounting_start ?? null,
+                hotels: payload.hotels ?? [],
+                terms: payload.terms ?? [],
+                reserves: payload.reserves ?? [],
+                payouts: payload.payouts ?? [],
+                adjustments: payload.adjustments ?? [],
+            } satisfies HotelierFinanceData;
+        },
+    });
+
 /** Записи о деньгах не удаляются — помечаются; след остаётся. */
 export const useSoftDeleteFinanceRow = () => {
     const invalidate = useInvalidate();

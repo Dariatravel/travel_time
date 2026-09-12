@@ -12,6 +12,7 @@ export enum PagesEnum {
     CLIENTS = 'CLIENTS',
     IMPORT = 'IMPORT',
     FINANCE = 'FINANCE',
+    MY_FINANCE = 'MY_FINANCE',
 }
 
 export const routes = {
@@ -25,6 +26,7 @@ export const routes = {
     [PagesEnum.CLIENTS]: '/main/clients',
     [PagesEnum.IMPORT]: '/main/import',
     [PagesEnum.FINANCE]: '/main/finance',
+    [PagesEnum.MY_FINANCE]: '/main/my-finance',
     [PagesEnum.LOGIN]: '/login',
     [PagesEnum.ADVANCED_FILTERS]: '/advanced-filters',
     [PagesEnum.ADMIN_OPERATORS]: '/main/admin/operators',

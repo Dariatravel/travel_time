@@ -24,6 +24,7 @@ const PATH_LABELS: Record<string, string> = {
     '/main/clients': 'Клиенты',
     '/main/import': 'Импорт из OKO',
     '/main/finance': 'Финансы',
+    '/main/my-finance': 'Мои расчёты',
     '/main/admin/operators': 'Операторы',
     '/login': 'Вход',
     '/advanced-filters': 'Расширенные фильтры',
