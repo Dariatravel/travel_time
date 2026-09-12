@@ -40,6 +40,21 @@ jobs:
 
           curl -sS --max-time 30 "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe" > me.json
 
+          # Имя бота печатаем явно: иначе непонятно, кого именно добавлять в чат.
+          # Имя и @логин бота — не секрет, их видно любому собеседнику в Telegram.
+          python3 - <<'PY'
+          import json
+
+          try:
+              me = json.load(open('me.json')).get('result', {})
+          except Exception:
+              me = {}
+          if me:
+              print(f"=== БОТ: {me.get('first_name', '')} (@{me.get('username', '')}) ===")
+          else:
+              print('=== БОТ: не удалось спросить Telegram (проверь токен) ===')
+          PY
+
           TOTAL=0
           OK=0
           echo "=== ЧАТЫ ИЗ TELEGRAM_MANAGER_CHAT_IDS ==="
