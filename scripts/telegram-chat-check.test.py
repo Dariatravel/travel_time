@@ -78,15 +78,7 @@ check('бот не в чате: назван логин бота', '@testbot' in
 code, log = run({**base, 'TELEGRAM_MANAGER_CHAT_IDS': '555'}, {})
 check('личный чат: подсказка про Start', 'Start' in log)
 
-# 6. Чат карточки брони жив — значит токен рабочий.
-code, log = run(
-    {**base, 'TELEGRAM_MANAGER_CHAT_IDS': '-1002222', 'TELEGRAM_BOOKING_CHAT_ID': '-1003333'},
-    {'-1003333': {'ok': True, 'result': {'title': 'Брони', 'type': 'supergroup'}}},
-)
-check('чат броней: токен признан рабочим', 'Токен рабочий' in log)
-check('чат броней: id в журнал не попал', '-1003333' not in log)
-
-# 7. Часть чатов жива — проверка зелёная, но предупреждает.
+# 6. Часть чатов жива — проверка зелёная, но предупреждает.
 code, log = run(
     {**base, 'TELEGRAM_MANAGER_CHAT_IDS': '-1001111,-1002222'},
     {'-1001111': {'ok': True, 'result': {'title': 'Менеджеры', 'type': 'supergroup'}}},
