@@ -1,4 +1,4 @@
-import { isAdminRole } from '@/shared/lib/userRoles';
+import { isAdminRole, isHotelierRole } from '@/shared/lib/userRoles';
 
 /**
  * Флаги функций единой программы (правило из CLAUDE.md: новое — только за
@@ -20,3 +20,10 @@ export const isCrmEnabled = (role?: string | null): boolean => isAdminRole(role)
 
 /** Финансы с отелями (этап 4): решение Дарьи — на старте только у неё. */
 export const isFinanceEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/**
+ * Кабинет отельера («Мои расчёты»): роль hotel и admin (для проверки).
+ * Что именно видно — решает база: только отели с hotel_terms.hotelier_visible.
+ */
+export const isHotelierCabinetEnabled = (role?: string | null): boolean =>
+    isHotelierRole(role) || isAdminRole(role);

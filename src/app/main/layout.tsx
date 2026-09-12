@@ -11,6 +11,7 @@ import {
     isBookingCardEnabled,
     isCrmEnabled,
     isFinanceEnabled,
+    isHotelierCabinetEnabled,
     isMorningEnabled,
 } from '@/shared/config/featureFlags';
 import {
@@ -21,6 +22,7 @@ import {
     HomeIcon,
     KanbanSquare,
     LayoutDashboard,
+    Receipt,
     Sunrise,
     UserCog,
     Wallet,
@@ -84,17 +86,25 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ]
         : [];
 
+    // Кабинет отельера «Мои расчёты» — в меню только для роли hotel;
+    // admin может открыть страницу по адресу для проверки.
+    const hotelierLinks =
+        isHotelierCabinetEnabled(user?.role) && !isAdminRole(user?.role)
+            ? [{ href: routes[PagesEnum.MY_FINANCE], label: 'Мои расчёты', icon: Receipt }]
+            : [];
+
     const navigationLinks = isAdminRole(user?.role)
         ? [
               ...baseNavLinks,
               ...staffLinks,
+              ...hotelierLinks,
               {
                   href: routes[PagesEnum.ADMIN_OPERATORS],
                   label: 'Операторы',
                   icon: UserCog,
               },
           ]
-        : [...baseNavLinks, ...staffLinks];
+        : [...baseNavLinks, ...staffLinks, ...hotelierLinks];
 
     return (
         <>

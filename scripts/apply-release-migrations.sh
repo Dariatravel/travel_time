@@ -17,6 +17,7 @@ migrations=(
     "supabase/migrations/20260912090000_add_guest_touchpoints.sql"
     "supabase/migrations/20260912120000_add_crm.sql"
     "supabase/migrations/20260912150000_add_finance.sql"
+    "supabase/migrations/20260912180000_add_hotelier_cabinet.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.

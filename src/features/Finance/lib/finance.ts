@@ -38,6 +38,8 @@ export type HotelTermsRow = {
     min_nights: number | null;
     deposit_note: string | null;
     note: string | null;
+    /** Показывать отелю его расчёты в кабинете «Мои расчёты». */
+    hotelier_visible?: boolean;
     updated_at?: string;
     updated_by?: string | null;
 };

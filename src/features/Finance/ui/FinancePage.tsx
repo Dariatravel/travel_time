@@ -73,6 +73,7 @@ const TermsForm: FC<{
         min_nights: terms?.min_nights == null ? '' : String(terms.min_nights),
         deposit_note: terms?.deposit_note ?? '',
         note: terms?.note ?? '',
+        hotelier_visible: terms?.hotelier_visible ?? false,
         bank: details?.bank ?? '',
         holder: details?.holder ?? '',
         requisites: details?.requisites ?? '',
@@ -90,6 +91,7 @@ const TermsForm: FC<{
             min_nights: numberOrNull(form.min_nights),
             deposit_note: form.deposit_note || null,
             note: form.note || null,
+            hotelier_visible: form.hotelier_visible,
         };
         const problem = validateTerms(next);
         if (problem) {
@@ -147,6 +149,10 @@ const TermsForm: FC<{
                     <label className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={form.prepay_direct_to_hotel} onChange={(e) => set('prepay_direct_to_hotel')(e.target.checked)} />
                         Доверенный отель: клиент платит предоплату сразу отелю (тогда отель должен нам нашу долю)
+                    </label>
+                    <label className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={form.hotelier_visible} onChange={(e) => set('hotelier_visible')(e.target.checked)} />
+                        Показывать отелю его расчёты в кабинете «Мои расчёты» (нашу долю явно не показываем; заметки и комментарии отель не видит)
                     </label>
                     <div className="grid gap-2 sm:grid-cols-2">
                         <div className="space-y-1">
