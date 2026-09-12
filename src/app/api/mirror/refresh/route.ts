@@ -37,7 +37,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: 'hotelId обязателен' }, { status: 400 });
         }
 
-        // Медленные Shelter-отели (Сан Амра/Нора): синхронно FrontDesk24 не
+        // Медленные Shelter-отели (Сан Амра): синхронно FrontDesk24 не
         // укладывается в лимит 30с → кнопка ЗАПУСКАЕТ фоновый крон и сразу
         // отвечает. Крон допишет занятость за пару минут (и сам идёт каждые 2ч).
         const source = getMirrorSource(body.hotelId);

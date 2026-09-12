@@ -16,7 +16,6 @@ export const DEFAULT_CITIES = [
 
 const MIRROR_HOTEL_TITLES = new Set<string>([
     "сан амра sun amra",
-    "нора",
     "студио сан амра",
     "санрайз гостевой дом",
     "фемели",

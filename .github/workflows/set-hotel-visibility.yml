@@ -1,0 +1,55 @@
+# Скрыть отель из подбора или вернуть его обратно — та же галочка «Скрытый
+# отель», что в карточке отеля, только кнопкой.
+#
+# Зачем: когда с отелем перестают работать, удалять запись нельзя — на ней
+# висят брони живых гостей и выручка за сезон. Правильное действие — убрать
+# объект из поиска и подбора, оставив историю нетронутой.
+#
+# По умолчанию — сухой прогон: показывает, что изменится, и ничего не пишет.
+# Броней, номеров и занятости не касается.
+name: Set Hotel Visibility
+
+on:
+  workflow_dispatch:
+    inputs:
+      hotel_title:
+        description: 'Название отеля как в программе'
+        required: true
+      hidden:
+        description: 'Скрыть из подбора (снимите, чтобы вернуть обратно)'
+        required: false
+        type: boolean
+        default: true
+      apply:
+        description: 'Применить изменение (иначе сухой прогон)'
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  set-visibility:
+    name: Set visibility
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Run
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          HOTEL_TITLE: ${{ inputs.hotel_title }}
+          HIDDEN: ${{ inputs.hidden }}
+          APPLY: ${{ inputs.apply }}
+        run: node scripts/set-hotel-visibility.mjs

@@ -8,7 +8,7 @@ describe('getExternalReserveSourceName', () => {
         ['googlesheet_sunrise', undefined, 'Санрайз'],
         ['kontur_bookonline', undefined, 'Вилла Оазис'],
         ['ical_reservationsteps', 'Аврора Inn', 'Аврора Inn'],
-        ['mirror_shelter', 'Нора', 'Нора'],
+        ['mirror_shelter', 'Сан Амра Sun Amra', 'Сан Амра Sun Amra'],
         ['realtycalendar_ical', undefined, 'RealtyCalendar'],
         ['xlsx_grant', 'Грант коттеджи', 'Грант коттеджи'],
         ['xlsx_grant', undefined, 'Таблица Гранта'],
