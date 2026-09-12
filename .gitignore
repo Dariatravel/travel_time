@@ -54,3 +54,4 @@ id_rsa
 id_ed25519
 *.key
 .claude/
+__pycache__/

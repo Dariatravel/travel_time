@@ -59,6 +59,8 @@ jobs:
           npm run short-links:test
           npm run bnovo:test
           npm run retry:test
+          npm run sync-freshness:test
+          npm run chat-check:test
 
       - name: Build
         run: npm run build
