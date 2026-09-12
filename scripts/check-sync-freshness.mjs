@@ -5,6 +5,7 @@ import {
     chunkAlertMessages,
     planAlertStateChanges,
 } from './lib/syncFreshnessAlerts.mjs';
+import { managerChatIdIssue, parseTelegramChatIds } from './lib/telegramChatIds.mjs';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -140,15 +141,41 @@ const loadStaleWorkflows = async (now) => {
     return checks.filter(Boolean);
 };
 
+/** Логин бота — чтобы в журнале было видно, кого добавлять в чат. */
+const askBotName = async (token) => {
+    try {
+        const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
+            signal: AbortSignal.timeout(15_000),
+        });
+        const data = await response.json();
+        return data?.ok === true && data.result?.username ? `@${data.result.username}` : '(имя не узнать)';
+    } catch {
+        return '(имя не узнать)';
+    }
+};
+
 const sendTelegram = async (text) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatIds = (process.env.TELEGRAM_MANAGER_CHAT_IDS || '')
-        .split(',')
-        .map((chatId) => chatId.trim())
-        .filter(Boolean);
+    const chatEntries = parseTelegramChatIds(process.env.TELEGRAM_MANAGER_CHAT_IDS);
 
-    if (!token || chatIds.length === 0) {
+    if (!token || chatEntries.length === 0) {
         throw new Error('Нет TELEGRAM_BOT_TOKEN или TELEGRAM_MANAGER_CHAT_IDS');
+    }
+
+    const validEntries = [];
+    for (const entry of chatEntries) {
+        const issue = managerChatIdIssue(entry);
+        if (issue) {
+            console.warn(`ПРЕДУПРЕЖДЕНИЕ: ${issue}`);
+        } else {
+            validEntries.push(entry);
+        }
+    }
+
+    if (validEntries.length === 0) {
+        throw new Error(
+            'TELEGRAM_MANAGER_CHAT_IDS: нет ни одного числового id чата; отправка не выполнялась',
+        );
     }
 
     // Один недоступный чат (человек не нажал Start у бота, опечатка в id)
@@ -158,16 +185,21 @@ const sendTelegram = async (text) => {
     // только если НИ ОДИН чат сообщение не получил.
     const failures = [];
     let delivered = 0;
-    for (const chatId of chatIds) {
+    for (const entry of validEntries) {
         try {
             const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+                body: JSON.stringify({
+                    chat_id: entry.value,
+                    text,
+                    disable_web_page_preview: true,
+                }),
                 signal: AbortSignal.timeout(30_000),
             });
-            const data = await readJson(response, `Telegram, чат ${chatId}`);
-            if (data?.ok !== true) throw new Error(`Telegram, чат ${chatId}: ответ без ok=true`);
+            const context = `Telegram, запись ${entry.position}`;
+            const data = await readJson(response, context);
+            if (data?.ok !== true) throw new Error(`${context}: ответ без ok=true`);
             delivered += 1;
         } catch (error) {
             failures.push(error instanceof Error ? error.message : String(error));
@@ -176,6 +208,17 @@ const sendTelegram = async (text) => {
 
     for (const failure of failures) {
         console.warn(`ПРЕДУПРЕЖДЕНИЕ: ${failure} — проверьте TELEGRAM_MANAGER_CHAT_IDS`);
+    }
+    // Номер чата GitHub затирает звёздочками, поэтому из письма о падении не
+    // видно даже того, КАКОГО бота не пускают в чат. Спрашиваем имя у Telegram
+    // и печатаем: логин бота не секрет, его видит любой собеседник.
+    if (failures.length > 0) {
+        const botName = await askBotName(token);
+        console.warn(
+            `ПОДСКАЗКА: сообщения шлёт бот ${botName}. Если его нет в чате менеджеров — ` +
+                'добавьте; если чат сменил номер, узнать новый можно командой /chatid ' +
+                'в самом чате. Подробный разбор — воркфлоу Telegram Chat Check.',
+        );
     }
     if (delivered === 0) {
         throw new Error(`Telegram не принял сообщение ни для одного чата: ${failures.join('; ')}`);
