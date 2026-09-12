@@ -10,18 +10,28 @@ import { useUnit } from 'effector-react/compat';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 
-import { DEFAULT_ACCOUNTING_START, useHotelierFinanceData } from '../api/finance';
-import { buildStatement, dayFromIsoDate, formatDay, formatMoney, moscowDay, periodFor } from '../lib/finance';
+import { useHotelierFinanceData } from '../api/finance';
+import {
+    buildStatement,
+    dayFromIsoDate,
+    formatDay,
+    formatMoney,
+    isoDateFromDay,
+    moscowDay,
+    periodFor,
+    type HotelTermsRow,
+} from '../lib/finance';
 
 type PeriodKind = 'week' | 'month';
 
 /**
  * «Мои расчёты» — кабинет отельера. Видит только свои отели, и только те,
- * где Дарья включила показ. Нашу комиссию не видит: только свою долю,
- * выплаты и остаток.
+ * где Дарья включила показ: свою долю, выплаты, корректировки и остаток.
+ * Нашу комиссию явно не показываем.
  */
 export const HotelierFinancePage = () => {
     const user = useUnit($user);
+    const allowed = isHotelierCabinetEnabled(user?.role);
     const [today, setToday] = useState<number | null>(null);
     useEffect(() => {
         setToday(moscowDay(Math.floor(Date.now() / 1000)));
@@ -30,34 +40,32 @@ export const HotelierFinancePage = () => {
     const [shift, setShift] = useState(0);
     const period = useMemo(() => (today === null ? null : periodFor(today, kind, shift)), [today, kind, shift]);
 
-    // Начало учёта известно только из ответа функции; первый запрос — с даты по умолчанию.
-    const [startDay, setStartDay] = useState(dayFromIsoDate(DEFAULT_ACCOUNTING_START));
-    const { data, isPending, error } = useHotelierFinanceData(startDay, period?.toDay ?? 0, period !== null);
-    useEffect(() => {
-        if (data?.accounting_start && /^\d{4}-\d{2}-\d{2}/.test(data.accounting_start)) {
-            const day = dayFromIsoDate(data.accounting_start);
-            if (day !== startDay) setStartDay(day);
-        }
-    }, [data?.accounting_start, startDay]);
+    const { data, isPending, error } = useHotelierFinanceData(period?.toDay ?? 0, allowed && period !== null);
+    const startDay = data ? dayFromIsoDate(data.accounting_start) : null;
 
-    const rows = useMemo(
-        () =>
-            data && period
-                ? buildStatement({
-                      reserves: data.reserves,
-                      hotels: data.hotels,
-                      terms: data.terms,
-                      payouts: data.payouts,
-                      adjustments: data.adjustments,
-                      startDay,
-                      fromDay: period.fromDay,
-                      toDay: period.toDay,
-                  })
-                : [],
-        [data, period, startDay],
-    );
+    const rows = useMemo(() => {
+        if (!data || !period || startDay === null) return [];
+        const terms: HotelTermsRow[] = data.terms.map((t) => ({
+            ...t,
+            payout_period: 'week',
+            min_nights: null,
+            deposit_note: null,
+            note: null,
+        }));
 
-    if (!isHotelierCabinetEnabled(user?.role)) {
+        return buildStatement({
+            reserves: data.reserves,
+            hotels: data.hotels,
+            terms,
+            payouts: data.payouts,
+            adjustments: data.adjustments,
+            startDay,
+            fromDay: period.fromDay,
+            toDay: period.toDay,
+        });
+    }, [data, period, startDay]);
+
+    if (!allowed) {
         return (
             <Card>
                 <CardHeader>
@@ -68,13 +76,16 @@ export const HotelierFinancePage = () => {
         );
     }
 
+    const inPeriod = (iso: string) => !!period && iso >= isoDateFromDay(period.fromDay) && iso <= isoDateFromDay(period.toDay);
+
     return (
         <div className="mx-auto max-w-5xl space-y-4 px-2 pb-8 sm:px-4">
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white/90 p-4 shadow-sm">
                 <div>
                     <h1 className="text-2xl font-semibold">Мои расчёты</h1>
                     <p className="text-sm text-muted-foreground">
-                        Брони по выезду гостей, ваша доля из предоплаты, выплаты и остаток. Учёт с {formatDay(startDay)}.
+                        Брони по выезду гостей, ваша доля из предоплаты, выплаты и остаток
+                        {startDay !== null ? `. Учёт с ${formatDay(startDay)}` : ''}.
                     </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -112,7 +123,7 @@ export const HotelierFinancePage = () => {
                     <CardHeader className="p-4">
                         <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                             <span>{row.hotelTitle}</span>
-                            <Badge variant={row.balance > 0 ? 'destructive' : row.balance < 0 ? 'secondary' : 'outline'}>
+                            <Badge variant={row.balance > 0 ? 'default' : row.balance < 0 ? 'destructive' : 'outline'}>
                                 {row.balance > 0
                                     ? `к выплате вам ${formatMoney(row.balance)}`
                                     : row.balance < 0
@@ -141,13 +152,20 @@ export const HotelierFinancePage = () => {
                             </div>
                         ))}
                         {data?.payouts
-                            .filter((p) => p.hotel_id === row.hotelId && period && p.paid_at >= formatIso(period.fromDay) && p.paid_at <= formatIso(period.toDay))
+                            .filter((p) => p.hotel_id === row.hotelId && inPeriod(p.paid_at))
                             .map((p) => (
                                 <div key={p.id} className="flex flex-wrap gap-3 text-green-800">
                                     <span className="w-52">Выплата {p.paid_at}</span>
                                     <span>{formatMoney(Number(p.amount))}</span>
                                     <span>{p.method ?? ''}</span>
-                                    <span>{p.comment ?? ''}</span>
+                                </div>
+                            ))}
+                        {data?.adjustments
+                            .filter((a) => a.hotel_id === row.hotelId && inPeriod(a.date))
+                            .map((a) => (
+                                <div key={a.id} className="flex flex-wrap gap-3 text-amber-800">
+                                    <span className="w-52">Корректировка {a.date}</span>
+                                    <span>{a.direction === 'we_owe_hotel' ? `+${formatMoney(Number(a.amount))} вам` : `−${formatMoney(Number(a.amount))}`}</span>
                                 </div>
                             ))}
                     </CardContent>
@@ -156,5 +174,3 @@ export const HotelierFinancePage = () => {
         </div>
     );
 };
-
-const formatIso = (day: number) => new Date(day * 86400 * 1000).toISOString().slice(0, 10);

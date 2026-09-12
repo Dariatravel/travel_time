@@ -152,7 +152,7 @@ const TermsForm: FC<{
                     </label>
                     <label className="flex items-center gap-2 text-sm">
                         <input type="checkbox" checked={form.hotelier_visible} onChange={(e) => set('hotelier_visible')(e.target.checked)} />
-                        Показывать отелю его расчёты в кабинете «Мои расчёты» (нашу комиссию отель не видит)
+                        Показывать отелю его расчёты в кабинете «Мои расчёты» (нашу долю явно не показываем; заметки и комментарии отель не видит)
                     </label>
                     <div className="grid gap-2 sm:grid-cols-2">
                         <div className="space-y-1">

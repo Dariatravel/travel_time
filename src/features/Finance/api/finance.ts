@@ -195,10 +195,13 @@ export const useAddAdjustment = () => {
     });
 };
 
+/** Условия в ответе для отельера — только то, что нужно для расчёта его доли. */
+export type HotelierTerms = Pick<HotelTermsRow, 'hotel_id' | 'model' | 'hotel_share_pct' | 'fixed_amount' | 'prepay_direct_to_hotel'>;
+
 export type HotelierFinanceData = {
-    accounting_start: string | null;
+    accounting_start: string;
     hotels: HotelRef[];
-    terms: HotelTermsRow[];
+    terms: HotelierTerms[];
     reserves: FinanceReserve[];
     payouts: PayoutRow[];
     adjustments: AdjustmentRow[];
@@ -206,22 +209,23 @@ export type HotelierFinanceData = {
 
 /**
  * Кабинет отельера: одна SQL-функция отдаёт только его отели с включённым
- * hotelier_visible — без нашей комиссии, без телефонов и чужих данных.
+ * hotelier_visible — без комментариев и заметок Дарьи, без телефонов и чужих
+ * данных. Дату начала учёта функция берёт сама и возвращает в ответе.
  */
-export const useHotelierFinanceData = (startDay: number, toDay: number, enabled: boolean) =>
+export const useHotelierFinanceData = (toDay: number, enabled: boolean) =>
     useQuery({
-        queryKey: ['finance', 'hotelier', startDay, toDay],
+        queryKey: ['finance', 'hotelier', toDay],
         enabled,
         queryFn: async () => {
-            const { data, error } = await supabase.rpc('hotelier_finance_data', {
-                p_from: isoDateFromDay(startDay),
-                p_to: isoDateFromDay(toDay),
-            });
+            const { data, error } = await supabase.rpc('hotelier_finance_data', { p_to: isoDateFromDay(toDay) });
             if (error) throw error;
             const payload = (data ?? {}) as Partial<HotelierFinanceData>;
 
             return {
-                accounting_start: payload.accounting_start ?? null,
+                accounting_start:
+                    payload.accounting_start && /^\d{4}-\d{2}-\d{2}/.test(payload.accounting_start)
+                        ? payload.accounting_start
+                        : DEFAULT_ACCOUNTING_START,
                 hotels: payload.hotels ?? [],
                 terms: payload.terms ?? [],
                 reserves: payload.reserves ?? [],

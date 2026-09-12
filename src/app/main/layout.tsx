@@ -86,10 +86,12 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
           ]
         : [];
 
-    // Кабинет отельера «Мои расчёты» — роль hotel (и admin для проверки).
-    const hotelierLinks = isHotelierCabinetEnabled(user?.role)
-        ? [{ href: routes[PagesEnum.MY_FINANCE], label: 'Мои расчёты', icon: Receipt }]
-        : [];
+    // Кабинет отельера «Мои расчёты» — в меню только для роли hotel;
+    // admin может открыть страницу по адресу для проверки.
+    const hotelierLinks =
+        isHotelierCabinetEnabled(user?.role) && !isAdminRole(user?.role)
+            ? [{ href: routes[PagesEnum.MY_FINANCE], label: 'Мои расчёты', icon: Receipt }]
+            : [];
 
     const navigationLinks = isAdminRole(user?.role)
         ? [
