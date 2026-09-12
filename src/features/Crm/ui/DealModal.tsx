@@ -11,13 +11,20 @@ import { showToast } from '@/shared/ui/Toast/Toast';
 import dayjs from 'dayjs';
 import { FC, useEffect, useMemo, useRef, useState } from 'react';
 
-import { useClientMessages, useSaveDeal, type DealPatch } from '../api/crm';
+import {
+    useClientMessages,
+    useOutboxForDeal,
+    useSaveDeal,
+    useSendOkoMessage,
+    type DealPatch,
+} from '../api/crm';
 import {
     clientOf,
     DEAL_SOURCES,
     dealTitle,
     formatMoney,
     PIPELINES,
+    replyTargetOf,
     STAGE_LABELS,
     type DealRow,
     type Pipeline,
@@ -84,6 +91,11 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
         deal.client_id ?? client?.id ?? null,
         isOpen && tab === 'chat',
     );
+
+    const sendMessage = useSendOkoMessage();
+    const { data: outbox = [] } = useOutboxForDeal(deal.id, isOpen && tab === 'chat');
+    const [reply, setReply] = useState('');
+    const replyTarget = useMemo(() => replyTargetOf(messages), [messages]);
 
     const [form, setForm] = useState(() => formFromDeal(deal));
     // Форма заполняется из сделки только когда сделка реально изменилась (updated_at),
@@ -334,6 +346,62 @@ export const DealModal: FC<DealModalProps> = ({ isOpen, onClose, deal, actor, re
                                         {m.files.length > 0 && <div className="text-xs">📎 {m.files.join(', ')}</div>}
                                     </div>
                                 ))}
+                                {outbox
+                                    .filter((o) => o.status !== 'sent' && o.status !== 'cancelled')
+                                    .map((o) => (
+                                        <div key={o.id} className="ml-auto max-w-[85%] rounded-lg border border-dashed px-3 py-2">
+                                            <div className="text-[11px] text-muted-foreground">
+                                                {o.status === 'failed' ? 'не ушло' : 'отправляется через ОКО…'}
+                                            </div>
+                                            <div className="whitespace-pre-wrap">{String(o.payload?.text ?? '')}</div>
+                                            {o.last_error && <div className="text-xs text-destructive">{o.last_error}</div>}
+                                        </div>
+                                    ))}
+                            </div>
+                        )}
+                        {tab === 'chat' && (
+                            <div className="space-y-2">
+                                <Textarea
+                                    rows={3}
+                                    placeholder={
+                                        replyTarget
+                                            ? 'Ответ клиенту — уйдёт в его мессенджер через ОКО'
+                                            : 'Ответить нельзя: у этой переписки нет связи с ОКО (старый импорт)'
+                                    }
+                                    value={reply}
+                                    disabled={!replyTarget}
+                                    onChange={(e) => setReply(e.target.value)}
+                                />
+                                <div className="flex items-center justify-between gap-2">
+                                    <span className="text-xs text-muted-foreground">
+                                        Отправляет человек. Сообщение уйдёт в течение минуты.
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        disabled={!replyTarget || !reply.trim() || sendMessage.isPending}
+                                        onClick={() =>
+                                            sendMessage
+                                                .mutateAsync({
+                                                    dealId: deal.id,
+                                                    clientId: deal.client_id ?? client?.id ?? null,
+                                                    okoClientId: replyTarget?.okoClientId ?? null,
+                                                    contactMessengerId: replyTarget!.contactMessengerId,
+                                                    text: reply.trim(),
+                                                    actor,
+                                                })
+                                                .then(() => {
+                                                    setReply('');
+                                                    showToast('Поставлено в очередь на отправку', 'success');
+                                                })
+                                                .catch((e: unknown) =>
+                                                    showToast(e instanceof Error ? e.message : 'Не получилось', 'error'),
+                                                )
+                                        }
+                                    >
+                                        {sendMessage.isPending ? 'Ставлю в очередь…' : 'Отправить клиенту'}
+                                    </Button>
+                                </div>
                             </div>
                         )}
                     </div>
