@@ -1,4 +1,4 @@
-import { requireAdmin } from '@/app/api/admin/_lib/requireAdmin';
+import { requireStaff } from '@/app/api/survey/_lib/requireStaff';
 import { toErrorResponse } from '@/app/api/yandex-backend/_lib/httpError';
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
 import { sanitizeRows } from '@/features/Crm/lib/crm';
@@ -51,7 +51,7 @@ const numbers = (rows: Row[], field: string): number[] =>
     [...new Set(rows.map((r) => r[field]).filter((v): v is number => typeof v === 'number'))];
 
 export async function POST(request: NextRequest) {
-    const auth = await requireAdmin(request);
+    const auth = await requireStaff(request);
     if ('error' in auth) return auth.error;
 
     const length = Number(request.headers.get('content-length') ?? 0);

@@ -1,4 +1,4 @@
-import { isAdminRole, isHotelierRole } from '@/shared/lib/userRoles';
+import { isAdminRole, isHotelierRole, isStaffRole } from '@/shared/lib/userRoles';
 
 /**
  * Флаги функций единой программы (правило из CLAUDE.md: новое — только за
@@ -10,13 +10,13 @@ import { isAdminRole, isHotelierRole } from '@/shared/lib/userRoles';
  * Открытие операторам — одним PR: политика IN ('admin','operator') в базе,
  * requireStaff в роуте и isStaffRole здесь.
  */
-export const isBookingCardEnabled = (role?: string | null): boolean => isAdminRole(role);
+export const isBookingCardEnabled = (role?: string | null): boolean => isStaffRole(role);
 
 /** «Утро менеджера» (этап 2) — те же правила доступа, что и у карточки брони. */
-export const isMorningEnabled = (role?: string | null): boolean => isAdminRole(role);
+export const isMorningEnabled = (role?: string | null): boolean => isStaffRole(role);
 
 /** Клиенты и сделки (этап 3): канбан, контакты, импорт из OKO. */
-export const isCrmEnabled = (role?: string | null): boolean => isAdminRole(role);
+export const isCrmEnabled = (role?: string | null): boolean => isStaffRole(role);
 
 /** Финансы с отелями (этап 4): решение Дарьи — на старте только у неё. */
 export const isFinanceEnabled = (role?: string | null): boolean => isAdminRole(role);

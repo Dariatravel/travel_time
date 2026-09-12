@@ -18,6 +18,7 @@ migrations=(
     "supabase/migrations/20260912120000_add_crm.sql"
     "supabase/migrations/20260912150000_add_finance.sql"
     "supabase/migrations/20260912180000_add_hotelier_cabinet.sql"
+    "supabase/migrations/20260913090000_open_to_operators.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.
