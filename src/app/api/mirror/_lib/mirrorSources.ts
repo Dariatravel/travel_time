@@ -62,7 +62,7 @@ export type ShelterMirrorSource = {
     categories: MirrorCategory[];
     /**
      * Кнопка «Обновить» не читает FrontDesk24 синхронно (для многономерных
-     * Сан Амра/Нора он медленный, ~200с > лимита 30с), а ЗАПУСКАЕТ фоновый
+     * Сан Амра он медленный, ~200с > лимита 30с), а ЗАПУСКАЕТ фоновый
      * mirror-крон. Сам крон обновляет их и по расписанию (каждые 2 часа).
      */
     asyncCron?: boolean;
@@ -262,26 +262,6 @@ export const MIRROR_SOURCES: Record<string, MirrorSource> = {
             {
                 categoryId: 57715,
                 roomIds: ['f328f032-b384-44f5-a522-b3bb2fee0be0'], // студия
-            },
-        ],
-    },
-    // «Нора» — FrontDesk24 категория 36753 «Стандарт» (4 номера = все наши 4).
-    // Категорию 40121 «Квартира» (1 юнит) и пустую 44623 «Кваритра(new)» НЕ
-    // учитываем: у нас в шахматке 4 номера, отельер подтвердил «все 4 = Стандарт».
-    '1d73fbce-85fe-4290-b657-6e29ba99226c': {
-        system: 'shelter',
-        token: '682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
-        widgetUrl: 'https://pms.frontdesk24.ru/onlineWidget/full.html?token=682D8F4C-AE87-4C54-B4F9-21E34254B2D5',
-        asyncCron: true, // FrontDesk24 медленный → кнопка запускает фоновый крон
-        categories: [
-            {
-                categoryId: 36753,
-                roomIds: [
-                    'd1210df3-28d7-4f03-9a86-ca1eb4a56ae5', // номер 1
-                    'a55d7d23-a2bf-49e9-829c-c090a6233db9', // номер 2
-                    'cdcfe88c-702a-4f05-8528-07db4aab130a', // номер 3
-                    'fad57533-9f12-43ce-97fe-e5ccd8779f7d', // номер 4
-                ],
             },
         ],
     },

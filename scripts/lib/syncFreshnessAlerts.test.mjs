@@ -4,6 +4,7 @@ import { describe, it } from 'node:test';
 import {
     buildIncidents,
     chunkAlertMessages,
+    dropIgnoredHotels,
     formatAlertMessage,
     planAlertStateChanges,
 } from './syncFreshnessAlerts.mjs';
@@ -119,5 +120,37 @@ describe('оповещения о свежести синхронизаций', 
 
         assert.ok(chunks.length > 1);
         assert.ok(chunks.every((chunk) => chunk.length <= 1000));
+    });
+});
+
+describe('объекты, с которыми больше не работаем', () => {
+    const snapshot = {
+        failures: [
+            { source: 'mirror_shelter', hotel_id: 'h1', hotel_title: 'Нора', status: 'error', error: 'неполный ответ' },
+            { source: 'bnovo_djannat', hotel_id: 'h2', hotel_title: 'Джаннат', status: 'error', error: 'кабинет недоступен' },
+        ],
+        stale: [
+            { source: 'mirror_shelter', hotel_id: 'h1', hotel_title: 'Нора', last_success_at: '2026-09-09T16:54:34Z', hours_since_success: 64, max_age_hours: 8 },
+            { source: 'mirror_shelter', hotel_id: 'h3', hotel_title: 'Сан Амра Sun Amra', last_success_at: '2026-09-09T16:54:34Z', hours_since_success: 64, max_age_hours: 8 },
+        ],
+    };
+
+    it('убирает отель из списка и оставляет остальные', () => {
+        const filtered = dropIgnoredHotels(snapshot, ['Нора']);
+
+        assert.deepEqual(filtered.failures.map((row) => row.hotel_title), ['Джаннат']);
+        assert.deepEqual(filtered.stale.map((row) => row.hotel_title), ['Сан Амра Sun Amra']);
+    });
+
+    it('не обращает внимания на регистр и лишние пробелы', () => {
+        const filtered = dropIgnoredHotels(snapshot, ['  нОрА  ']);
+
+        assert.equal(filtered.failures.length, 1);
+        assert.equal(filtered.stale.length, 1);
+    });
+
+    it('с пустым списком отдаёт сводку как есть', () => {
+        assert.equal(dropIgnoredHotels(snapshot, []), snapshot);
+        assert.equal(dropIgnoredHotels(snapshot, ['', '   ']), snapshot);
     });
 });

@@ -21,6 +21,32 @@ const failureFingerprint = (status, error) => {
     return `${status}:${error}`;
 };
 
+/**
+ * Убрать из сводки объекты, с которыми мы больше не работаем.
+ *
+ * Зачем: свежесть считается по записям прогонов в базе, а не по списку зеркал
+ * в коде. Отключив отелю автосинк, мы перестаём обновлять его занятость — и
+ * проверка вечно докладывает «занятость протухла», потому что последний
+ * успешный прогон так и остаётся последним. Живой пример — «Нора» (12.09.2026).
+ *
+ * Записи прогонов при этом не трогаем: история остаётся, просто по ней больше
+ * не звонят.
+ */
+export const dropIgnoredHotels = (snapshot, ignoredTitles = []) => {
+    const ignored = new Set(
+        ignoredTitles.map((title) => String(title ?? '').trim().toLowerCase()).filter(Boolean),
+    );
+    if (ignored.size === 0) return snapshot;
+
+    const keep = (row) => !ignored.has(String(row?.hotel_title ?? '').trim().toLowerCase());
+
+    return {
+        ...snapshot,
+        failures: (snapshot?.failures ?? []).filter(keep),
+        stale: (snapshot?.stale ?? []).filter(keep),
+    };
+};
+
 export const buildIncidents = (snapshot, staleWorkflows = []) => {
     const failures = (snapshot?.failures ?? []).map((failure) => {
         const source = cleanText(failure.source, 'неизвестный источник');

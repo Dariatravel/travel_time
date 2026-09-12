@@ -2,6 +2,7 @@
 
 import {
     buildIncidents,
+    dropIgnoredHotels,
     chunkAlertMessages,
     planAlertStateChanges,
 } from './lib/syncFreshnessAlerts.mjs';
@@ -79,6 +80,14 @@ const supabaseRequest = async (path, options = {}) => {
     });
     return readJson(response, path);
 };
+
+// Объекты, с которыми мы больше не работаем: автосинк им отключён, поэтому
+// занятость у них не обновляется и будет «протухшей» всегда. Список задаётся
+// переменной репозитория, чтобы Дарья меняла его без правки кода.
+const ignoredHotels = (process.env.SYNC_FRESHNESS_IGNORED_HOTELS || '')
+    .split(',')
+    .map((title) => title.trim())
+    .filter(Boolean);
 
 const loadSnapshot = () =>
     supabaseRequest('/rest/v1/rpc/get_sync_freshness_snapshot', {
@@ -224,7 +233,7 @@ const main = async () => {
         loadAlertStates(),
         loadStaleWorkflows(now),
     ]);
-    const incidents = buildIncidents(snapshot, staleWorkflows);
+    const incidents = buildIncidents(dropIgnoredHotels(snapshot, ignoredHotels), staleWorkflows);
     const plan = planAlertStateChanges(incidents, storedStates ?? [], now.toISOString());
 
     let deliveryError = null;
