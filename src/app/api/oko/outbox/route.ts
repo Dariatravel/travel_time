@@ -36,9 +36,31 @@ const authorized = (request: NextRequest): boolean => {
 export async function GET(request: NextRequest) {
     if (!authorized(request)) return NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
+    const service0 = createSupabaseServiceRoleClient();
+
+    // peek=1 — только посмотреть очередь, не забирая задания: так сторож
+    // видит, не встал ли отправитель, и ничего при этом не ломает.
+    if (request.nextUrl.searchParams.get('peek')) {
+        const { data, error, count } = await service0
+            .from('oko_outbox')
+            .select('created_at', { count: 'exact' })
+            .in('status', ['pending', 'sending'])
+            .order('created_at', { ascending: true })
+            .limit(1);
+        if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+        const oldest = (data ?? [])[0] as { created_at?: string } | undefined;
+
+        return NextResponse.json({
+            ждут: count ?? 0,
+            самое_старое_минут: oldest?.created_at
+                ? Math.floor((Date.now() - new Date(oldest.created_at).getTime()) / 60000)
+                : null,
+        });
+    }
+
     const asked = Number(request.nextUrl.searchParams.get('limit') ?? MAX_BATCH);
     const limit = Math.max(1, Math.min(Number.isFinite(asked) ? asked : MAX_BATCH, MAX_BATCH));
-    const service = createSupabaseServiceRoleClient();
+    const service = service0;
 
     const { data, error } = await service.rpc('oko_outbox_claim', { p_limit: limit });
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

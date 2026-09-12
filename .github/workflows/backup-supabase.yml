@@ -9,8 +9,19 @@ name: Backup Supabase (encrypted)
 # расшифровывает в ~/backups/supabase/ (apps/server/scripts/fetch_supabase_backup.sh
 # в репозитории rental-ai). Рабочая база при этом только читается.
 #
-# Что внутри дампа: схемы public, app_private и auth (учётные записи), формат
-# pg_dump -Fc — восстанавливать через pg_restore, можно выборочно по таблицам.
+# Что внутри дампа: схемы public, app_private, auth (учётные записи) и storage
+# (опись файлов), формат pg_dump -Fc — восстанавливать через pg_restore,
+# можно выборочно по таблицам.
+#
+# Кроме дампа в архив кладутся (14.09.2026, по внешнему ревью):
+#   * фотографии из хранилища Supabase — их в дампе базы НЕТ, в базе только
+#     опись; без них восстановленная шахматка останется без картинок;
+#   * права на таблицы и функции — дамп снимается с --no-privileges, потому
+#     что иначе восстановление спотыкается о чужие ALTER DEFAULT PRIVILEGES.
+#
+# Ключ расшифровки. AGE_RECIPIENT — Mac mini. Если задан секрет
+# AGE_RECIPIENT_2 (вторая копия ключа у Дарьи), архив шифруется на оба:
+# потеря Mac mini тогда не превращает все копии в мусор.
 
 on:
   schedule:
@@ -52,17 +63,91 @@ jobs:
           stamp="$(date -u +%Y-%m-%d)"
           echo "STAMP=$stamp" >> "$GITHUB_ENV"
           pg_dump "$PROD_DB_URL" -Fc --no-owner --no-privileges \
-            --schema=public --schema=app_private --schema=auth \
+            --schema=public --schema=app_private --schema=auth --schema=storage \
             -f "travel_time-$stamp.pgc"
           # Проверка, что дамп читается и в нём есть таблица броней.
           pg_restore --list "travel_time-$stamp.pgc" | grep -q 'TABLE DATA public reserves'
           echo "dump size: $(du -h "travel_time-$stamp.pgc" | cut -f1)"
 
-      - name: Encrypt
+      - name: Save grants (dump is taken without privileges)
+        env:
+          PROD_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           set -euo pipefail
-          age -r "$AGE_RECIPIENT" -o "travel_time-$STAMP.pgc.age" "travel_time-$STAMP.pgc"
-          shred -u "travel_time-$STAMP.pgc"
+          # Права не попадают в дамп, а без них восстановленная база либо
+          # закрыта для приложения, либо открыта лишнему. Снимаем отдельно.
+          psql "$PROD_DB_URL" -At -o "privileges-$STAMP.sql" -c "
+            SELECT 'GRANT ' || string_agg(DISTINCT privilege_type, ', ')
+                   || ' ON TABLE ' || quote_ident(table_schema) || '.' || quote_ident(table_name)
+                   || ' TO ' || quote_ident(grantee) || ';'
+              FROM information_schema.role_table_grants
+             WHERE table_schema IN ('public','app_private')
+               AND grantee IN ('anon','authenticated','service_role')
+             GROUP BY table_schema, table_name, grantee
+             ORDER BY 1;"
+          psql "$PROD_DB_URL" -At -c "
+            SELECT 'GRANT EXECUTE ON FUNCTION ' || p.oid::regprocedure || ' TO ' || quote_ident(g.grantee) || ';'
+              FROM pg_proc p
+              JOIN pg_namespace n ON n.oid = p.pronamespace
+              CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS a
+              JOIN pg_roles g ON g.oid = a.grantee
+             WHERE n.nspname IN ('public','app_private')
+               AND a.privilege_type = 'EXECUTE'
+               AND g.rolname IN ('anon','authenticated','service_role')
+             ORDER BY 1;" >> "privileges-$STAMP.sql"
+          echo "grants: $(wc -l < "privileges-$STAMP.sql") строк"
+
+      - name: Download storage files (photos are not in the database dump)
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          set -euo pipefail
+          mkdir -p storage-files
+          # Опись объектов берём из базы: так не нужен обход по страницам.
+          psql "${{ secrets.SUPABASE_DB_URL }}" -At -F '/' -c \
+            "SELECT bucket_id, name FROM storage.objects ORDER BY bucket_id, name" > objects.txt || true
+          total=$(wc -l < objects.txt || echo 0)
+          echo "объектов в хранилище: $total"
+          downloaded=0
+          while IFS= read -r path; do
+            [ -z "$path" ] && continue
+            bucket="${path%%/*}"; key="${path#*/}"
+            target="storage-files/$path"
+            mkdir -p "$(dirname "$target")"
+            if curl -fsS -m 60 -H "Authorization: Bearer $SERVICE_KEY" \
+                 "$SUPABASE_URL/storage/v1/object/$bucket/$key" -o "$target"; then
+              downloaded=$((downloaded + 1))
+            else
+              echo "не скачали: $path" >> storage-errors.txt
+            fi
+          done < objects.txt
+          echo "скачано: $downloaded из $total"
+          echo "$downloaded из $total объектов" > "storage-manifest-$STAMP.txt"
+          cat objects.txt >> "storage-manifest-$STAMP.txt"
+          # Файлов нет — это тоже результат, но архив должен существовать.
+          tar -czf "storage-$STAMP.tgz" storage-files "storage-manifest-$STAMP.txt" \
+            $( [ -f storage-errors.txt ] && echo storage-errors.txt )
+          echo "storage size: $(du -h "storage-$STAMP.tgz" | cut -f1)"
+
+      - name: Encrypt
+        env:
+          AGE_RECIPIENT_2: ${{ secrets.AGE_RECIPIENT_2 }}
+        run: |
+          set -euo pipefail
+          # Второй получатель — запасной ключ вне Mac mini. Не задан — шифруем
+          # на один, но это известный риск: потеря Mac mini = потеря всех копий.
+          recipients=(-r "$AGE_RECIPIENT")
+          if [ -n "${AGE_RECIPIENT_2:-}" ]; then
+            recipients+=(-r "$AGE_RECIPIENT_2")
+            echo "шифруем на два ключа"
+          else
+            echo "ВНИМАНИЕ: запасной ключ (AGE_RECIPIENT_2) не задан"
+          fi
+          tar -czf "travel_time-$STAMP.bundle.tar" \
+            "travel_time-$STAMP.pgc" "privileges-$STAMP.sql" "storage-$STAMP.tgz"
+          age "${recipients[@]}" -o "travel_time-$STAMP.pgc.age" "travel_time-$STAMP.bundle.tar"
+          shred -u "travel_time-$STAMP.pgc" "travel_time-$STAMP.bundle.tar"
           echo "encrypted size: $(du -h "travel_time-$STAMP.pgc.age" | cut -f1)"
 
       - name: Upload encrypted backup as artifact

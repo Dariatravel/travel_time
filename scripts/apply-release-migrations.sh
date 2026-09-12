@@ -22,6 +22,8 @@ migrations=(
     "supabase/migrations/20260913150000_add_inbox.sql"
     "supabase/migrations/20260913170000_inbox_robot.sql"
     "supabase/migrations/20260913200000_temp_cards.sql"
+    "supabase/migrations/20260914090000_reliability_db.sql"
+    "supabase/migrations/20260914100000_webhook_reliability.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.

@@ -1416,6 +1416,14 @@ export const deleteHotelApi = async (id: string) => {
     const { data, error } = await supabase.from('hotels').delete().eq('id', id).select('id').single();
 
     if (error) {
+        // База не даёт удалить отель, по которому есть выплаты или
+        // корректировки: иначе история расчётов исчезла бы вместе с ним.
+        if (error.code === '23503') {
+            throw new Error(
+                'По этому отелю есть выплаты или корректировки в «Финансах». ' +
+                    'Удалить его нельзя — история расчётов должна остаться.',
+            );
+        }
         throw new Error(error.message);
     }
 
