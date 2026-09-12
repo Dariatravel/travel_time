@@ -151,6 +151,7 @@ export type DealMessageRow = {
     id: number;
     oko_message_id: number | null;
     deal_id: string | null;
+    client_id?: string | null;
     direction: 'in' | 'out';
     author_type: string | null;
     author_name: string | null;
@@ -158,6 +159,27 @@ export type DealMessageRow = {
     text: string | null;
     files: string[];
     sent_at: string | null;
+    /** Куда отвечать через ОКО — из последнего сообщения переписки. */
+    oko_client_id?: number | null;
+    oko_contact_messenger_id?: number | null;
+    source?: 'import' | 'webhook' | 'outbox';
+};
+
+/**
+ * Куда отправлять ответ клиенту через ОКО: берём из самого свежего сообщения,
+ * где есть идентификатор переписки. У старых импортированных сообщений его нет.
+ */
+export const replyTargetOf = (
+    messages: DealMessageRow[],
+): { okoClientId: number | null; contactMessengerId: number } | null => {
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const messengerId = messages[i]?.oko_contact_messenger_id;
+        if (messengerId) {
+            return { okoClientId: messages[i].oko_client_id ?? null, contactMessengerId: messengerId };
+        }
+    }
+
+    return null;
 };
 
 export const clientOf = (deal: DealRow): ClientRow | null => {
