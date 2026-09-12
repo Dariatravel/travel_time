@@ -22,6 +22,7 @@ import {
     HomeIcon,
     KanbanSquare,
     LayoutDashboard,
+    MessagesSquare,
     Receipt,
     Sunrise,
     UserCog,
@@ -75,6 +76,7 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               // Клиенты и сделки (этап 3) — канбан как в OKO.
               ...(isCrmEnabled(user?.role)
                   ? [
+                        { href: routes[PagesEnum.INBOX], label: 'Входящие', icon: MessagesSquare },
                         { href: routes[PagesEnum.DEALS], label: 'Сделки', icon: KanbanSquare },
                         { href: routes[PagesEnum.CLIENTS], label: 'Клиенты', icon: Contact },
                     ]

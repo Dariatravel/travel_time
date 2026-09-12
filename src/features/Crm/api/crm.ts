@@ -7,6 +7,7 @@ import {
     type ClientRow,
     type DealMessageRow,
     type DealRow,
+    type ImportTable,
     type Pipeline,
     type Stage,
 } from '../lib/crm';
@@ -277,7 +278,7 @@ export const useOutboxForDeal = (dealId?: string, enabled = true) =>
     });
 
 /** Пачка строк в серверный роут импорта. */
-export const importBatch = async (table: 'clients' | 'deals' | 'deal_messages', rows: Record<string, unknown>[]) => {
+export const importBatch = async (table: ImportTable, rows: Record<string, unknown>[]) => {
     const response = await fetch('/api/crm/import', {
         method: 'POST',
         headers: await authHeaders(),

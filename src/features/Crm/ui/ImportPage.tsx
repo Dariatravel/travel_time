@@ -12,7 +12,8 @@ import { importBatch, useCrmCounts } from '../api/crm';
 import { importTableForFile } from '../lib/crm';
 
 const BATCH = 500;
-const ORDER = { clients: 0, deals: 1, deal_messages: 2 } as const;
+// Клиенты → сделки → сообщения → связи переписок (связи last: им нужны клиенты).
+const ORDER = { clients: 0, deals: 1, deal_messages: 2, client_links: 3 } as const;
 
 type Progress = {
     id: number;

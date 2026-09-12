@@ -256,9 +256,13 @@ export const parseJsonl = (text: string): { rows: Record<string, unknown>[]; bro
     return { rows, broken };
 };
 
-/** Файл → таблица по имени: clients.jsonl, deals.jsonl, messages.jsonl. */
-export const importTableForFile = (fileName: string): 'clients' | 'deals' | 'deal_messages' | null => {
+export type ImportTable = 'clients' | 'deals' | 'deal_messages' | 'client_links';
+
+/** Файл → таблица по имени: clients, deals, messages, client_links. */
+export const importTableForFile = (fileName: string): ImportTable | null => {
     const name = fileName.toLowerCase();
+    // «client_links» проверяем раньше «clients»: иначе совпадёт по началу строки.
+    if (name.startsWith('client_links')) return 'client_links';
     if (name.startsWith('clients')) return 'clients';
     if (name.startsWith('deals')) return 'deals';
     if (name.startsWith('messages')) return 'deal_messages';
