@@ -19,21 +19,28 @@
 name: Telegram Chat Check
 
 on:
-  workflow_dispatch:
+    schedule:
+        # Ежедневно в 05:17 по Москве. Неровная минута снижает задержки GitHub cron.
+        - cron: '17 2 * * *'
+    workflow_dispatch:
 
 jobs:
-  check:
-    name: Check manager chats
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
+    check:
+        name: Check manager chats
+        runs-on: ubuntu-latest
+        timeout-minutes: 5
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Ask Telegram about each configured chat
-        env:
-          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
-          TELEGRAM_MANAGER_CHAT_IDS: ${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }}
-        run: |
-          set -euo pipefail
-          python3 scripts/telegram-chat-check.py
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 22
+
+            - name: Ask Telegram about each configured chat
+              env:
+                  TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+                  TELEGRAM_MANAGER_CHAT_IDS: ${{ secrets.TELEGRAM_MANAGER_CHAT_IDS }}
+              run: |
+                  set -euo pipefail
+                  node scripts/telegram-chat-check.mjs

@@ -5,6 +5,7 @@ import {
     chunkAlertMessages,
     planAlertStateChanges,
 } from './lib/syncFreshnessAlerts.mjs';
+import { managerChatIdIssue, parseTelegramChatIds } from './lib/telegramChatIds.mjs';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.replace(/\/$/, '');
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -155,13 +156,26 @@ const askBotName = async (token) => {
 
 const sendTelegram = async (text) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
-    const chatIds = (process.env.TELEGRAM_MANAGER_CHAT_IDS || '')
-        .split(',')
-        .map((chatId) => chatId.trim())
-        .filter(Boolean);
+    const chatEntries = parseTelegramChatIds(process.env.TELEGRAM_MANAGER_CHAT_IDS);
 
-    if (!token || chatIds.length === 0) {
+    if (!token || chatEntries.length === 0) {
         throw new Error('Нет TELEGRAM_BOT_TOKEN или TELEGRAM_MANAGER_CHAT_IDS');
+    }
+
+    const validEntries = [];
+    for (const entry of chatEntries) {
+        const issue = managerChatIdIssue(entry);
+        if (issue) {
+            console.warn(`ПРЕДУПРЕЖДЕНИЕ: ${issue}`);
+        } else {
+            validEntries.push(entry);
+        }
+    }
+
+    if (validEntries.length === 0) {
+        throw new Error(
+            'TELEGRAM_MANAGER_CHAT_IDS: нет ни одного числового id чата; отправка не выполнялась',
+        );
     }
 
     // Один недоступный чат (человек не нажал Start у бота, опечатка в id)
@@ -171,16 +185,21 @@ const sendTelegram = async (text) => {
     // только если НИ ОДИН чат сообщение не получил.
     const failures = [];
     let delivered = 0;
-    for (const chatId of chatIds) {
+    for (const entry of validEntries) {
         try {
             const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ chat_id: chatId, text, disable_web_page_preview: true }),
+                body: JSON.stringify({
+                    chat_id: entry.value,
+                    text,
+                    disable_web_page_preview: true,
+                }),
                 signal: AbortSignal.timeout(30_000),
             });
-            const data = await readJson(response, `Telegram, чат ${chatId}`);
-            if (data?.ok !== true) throw new Error(`Telegram, чат ${chatId}: ответ без ok=true`);
+            const context = `Telegram, запись ${entry.position}`;
+            const data = await readJson(response, context);
+            if (data?.ok !== true) throw new Error(`${context}: ответ без ok=true`);
             delivered += 1;
         } catch (error) {
             failures.push(error instanceof Error ? error.message : String(error));
