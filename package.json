@@ -21,8 +21,7 @@
         "short-links:test": "node --test scripts/lib/shortHotelLinks.test.mjs",
         "bnovo:test": "node --test scripts/lib/bnovoPeriod.test.mjs",
         "sync-freshness:test": "node --test scripts/lib/syncFreshnessAlerts.test.mjs",
-        "retry:test": "node --test scripts/lib/retryRequest.test.mjs",
-    "chat-check:test": "python3 scripts/telegram-chat-check.test.py"
+        "retry:test": "node --test scripts/lib/retryRequest.test.mjs"
     },
     "dependencies": {
         "@dnd-kit/core": "^6.3.1",

@@ -149,19 +149,6 @@ const loadStaleWorkflows = async (now) => {
     return checks.filter(Boolean);
 };
 
-/** Логин бота — чтобы в журнале было видно, кого добавлять в чат. */
-const askBotName = async (token) => {
-    try {
-        const response = await fetch(`https://api.telegram.org/bot${token}/getMe`, {
-            signal: AbortSignal.timeout(15_000),
-        });
-        const data = await response.json();
-        return data?.ok === true && data.result?.username ? `@${data.result.username}` : '(имя не узнать)';
-    } catch {
-        return '(имя не узнать)';
-    }
-};
-
 const sendTelegram = async (text) => {
     const token = process.env.TELEGRAM_BOT_TOKEN;
     const chatIds = (process.env.TELEGRAM_MANAGER_CHAT_IDS || '')
@@ -198,17 +185,6 @@ const sendTelegram = async (text) => {
 
     for (const failure of failures) {
         console.warn(`ПРЕДУПРЕЖДЕНИЕ: ${failure} — проверьте TELEGRAM_MANAGER_CHAT_IDS`);
-    }
-    // Номер чата GitHub затирает звёздочками, поэтому из письма о падении не
-    // видно даже того, КАКОГО бота не пускают в чат. Спрашиваем имя у Telegram
-    // и печатаем: логин бота не секрет, его видит любой собеседник.
-    if (failures.length > 0) {
-        const botName = await askBotName(token);
-        console.warn(
-            `ПОДСКАЗКА: сообщения шлёт бот ${botName}. Если его нет в чате менеджеров — ` +
-                'добавьте; если чат сменил номер, узнать новый можно командой /chatid ' +
-                'в самом чате. Подробный разбор — воркфлоу Telegram Chat Check.',
-        );
     }
     if (delivered === 0) {
         throw new Error(`Telegram не принял сообщение ни для одного чата: ${failures.join('; ')}`);
