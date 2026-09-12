@@ -108,7 +108,10 @@ export const ImportPage = () => {
                 const item: Progress = { id, file: file.name, table: table ?? '—', sent: 0, written: 0, skipped: 0, broken: 0, done: false };
                 setProgress((p) => [...p, item]);
                 if (!table) {
-                    update(id, { error: 'Имя файла должно начинаться с clients / deals / messages', done: true });
+                    update(id, {
+                        error: 'Имя файла должно начинаться с clients / deals / messages / client_links',
+                        done: true,
+                    });
                     continue;
                 }
                 try {

@@ -76,22 +76,30 @@ export const normalizePhone = (raw: string): string | null => {
 /**
  * Пачка для импорта: только объекты с ключом, без повторов по ключу
  * (последняя строка побеждает), только разрешённые колонки.
+ *
+ * collapse: false — для видов, где строки складываются, а не заменяют друг
+ * друга (связи переписок). Там схлопывание по ключу потеряло бы данные.
  */
 export const sanitizeRows = (
     rows: unknown,
-    spec: { conflict: string; columns: string[] },
+    spec: { conflict: string; columns: string[]; collapse?: boolean },
 ): Record<string, unknown>[] => {
     if (!Array.isArray(rows)) return [];
+    const pick = (row: Record<string, unknown>) =>
+        Object.fromEntries(spec.columns.filter((c) => c in row).map((c) => [c, row[c]]));
+    const collapse = spec.collapse !== false;
     const byKey = new Map<string, Record<string, unknown>>();
+    const kept: Record<string, unknown>[] = [];
     for (const raw of rows) {
         if (!raw || typeof raw !== 'object' || Array.isArray(raw)) continue;
         const row = raw as Record<string, unknown>;
         const key = row[spec.conflict];
         if (key == null || key === '') continue;
-        byKey.set(String(key), Object.fromEntries(spec.columns.filter((c) => c in row).map((c) => [c, row[c]])));
+        if (collapse) byKey.set(String(key), pick(row));
+        else kept.push(pick(row));
     }
 
-    return [...byKey.values()];
+    return collapse ? [...byKey.values()] : kept;
 };
 
 export type DealRow = {

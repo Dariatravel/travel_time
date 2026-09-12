@@ -10,13 +10,14 @@ export type InboxRow = {
     client_name: string | null;
     client_phones: string[] | null;
     is_temporary: boolean;
+    /** Номер клиента в ОКО, если известен: нужен при отправке ответа. */
+    oko_client_id: number | null;
     integration_id: number | null;
     last_text: string | null;
     last_direction: 'in' | 'out';
     last_at: string;
-    /** Заполнено, только если последним писал клиент. */
+    /** Первое сообщение клиента без ответа; ответили — null. */
     waiting_since: string | null;
-    messages_count: number;
     deal_id: string | null;
     deal_stage: string | null;
 };
@@ -79,12 +80,23 @@ export const counts = (rows: InboxRow[], nowMs: number) => ({
     unknown: rows.filter((r) => r.is_temporary || !r.client_id).length,
 });
 
-/** «2 ч 15 мин», «18 мин», «3 дн» — на глаз понятнее точного времени. */
+/** «1 день», «2 дня», «5 дней» — падеж по числу. */
+const plural = (n: number, one: string, few: string, many: string): string => {
+    const mod100 = n % 100;
+    if (mod100 >= 11 && mod100 <= 14) return many;
+    const mod10 = n % 10;
+    if (mod10 === 1) return one;
+    if (mod10 >= 2 && mod10 <= 4) return few;
+
+    return many;
+};
+
+/** «2 ч 15 мин», «18 мин», «3 дня» — на глаз понятнее точного времени. */
 export const humanWait = (hours: number): string => {
     if (hours >= 24) {
         const days = Math.floor(hours / 24);
 
-        return `${days} дн`;
+        return `${days} ${plural(days, 'день', 'дня', 'дней')}`;
     }
     if (hours >= 1) {
         const whole = Math.floor(hours);
@@ -96,9 +108,22 @@ export const humanWait = (hours: number): string => {
     return `${Math.max(1, Math.round(hours * 60))} мин`;
 };
 
-export const formatMoment = (iso: string): string => {
-    const date = new Date(iso);
-    const pad = (n: number) => String(n).padStart(2, '0');
+/**
+ * Время всегда по Москве: смены менеджеров, заезды и выезды считаются по
+ * московским суткам, и часовой пояс компьютера не должен на это влиять.
+ */
+const MOSCOW = new Intl.DateTimeFormat('ru-RU', {
+    timeZone: 'Europe/Moscow',
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+});
 
-    return `${pad(date.getDate())}.${pad(date.getMonth() + 1)} ${pad(date.getHours())}:${pad(date.getMinutes())}`;
+export const formatMoment = (iso: string): string => {
+    const parts = MOSCOW.formatToParts(new Date(iso));
+    const at = (type: string) => parts.find((p) => p.type === type)?.value ?? '00';
+
+    return `${at('day')}.${at('month')} ${at('hour')}:${at('minute')}`;
 };

@@ -17,7 +17,7 @@ import { RefreshCw, Search, Send } from 'lucide-react';
 import Link from 'next/link';
 import { FC, useEffect, useMemo, useState } from 'react';
 
-import { useChat, useChatOutbox, useInbox, useMergeClients, useReply } from '../api/inbox';
+import { useAttachChat, useChat, useChatOutbox, useInbox, useReply } from '../api/inbox';
 import {
     channelName,
     counts,
@@ -43,7 +43,7 @@ const MergeDialog: FC<{ row: InboxRow; onClose: () => void }> = ({ row, onClose 
         return () => clearTimeout(timer);
     }, [input]);
     const { data: clients = [], isPending } = useClients(term);
-    const merge = useMergeClients();
+    const attach = useAttachChat();
 
     return (
         <TravelDialog
@@ -53,7 +53,8 @@ const MergeDialog: FC<{ row: InboxRow; onClose: () => void }> = ({ row, onClose 
             description={
                 <div className="space-y-3">
                     <p className="text-sm text-muted-foreground">
-                        Переписка и сделки переедут к выбранному клиенту, временная карточка исчезнет.
+                        Переписка и сделки переедут к выбранному клиенту
+                        {row.client_id ? ', временная карточка исчезнет' : ''}.
                     </p>
                     <div className="relative">
                         <Search className="absolute left-2 top-2.5 size-4 text-muted-foreground" />
@@ -72,11 +73,15 @@ const MergeDialog: FC<{ row: InboxRow; onClose: () => void }> = ({ row, onClose 
                                 <button
                                     key={c.id}
                                     type="button"
-                                    disabled={merge.isPending || !row.client_id}
+                                    disabled={attach.isPending}
                                     className="block w-full rounded-lg border bg-white p-2 text-left text-sm hover:bg-muted/40"
                                     onClick={() =>
-                                        merge
-                                            .mutateAsync({ from: row.client_id!, into: c.id })
+                                        attach
+                                            .mutateAsync({
+                                                messengerId: row.messenger_id,
+                                                temporaryClientId: row.is_temporary ? row.client_id : null,
+                                                into: c.id,
+                                            })
                                             .then(() => {
                                                 showToast('Чат привязан к клиенту', 'success');
                                                 onClose();
@@ -112,13 +117,17 @@ const ChatPanel: FC<{ row: InboxRow; actor: string; onMerge: () => void }> = ({ 
     const reply = useReply();
     const [text, setText] = useState('');
 
+    // Номер клиента в ОКО: сначала из карточки клиента, иначе из переписки.
+    // У чатов из мессенджеров его чаще всего нет вовсе — ОКО принимает
+    // отправку и без него, по идентификатору переписки (проверено вживую).
     const okoClientId = useMemo(() => {
+        if (row.oko_client_id) return row.oko_client_id;
         for (let i = messages.length - 1; i >= 0; i -= 1) {
             if (messages[i].oko_client_id) return messages[i].oko_client_id;
         }
 
         return null;
-    }, [messages]);
+    }, [row.oko_client_id, messages]);
 
     return (
         <Card className="flex h-full flex-col bg-white/90">
@@ -230,9 +239,13 @@ export const InboxPage = () => {
     const { data: rows = [], isPending, error, refetch, isFetching } = useInbox(days);
     const visible = useMemo(() => filterRows(rows, filter, nowMs), [rows, filter, nowMs]);
     const stats = useMemo(() => counts(rows, nowMs), [rows, nowMs]);
+    // Выбранный чат ищем во ВСЁМ списке, а не в отборе: список обновляется сам
+    // раз в минуту, и чат, которому только что ответили, выпадает из «Ждут
+    // ответа». Если бы панель в этот момент переключилась на соседний чат,
+    // набранный ответ ушёл бы чужому человеку.
     const selected = useMemo(
-        () => visible.find((r) => r.messenger_id === selectedId) ?? visible[0] ?? null,
-        [visible, selectedId],
+        () => (selectedId === null ? (visible[0] ?? null) : (rows.find((r) => r.messenger_id === selectedId) ?? null)),
+        [rows, visible, selectedId],
     );
 
     if (!isCrmEnabled(user?.role)) {
@@ -324,7 +337,7 @@ export const InboxPage = () => {
                                         {row.client_name ?? 'Клиент без имени'}
                                         {row.is_temporary && <span className="ml-1 text-xs text-amber-700">новый</span>}
                                     </span>
-                                    {hours !== null && (
+                                    {hours !== null && nowMs > 0 && (
                                         <Badge variant={overdue ? 'destructive' : 'secondary'}>ждёт {humanWait(hours)}</Badge>
                                     )}
                                 </div>
@@ -343,7 +356,14 @@ export const InboxPage = () => {
 
                 <div className="min-h-[50vh]">
                     {selected ? (
-                        <ChatPanel row={selected} actor={actor} onMerge={() => setMergeRow(selected)} />
+                        // key обязателен: без него React оставит набранный текст
+                        // при переключении на другой чат.
+                        <ChatPanel
+                            key={selected.messenger_id}
+                            row={selected}
+                            actor={actor}
+                            onMerge={() => setMergeRow(selected)}
+                        />
                     ) : (
                         <Card className="bg-white/90">
                             <CardContent className="p-4 text-sm text-muted-foreground">Выберите чат слева.</CardContent>

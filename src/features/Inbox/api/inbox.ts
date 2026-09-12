@@ -6,6 +6,7 @@ import type { InboxRow } from '../lib/inbox';
 export const INBOX_KEYS = {
     list: (days: number) => ['inbox', 'list', days] as const,
     chat: (messengerId: number) => ['inbox', 'chat', messengerId] as const,
+    outbox: (messengerId: number) => ['inbox', 'outbox', messengerId] as const,
 };
 
 export type ChatMessage = {
@@ -89,36 +90,72 @@ export type OutboxRow = {
     payload: { text?: string } & Record<string, unknown>;
     last_error: string | null;
     created_at: string;
+    sent_at: string | null;
 };
 
-/** Что ещё не ушло по этому чату. */
+/**
+ * Что по этому чату ещё в пути или не ушло.
+ *
+ * Берём только сутки: иначе неудача недельной давности висела бы в чате
+ * вечно. Отправленные показываем ещё пять минут — пока ОКО не вернёт эхо
+ * вебхуком, ответа не видно нигде, и менеджер решит, что не отправилось.
+ */
+export const OUTBOX_WINDOW_HOURS = 24;
+export const SENT_VISIBLE_MINUTES = 5;
+
 export const useChatOutbox = (messengerId?: number | null) =>
     useQuery({
-        queryKey: ['inbox', 'outbox', messengerId ?? 0],
+        queryKey: INBOX_KEYS.outbox(messengerId ?? 0),
         enabled: !!messengerId,
         refetchInterval: 20_000,
         queryFn: async () => {
+            const since = new Date(Date.now() - OUTBOX_WINDOW_HOURS * 3_600_000).toISOString();
             const { data, error } = await supabase
                 .from('oko_outbox')
-                .select('id, status, payload, last_error, created_at')
+                .select('id, status, payload, last_error, created_at, sent_at')
                 .eq('kind', 'message')
                 .contains('payload', { contact_messenger_id: messengerId })
-                .neq('status', 'sent')
+                .neq('status', 'cancelled')
+                .gte('created_at', since)
                 .order('created_at', { ascending: true })
                 .limit(20);
             if (error) throw error;
 
-            return (data ?? []) as OutboxRow[];
+            const sentCutoff = Date.now() - SENT_VISIBLE_MINUTES * 60_000;
+
+            return ((data ?? []) as OutboxRow[]).filter(
+                (row) =>
+                    row.status !== 'sent' ||
+                    new Date(row.sent_at ?? row.created_at).getTime() >= sentCutoff,
+            );
         },
     });
 
-/** Привязать чат к существующему клиенту: временная карточка вливается в настоящую. */
-export const useMergeClients = () => {
+/**
+ * Привязать чат к существующему клиенту.
+ *
+ * Если у чата есть временная карточка — вливаем её в настоящую вместе с
+ * перепиской. Если карточки нет вовсе — просто приписываем переписку клиенту.
+ */
+export const useAttachChat = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (input: { from: string; into: string }) => {
-            const { error } = await supabase.rpc('oko_merge_clients', { p_from: input.from, p_into: input.into });
+        mutationFn: async (input: { messengerId: number; temporaryClientId: string | null; into: string }) => {
+            if (input.temporaryClientId) {
+                const { error } = await supabase.rpc('oko_merge_clients', {
+                    p_from: input.temporaryClientId,
+                    p_into: input.into,
+                });
+                if (error) throw error;
+
+                return;
+            }
+
+            const { error } = await supabase.rpc('oko_attach_chat', {
+                p_messenger_id: input.messengerId,
+                p_client: input.into,
+            });
             if (error) throw error;
         },
         onSuccess: () => {

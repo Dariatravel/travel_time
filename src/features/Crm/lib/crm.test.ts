@@ -123,6 +123,12 @@ describe('импорт', () => {
         expect(importTableForFile('сводка.txt')).toBeNull();
     });
 
+    it('client_links не путается с clients: проверяется раньше', () => {
+        expect(importTableForFile('client_links.jsonl')).toBe('client_links');
+        expect(importTableForFile('Client_Links (2).jsonl')).toBe('client_links');
+        expect(importTableForFile('clients.jsonl')).toBe('clients');
+    });
+
     it('режет на пачки', () => {
         expect(chunk([1, 2, 3, 4, 5], 2)).toEqual([[1, 2], [3, 4], [5]]);
         expect(chunk([], 2)).toEqual([]);
@@ -170,5 +176,22 @@ describe('пачка импорта', () => {
 
     it('не массив — пусто', () => {
         expect(sanitizeRows({ a: 1 }, spec)).toEqual([]);
+    });
+
+    it('collapse: false — повторы по ключу сохраняются (связи складываются)', () => {
+        const links = { conflict: 'oko_contact_id', columns: ['oko_contact_id', 'oko_messenger_ids'], collapse: false };
+        expect(
+            sanitizeRows(
+                [
+                    { oko_contact_id: 7, oko_messenger_ids: [1] },
+                    { oko_contact_id: 7, oko_messenger_ids: [2] },
+                    { oko_messenger_ids: [3] },
+                ],
+                links,
+            ),
+        ).toEqual([
+            { oko_contact_id: 7, oko_messenger_ids: [1] },
+            { oko_contact_id: 7, oko_messenger_ids: [2] },
+        ]);
     });
 });

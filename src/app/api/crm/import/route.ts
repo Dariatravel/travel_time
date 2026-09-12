@@ -26,10 +26,12 @@ const MAX_BODY_BYTES = 3 * 1024 * 1024;
 type Table = 'clients' | 'deals' | 'deal_messages' | 'client_links';
 type Row = Record<string, unknown>;
 
-const TABLES: Record<Table, { conflict: string; columns: string[] }> = {
+const TABLES: Record<Table, { conflict: string; columns: string[]; collapse?: boolean }> = {
     client_links: {
         conflict: 'oko_contact_id',
         columns: ['oko_contact_id', 'oko_messenger_ids', 'oko_client_ids'],
+        // Связи складываются, а не заменяют друг друга: схлопывать нельзя.
+        collapse: false,
     },
     clients: {
         conflict: 'oko_contact_id',
@@ -62,12 +64,14 @@ const importLinks = async (
 ): Promise<{ written: number; skipped: number }> => {
     // Одним запросом на всю пачку: по отдельному запросу на связь (их 2400)
     // контейнер не уложился бы в отведённые 30 секунд.
+    const ids = (value: unknown): number[] =>
+        Array.isArray(value) ? value.filter((v): v is number => Number.isInteger(v) && (v as number) > 0) : [];
     const payload = rows
-        .filter((row) => typeof row.oko_contact_id === 'number')
+        .filter((row) => Number.isInteger(row.oko_contact_id))
         .map((row) => ({
             oko_contact_id: row.oko_contact_id,
-            oko_messenger_ids: Array.isArray(row.oko_messenger_ids) ? row.oko_messenger_ids : [],
-            oko_client_ids: Array.isArray(row.oko_client_ids) ? row.oko_client_ids : [],
+            oko_messenger_ids: ids(row.oko_messenger_ids),
+            oko_client_ids: ids(row.oko_client_ids),
         }));
     if (payload.length === 0) return { written: 0, skipped: rows.length };
 
