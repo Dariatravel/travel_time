@@ -85,4 +85,48 @@ $$;
 REVOKE ALL ON FUNCTION public.oko_events_to_retry(integer) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.oko_events_to_retry(integer) TO service_role;
 
+/**
+ * Кого перечитать при сверке с ОКО.
+ *
+ * ОКО не отдаёт «все сообщения с такого-то времени» — только по контакту или
+ * сделке, и список сделок не сортирует. Поэтому сверка идёт по кругу:
+ * берём контакты, которые давно не перечитывали, начиная с тех, где недавно
+ * была переписка. Отметку о сверке ставим сразу, чтобы круг двигался.
+ */
+ALTER TABLE public.clients
+    ADD COLUMN IF NOT EXISTS reconciled_at timestamptz;
+
+CREATE INDEX IF NOT EXISTS clients_reconcile_idx
+    ON public.clients (reconciled_at NULLS FIRST, last_incoming_at DESC NULLS LAST)
+    WHERE oko_contact_id IS NOT NULL;
+
+CREATE OR REPLACE FUNCTION public.oko_contacts_to_reconcile(p_limit integer DEFAULT 5)
+RETURNS TABLE (oko_contact_id bigint, client_name text, last_incoming_at timestamptz)
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+BEGIN
+    RETURN QUERY
+    WITH picked AS (
+        SELECT c.id
+          FROM public.clients AS c
+         WHERE c.oko_contact_id IS NOT NULL
+           AND c.last_incoming_at IS NOT NULL
+           AND (c.reconciled_at IS NULL OR c.reconciled_at < now() - interval '7 days')
+         ORDER BY c.reconciled_at NULLS FIRST, c.last_incoming_at DESC
+         LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 5), 20))
+         FOR UPDATE SKIP LOCKED
+    )
+    UPDATE public.clients AS c
+       SET reconciled_at = now()
+      FROM picked
+     WHERE c.id = picked.id
+    RETURNING c.oko_contact_id, c.name, c.last_incoming_at;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_contacts_to_reconcile(integer) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oko_contacts_to_reconcile(integer) TO service_role;
+
 COMMIT;

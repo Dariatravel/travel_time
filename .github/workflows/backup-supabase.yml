@@ -76,7 +76,22 @@ jobs:
           set -euo pipefail
           # Права не попадают в дамп, а без них восстановленная база либо
           # закрыта для приложения, либо открыта лишнему. Снимаем отдельно.
+          #
+          # Сначала REVOKE: защита здесь построена на том, что у функций
+          # отнято право у PUBLIC. Без этих строк восстановленная база была бы
+          # РАЗРЕШИТЕЛЬНЕЕ рабочей — функции вроде oko_merge_clients_unchecked
+          # оказались бы доступны любому вошедшему.
           psql "$PROD_DB_URL" -At -o "privileges-$STAMP.sql" -c "
+            SELECT 'REVOKE ALL ON FUNCTION ' || p.oid::regprocedure || ' FROM PUBLIC;'
+              FROM pg_proc p
+              JOIN pg_namespace n ON n.oid = p.pronamespace
+             WHERE n.nspname IN ('public','app_private')
+               AND p.proacl IS NOT NULL
+               AND NOT EXISTS (
+                   SELECT 1 FROM aclexplode(p.proacl) AS a
+                    WHERE a.grantee = 0 AND a.privilege_type = 'EXECUTE')
+             ORDER BY 1;"
+          psql "$PROD_DB_URL" -At -c "
             SELECT 'GRANT ' || string_agg(DISTINCT privilege_type, ', ')
                    || ' ON TABLE ' || quote_ident(table_schema) || '.' || quote_ident(table_name)
                    || ' TO ' || quote_ident(grantee) || ';'
@@ -84,7 +99,7 @@ jobs:
              WHERE table_schema IN ('public','app_private')
                AND grantee IN ('anon','authenticated','service_role')
              GROUP BY table_schema, table_name, grantee
-             ORDER BY 1;"
+             ORDER BY 1;" >> "privileges-$STAMP.sql"
           psql "$PROD_DB_URL" -At -c "
             SELECT 'GRANT EXECUTE ON FUNCTION ' || p.oid::regprocedure || ' TO ' || quote_ident(g.grantee) || ';'
               FROM pg_proc p
@@ -97,40 +112,7 @@ jobs:
              ORDER BY 1;" >> "privileges-$STAMP.sql"
           echo "grants: $(wc -l < "privileges-$STAMP.sql") строк"
 
-      - name: Download storage files (photos are not in the database dump)
-        env:
-          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          set -euo pipefail
-          mkdir -p storage-files
-          # Опись объектов берём из базы: так не нужен обход по страницам.
-          psql "${{ secrets.SUPABASE_DB_URL }}" -At -F '/' -c \
-            "SELECT bucket_id, name FROM storage.objects ORDER BY bucket_id, name" > objects.txt || true
-          total=$(wc -l < objects.txt || echo 0)
-          echo "объектов в хранилище: $total"
-          downloaded=0
-          while IFS= read -r path; do
-            [ -z "$path" ] && continue
-            bucket="${path%%/*}"; key="${path#*/}"
-            target="storage-files/$path"
-            mkdir -p "$(dirname "$target")"
-            if curl -fsS -m 60 -H "Authorization: Bearer $SERVICE_KEY" \
-                 "$SUPABASE_URL/storage/v1/object/$bucket/$key" -o "$target"; then
-              downloaded=$((downloaded + 1))
-            else
-              echo "не скачали: $path" >> storage-errors.txt
-            fi
-          done < objects.txt
-          echo "скачано: $downloaded из $total"
-          echo "$downloaded из $total объектов" > "storage-manifest-$STAMP.txt"
-          cat objects.txt >> "storage-manifest-$STAMP.txt"
-          # Файлов нет — это тоже результат, но архив должен существовать.
-          tar -czf "storage-$STAMP.tgz" storage-files "storage-manifest-$STAMP.txt" \
-            $( [ -f storage-errors.txt ] && echo storage-errors.txt )
-          echo "storage size: $(du -h "storage-$STAMP.tgz" | cut -f1)"
-
-      - name: Encrypt
+      - name: Encrypt database backup
         env:
           AGE_RECIPIENT_2: ${{ secrets.AGE_RECIPIENT_2 }}
         run: |
@@ -144,12 +126,15 @@ jobs:
           else
             echo "ВНИМАНИЕ: запасной ключ (AGE_RECIPIENT_2) не задан"
           fi
+          echo "RECIPIENTS_OK=1" >> "$GITHUB_ENV"
           tar -czf "travel_time-$STAMP.bundle.tar" \
-            "travel_time-$STAMP.pgc" "privileges-$STAMP.sql" "storage-$STAMP.tgz"
+            "travel_time-$STAMP.pgc" "privileges-$STAMP.sql"
           age "${recipients[@]}" -o "travel_time-$STAMP.pgc.age" "travel_time-$STAMP.bundle.tar"
           shred -u "travel_time-$STAMP.pgc" "travel_time-$STAMP.bundle.tar"
           echo "encrypted size: $(du -h "travel_time-$STAMP.pgc.age" | cut -f1)"
 
+      # База уезжает в артефакт ДО фотографий: сколько бы их ни качалось и чем
+      # бы это ни кончилось, копия базы за сегодня уже сохранена.
       - name: Upload encrypted backup as artifact
         uses: actions/upload-artifact@v4
         with:
@@ -157,3 +142,81 @@ jobs:
           path: travel_time-${{ env.STAMP }}.pgc.age
           retention-days: 30
           if-no-files-found: error
+
+      - name: Download storage files (photos are not in the database dump)
+        # Свой запас времени и continue-on-error: фотографии не должны
+        # утащить за собой копию базы, она уже уехала артефактом выше.
+        continue-on-error: true
+        timeout-minutes: 40
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          PROD_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          set -euo pipefail
+          mkdir -p storage-files
+          # Опись объектов берём из базы: так не нужен обход по страницам.
+          # Отдельно узнаём, сколько их всего, чтобы пустой список из-за
+          # ошибки прав нельзя было принять за «фотографий нет».
+          expected="$(psql "$PROD_DB_URL" -At -c 'SELECT count(*) FROM storage.objects')"
+          psql "$PROD_DB_URL" -At -F '/' -c \
+            "SELECT bucket_id, name FROM storage.objects ORDER BY bucket_id, name" > objects.txt
+          total=$(wc -l < objects.txt)
+          echo "объектов в хранилище: $total (по счётчику $expected)"
+          test "$total" = "$expected"
+
+          # Качаем параллельно: последовательно тысячи файлов не успеют.
+          # Путь кодируем: имена с пробелами и кириллицей иначе не скачать.
+          cat > fetch.sh <<'SH'
+          set -u
+          path="$1"
+          [ -z "$path" ] && exit 0
+          bucket="${path%%/*}"; key="${path#*/}"
+          enc="$(python3 -c 'import sys,urllib.parse; print(urllib.parse.quote(sys.argv[1]))' "$key")"
+          target="storage-files/$path"
+          mkdir -p "$(dirname "$target")"
+          if curl -fsS -m 60 -H "Authorization: Bearer $SERVICE_KEY" \
+               "$SUPABASE_URL/storage/v1/object/$bucket/$enc" -o "$target"; then
+            exit 0
+          fi
+          echo "$path" >> storage-errors.txt
+          exit 0
+          SH
+          chmod +x fetch.sh
+          export SERVICE_KEY SUPABASE_URL
+          tr -d '\r' < objects.txt | xargs -P 8 -I{} bash fetch.sh "{}"
+
+          failed=$( [ -f storage-errors.txt ] && wc -l < storage-errors.txt || echo 0 )
+          downloaded=$((total - failed))
+          echo "скачано: $downloaded из $total, не вышло: $failed"
+          {
+            echo "$downloaded из $total объектов, не скачано $failed"
+            cat objects.txt
+          } > "storage-manifest-$STAMP.txt"
+          tar -czf "storage-$STAMP.tgz" storage-files "storage-manifest-$STAMP.txt" \
+            $( [ -f storage-errors.txt ] && echo storage-errors.txt )
+          echo "storage size: $(du -h "storage-$STAMP.tgz" | cut -f1)"
+          # Хоть один непрочитанный файл — шаг красный, чтобы это было видно.
+          test "$failed" = "0"
+
+      - name: Encrypt and upload storage archive
+        if: always() && hashFiles(format('storage-{0}.tgz', env.STAMP)) != ''
+        continue-on-error: true
+        env:
+          AGE_RECIPIENT_2: ${{ secrets.AGE_RECIPIENT_2 }}
+        run: |
+          set -euo pipefail
+          recipients=(-r "$AGE_RECIPIENT")
+          [ -n "${AGE_RECIPIENT_2:-}" ] && recipients+=(-r "$AGE_RECIPIENT_2")
+          age "${recipients[@]}" -o "storage-$STAMP.tgz.age" "storage-$STAMP.tgz"
+          shred -u "storage-$STAMP.tgz"
+
+      - name: Upload storage artifact
+        if: always() && hashFiles(format('storage-{0}.tgz.age', env.STAMP)) != ''
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-storage-${{ env.STAMP }}
+          path: storage-${{ env.STAMP }}.tgz.age
+          retention-days: 30
+          if-no-files-found: warn

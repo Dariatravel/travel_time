@@ -160,6 +160,80 @@ SELECT 'oko', 'client', x.id, x.client_id
 ON CONFLICT DO NOTHING;
 
 /**
+ * Занять привязку за клиентом. Возвращает того, за кем она числится:
+ * свой идентификатор — заняли мы, чужой — успел другой запрос.
+ * Одна операция, поэтому гонки нет.
+ */
+CREATE OR REPLACE FUNCTION public.oko_claim_external_id(
+    p_kind text, p_external_id bigint, p_client uuid
+)
+RETURNS uuid
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    WITH tried AS (
+        INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
+        VALUES ('oko', p_kind, p_external_id, p_client)
+        ON CONFLICT (provider, kind, external_id) DO NOTHING
+        RETURNING client_id
+    )
+    SELECT COALESCE(
+        (SELECT client_id FROM tried),
+        (SELECT e.client_id FROM public.client_external_ids AS e
+          WHERE e.provider = 'oko' AND e.kind = p_kind AND e.external_id = p_external_id));
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_claim_external_id(text, bigint, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oko_claim_external_id(text, bigint, uuid) TO service_role;
+
+/**
+ * Идентификатор оказался у двух клиентов. Временную карточку перецепляем
+ * на нового владельца, настоящую не трогаем — но след оставляем в заметке
+ * обоих, чтобы расхождение было видно человеку, а не только в журнале.
+ */
+CREATE OR REPLACE FUNCTION public.oko_note_id_conflict(
+    p_kind text, p_external_id bigint, p_owner uuid, p_wanted uuid
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_note text;
+BEGIN
+    IF p_owner IS NULL OR p_wanted IS NULL OR p_owner = p_wanted THEN
+        RETURN;
+    END IF;
+
+    IF EXISTS (SELECT 1 FROM public.clients WHERE id = p_owner AND is_provisional) THEN
+        UPDATE public.client_external_ids
+           SET client_id = p_wanted
+         WHERE provider = 'oko' AND kind = p_kind AND external_id = p_external_id;
+
+        RETURN;
+    END IF;
+
+    v_note := format('Внимание: %s %s числится и за клиентом %s — проверьте, не разделилась ли переписка.',
+                     CASE WHEN p_kind = 'messenger' THEN 'переписка' ELSE 'номер клиента ОКО' END,
+                     p_external_id, p_owner);
+
+    UPDATE public.clients
+       SET note = CASE
+               WHEN COALESCE(note, '') = '' THEN v_note
+               WHEN position(v_note IN note) > 0 THEN note
+               ELSE note || E'\n' || v_note
+           END,
+           updated_at = now()
+     WHERE id = p_wanted;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_note_id_conflict(text, bigint, uuid, uuid) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oko_note_id_conflict(text, bigint, uuid, uuid) TO service_role;
+
+/**
  * Найти или завести клиента по идентификаторам ОКО — атомарно.
  *
  * Порядок: сначала ищем по таблице привязок; не нашли — заводим карточку
@@ -201,45 +275,54 @@ BEGIN
         )
         RETURNING id INTO v_id;
 
-        -- Занимаем привязку. Занята — значит другой запрос успел раньше.
-        IF p_messenger_id IS NOT NULL THEN
-            INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
-            VALUES ('oko', 'messenger', p_messenger_id, v_id)
-            ON CONFLICT (provider, kind, external_id) DO NOTHING;
+        -- Занимаем привязку — по тому виду, что пришёл. Занята другим —
+        -- значит параллельный запрос успел раньше: свою карточку убираем
+        -- и работаем с его клиентом. Проверка одинакова для обоих видов:
+        -- в событии ОКО приходит то одно, то другое.
+        v_owner := public.oko_claim_external_id(
+            CASE WHEN p_messenger_id IS NOT NULL THEN 'messenger' ELSE 'client' END,
+            COALESCE(p_messenger_id, p_client_id),
+            v_id);
 
-            SELECT e.client_id INTO v_owner
-              FROM public.client_external_ids AS e
-             WHERE e.provider = 'oko' AND e.kind = 'messenger' AND e.external_id = p_messenger_id;
-
-            IF v_owner IS DISTINCT FROM v_id THEN
-                DELETE FROM public.clients WHERE id = v_id;
-                v_id := v_owner;
-            END IF;
+        IF v_owner IS DISTINCT FROM v_id THEN
+            DELETE FROM public.clients WHERE id = v_id;
+            v_id := v_owner;
         END IF;
     END IF;
 
     -- Дописываем недостающие привязки: у клиента может быть несколько каналов.
+    --
+    -- Если привязка уже у ДРУГОГО клиента, сообщение всё равно сохраняем —
+    -- терять живое письмо из-за расхождения нельзя. Временную карточку
+    -- перецепляем на нашего клиента, настоящую не трогаем и оставляем след
+    -- в заметке: иначе переписка молча разъедется по двум карточкам.
     IF p_messenger_id IS NOT NULL THEN
-        INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
-        VALUES ('oko', 'messenger', p_messenger_id, v_id)
-        ON CONFLICT (provider, kind, external_id) DO NOTHING;
+        v_owner := public.oko_claim_external_id('messenger', p_messenger_id, v_id);
+        IF v_owner IS DISTINCT FROM v_id THEN
+            PERFORM public.oko_note_id_conflict('messenger', p_messenger_id, v_owner, v_id);
+        END IF;
     END IF;
     IF p_client_id IS NOT NULL THEN
-        INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
-        VALUES ('oko', 'client', p_client_id, v_id)
-        ON CONFLICT (provider, kind, external_id) DO NOTHING;
+        v_owner := public.oko_claim_external_id('client', p_client_id, v_id);
+        IF v_owner IS DISTINCT FROM v_id THEN
+            PERFORM public.oko_note_id_conflict('client', p_client_id, v_owner, v_id);
+        END IF;
     END IF;
 
     -- Массивы в карточке держим в согласии с таблицей привязок.
     UPDATE public.clients AS c
-       SET oko_messenger_ids = COALESCE((
-               SELECT array_agg(DISTINCT e.external_id)
-                 FROM public.client_external_ids AS e
-                WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}'),
-           oko_client_ids = COALESCE((
-               SELECT array_agg(DISTINCT e.external_id)
-                 FROM public.client_external_ids AS e
-                WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}'),
+       SET oko_messenger_ids = (
+               SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                   c.oko_messenger_ids || COALESCE((
+                       SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                        WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}')
+               ) AS x),
+           oko_client_ids = (
+               SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                   c.oko_client_ids || COALESCE((
+                       SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                        WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}')
+               ) AS x),
            updated_at = now()
      WHERE c.id = v_id;
 
@@ -313,14 +396,18 @@ BEGIN
 
     -- Массивы получателя приводим в согласие с привязками.
     UPDATE public.clients AS c
-       SET oko_messenger_ids = COALESCE((
-               SELECT array_agg(DISTINCT e.external_id)
-                 FROM public.client_external_ids AS e
-                WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}'),
-           oko_client_ids = COALESCE((
-               SELECT array_agg(DISTINCT e.external_id)
-                 FROM public.client_external_ids AS e
-                WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}')
+       SET oko_messenger_ids = (
+               SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                   c.oko_messenger_ids || COALESCE((
+                       SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                        WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}')
+               ) AS x),
+           oko_client_ids = (
+               SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                   c.oko_client_ids || COALESCE((
+                       SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                        WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}')
+               ) AS x)
      WHERE c.id = p_into;
 
     RETURN v_moved;
@@ -420,9 +507,15 @@ BEGIN
         RAISE EXCEPTION 'Эта переписка уже привязана к другому клиенту — разберите вручную';
     END IF;
 
+    -- Перецепить можно только с временной карточки: если между проверкой
+    -- выше и этой строкой привязку занял живой вебхук, настоящего клиента
+    -- мы не тронем.
     INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
     VALUES ('oko', 'messenger', p_messenger_id, p_client)
-    ON CONFLICT (provider, kind, external_id) DO UPDATE SET client_id = EXCLUDED.client_id;
+    ON CONFLICT (provider, kind, external_id) DO UPDATE
+        SET client_id = EXCLUDED.client_id
+      WHERE (SELECT cl.is_provisional FROM public.clients AS cl
+              WHERE cl.id = public.client_external_ids.client_id);
 
     UPDATE public.clients AS c
        SET oko_messenger_ids = (
@@ -473,7 +566,11 @@ BEGIN
       CROSS JOIN LATERAL jsonb_array_elements_text(
             CASE WHEN jsonb_typeof(r -> 'oko_messenger_ids') = 'array'
                  THEN r -> 'oko_messenger_ids' ELSE '[]'::jsonb END) AS t(val)
-     WHERE jsonb_typeof(r -> 'oko_contact_id') = 'number' AND t.val ~ '^[0-9]+$';
+     -- Кривая строка не должна ронять всю пачку: «1.5» — тоже number,
+     -- но в bigint не превратится.
+     WHERE jsonb_typeof(r -> 'oko_contact_id') = 'number'
+       AND (r ->> 'oko_contact_id') ~ '^[0-9]+$'
+       AND t.val ~ '^[0-9]+$';
 
     INSERT INTO _links (contact_id, kind, external_id)
     SELECT (r ->> 'oko_contact_id')::bigint, 'client', t.val::bigint
@@ -481,13 +578,25 @@ BEGIN
       CROSS JOIN LATERAL jsonb_array_elements_text(
             CASE WHEN jsonb_typeof(r -> 'oko_client_ids') = 'array'
                  THEN r -> 'oko_client_ids' ELSE '[]'::jsonb END) AS t(val)
-     WHERE jsonb_typeof(r -> 'oko_contact_id') = 'number' AND t.val ~ '^[0-9]+$';
+     -- Кривая строка не должна ронять всю пачку: «1.5» — тоже number,
+     -- но в bigint не превратится.
+     WHERE jsonb_typeof(r -> 'oko_contact_id') = 'number'
+       AND (r ->> 'oko_contact_id') ~ '^[0-9]+$'
+       AND t.val ~ '^[0-9]+$';
 
     -- Привязки: настоящий клиент забирает идентификатор у временной карточки.
+    --
+    -- DISTINCT ON обязателен: один идентификатор клиента ОКО бывает сразу у
+    -- нескольких контактов, и тогда в одну команду попали бы две строки с
+    -- одним ключом — Postgres откажет («cannot affect row a second time»)
+    -- и уронит всю пачку. Берём одного владельца: настоящего клиента,
+    -- при равенстве — с меньшим номером контакта, чтобы выбор был
+    -- повторяемым, а не случайным.
     INSERT INTO public.client_external_ids (provider, kind, external_id, client_id)
-    SELECT DISTINCT 'oko', l.kind, l.external_id, c.id
+    SELECT DISTINCT ON (l.kind, l.external_id) 'oko', l.kind, l.external_id, c.id
       FROM _links AS l
       JOIN public.clients AS c ON c.oko_contact_id = l.contact_id
+     ORDER BY l.kind, l.external_id, c.is_provisional, c.oko_contact_id
     ON CONFLICT (provider, kind, external_id) DO UPDATE
         SET client_id = EXCLUDED.client_id
       WHERE (SELECT cl.is_provisional FROM public.clients AS cl
@@ -495,14 +604,18 @@ BEGIN
 
     WITH updated AS (
         UPDATE public.clients AS c
-           SET oko_messenger_ids = COALESCE((
-                   SELECT array_agg(DISTINCT e.external_id)
-                     FROM public.client_external_ids AS e
-                    WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}'),
-               oko_client_ids = COALESCE((
-                   SELECT array_agg(DISTINCT e.external_id)
-                     FROM public.client_external_ids AS e
-                    WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}'),
+           SET oko_messenger_ids = (
+                   SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                       c.oko_messenger_ids || COALESCE((
+                           SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                            WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'messenger'), '{}')
+                   ) AS x),
+               oko_client_ids = (
+                   SELECT COALESCE(array_agg(DISTINCT x), '{}') FROM unnest(
+                       c.oko_client_ids || COALESCE((
+                           SELECT array_agg(e.external_id) FROM public.client_external_ids AS e
+                            WHERE e.client_id = c.id AND e.provider = 'oko' AND e.kind = 'client'), '{}')
+                   ) AS x),
                updated_at = now()
          WHERE c.oko_contact_id IN (SELECT DISTINCT contact_id FROM _links)
         RETURNING 1
@@ -515,5 +628,98 @@ $$;
 
 REVOKE ALL ON FUNCTION public.oko_link_clients_batch(jsonb) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.oko_link_clients_batch(jsonb) TO service_role;
+
+-- ─────────────────────────────────────────────────────────────────────────
+-- 5. Экран «Входящие» — по тому же признаку, что и сведение
+-- ─────────────────────────────────────────────────────────────────────────
+
+-- Раньше «временная» означало «нет номера контакта ОКО». Теперь есть явный
+-- признак, и экран должен смотреть на него: иначе у клиента, заведённого
+-- руками, была бы кнопка сведения, которая всегда отказывает.
+DROP FUNCTION IF EXISTS public.oko_inbox(integer, integer);
+CREATE FUNCTION public.oko_inbox(p_days integer DEFAULT 14, p_limit integer DEFAULT 200)
+RETURNS TABLE (
+    messenger_id      bigint,
+    client_id         uuid,
+    client_name       text,
+    client_phones     text[],
+    is_temporary      boolean,
+    oko_client_id     bigint,
+    integration_id    integer,
+    last_text         text,
+    last_direction    text,
+    last_author_type  text,
+    last_at           timestamptz,
+    waiting_since     timestamptz,
+    deal_id           uuid,
+    deal_stage        text
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+    WITH last_msg AS (
+        SELECT DISTINCT ON (m.oko_contact_messenger_id)
+               m.oko_contact_messenger_id AS messenger_id,
+               m.client_id,
+               m.integration_id,
+               m.text,
+               m.direction,
+               m.author_type,
+               m.sent_at
+          FROM public.deal_messages AS m
+         WHERE m.oko_contact_messenger_id IS NOT NULL
+         ORDER BY m.oko_contact_messenger_id, m.sent_at DESC
+    ),
+    page AS (
+        SELECT * FROM last_msg
+         WHERE direction = 'in'
+            OR COALESCE(author_type, '') IN ('robot', 'bot')
+            OR sent_at >= now() - make_interval(days => GREATEST(1, LEAST(COALESCE(p_days, 14), 365)))
+         ORDER BY sent_at DESC
+         LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 200), 500))
+    )
+    SELECT l.messenger_id,
+           l.client_id,
+           c.name,
+           c.phones,
+           COALESCE(c.is_provisional, true) AS is_temporary,
+           c.oko_client_ids[1],
+           l.integration_id,
+           left(COALESCE(l.text, ''), 300),
+           l.direction,
+           l.author_type,
+           l.sent_at,
+           w.since AS waiting_since,
+           d.id,
+           d.stage
+      FROM page AS l
+      LEFT JOIN public.clients AS c ON c.id = l.client_id
+      LEFT JOIN LATERAL (
+            SELECT min(i.sent_at) AS since
+              FROM public.deal_messages AS i
+             WHERE i.oko_contact_messenger_id = l.messenger_id
+               AND i.direction = 'in'
+               AND i.sent_at > COALESCE((
+                       SELECT max(o.sent_at)
+                         FROM public.deal_messages AS o
+                        WHERE o.oko_contact_messenger_id = l.messenger_id
+                          AND o.direction <> 'in'
+                          AND COALESCE(o.author_type, '') NOT IN ('robot', 'bot')
+                   ), '-infinity'::timestamptz)
+      ) AS w ON true
+      LEFT JOIN LATERAL (
+            SELECT dl.id, dl.stage
+              FROM public.deals AS dl
+             WHERE dl.client_id = l.client_id
+             ORDER BY dl.updated_at DESC
+             LIMIT 1
+      ) AS d ON true
+     ORDER BY l.sent_at DESC
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_inbox(integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.oko_inbox(integer, integer) TO authenticated;
 
 COMMIT;

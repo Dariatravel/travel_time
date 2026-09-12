@@ -20,7 +20,9 @@ export const runtime = 'nodejs';
  * общий секрет очереди, что у отправителя.
  */
 
-const MAX_BATCH = 20;
+// По 8 событий за раз: каждое — три-четыре обращения к базе, а у контейнера
+// на весь запрос 30 секунд. Не разобрали — возьмём в следующий заход.
+const MAX_BATCH = 8;
 
 const constantEquals = (a: string, b: string): boolean => {
     const left = Buffer.from(a);
