@@ -1,8 +1,14 @@
-# Удалить пустую запись объекта — задвоенную или пробную.
+# Убрать объект из программы — двумя способами.
 #
-# Удаление необратимо, поэтому по умолчанию сухой прогон: показывает опись
-# (номера, брони, закрытия) и ничего не трогает. Запись требует apply = true
-# и контрольной фразы DELETE_HOTELS. Объект с любой бронью не удаляется.
+# «Скрыть» (mode = hide) — объект пропадает из поиска и подбора, но брони,
+# номера и выручка остаются. Это правильный способ для отеля, с которым просто
+# перестали работать. Обратимо: mode = unhide возвращает обратно.
+#
+# «Удалить» (mode = delete) — необратимо, только для задвоенных и пробных
+# записей. Требует apply = true и контрольной фразы DELETE_HOTELS; объект с
+# любой бронью не удаляется вообще.
+#
+# По умолчанию оба режима делают сухой прогон и ничего не трогают.
 name: Delete Hotel
 
 on:
@@ -11,6 +17,15 @@ on:
       hotel_titles:
         description: 'Названия объектов через запятую, точно как в программе'
         required: true
+      mode:
+        description: 'Что сделать: скрыть из подбора, вернуть обратно или удалить запись'
+        required: false
+        type: choice
+        default: hide
+        options:
+          - hide
+          - unhide
+          - delete
       apply:
         description: 'Удалить (иначе только показать опись)'
         required: false
@@ -44,7 +59,15 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          MODE: ${{ inputs.mode }}
           HOTEL_TITLES: ${{ inputs.hotel_titles }}
+          HOTEL_TITLE: ${{ inputs.hotel_titles }}
+          HIDDEN: ${{ inputs.mode != 'unhide' }}
           APPLY: ${{ inputs.apply }}
           CONFIRMATION: ${{ inputs.confirmation }}
-        run: node scripts/delete-hotel.mjs
+        run: |
+          if [ "${MODE}" = "delete" ]; then
+            node scripts/delete-hotel.mjs
+          else
+            node scripts/set-hotel-visibility.mjs
+          fi
