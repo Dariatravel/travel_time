@@ -11,13 +11,13 @@
 --  * oko_chat_contacts — чей в ОКО этот чат. Сверка узнаёт контакт из новой
 --    сделки (или из чтения по контакту) и сообщает приёму; карточки клиентов
 --    при этом не меняются и не сводятся — это отдельное решение человека;
---  * oko_contact_checks — когда контакт последний раз брали на сверку, чтобы
---    не читать один и тот же чаще раза в 20 минут;
---  * oko_waiting_contacts_to_check — кого сверять первым: контакты чатов,
---    где клиент написал последним больше 20 минут назад и это не проверено;
---    затем подтверждённые, но проверенные больше часа назад.
+--  * oko_contact_checks — когда контакт брали на сверку и сколько раз подряд
+--    он всё ещё оставался непроверенным: пауза растёт, чтобы контакт, чей чат
+--    не удаётся подтвердить, не занимал очередь;
+--  * oko_waiting_contacts_to_check — кого сверять первым.
 --
--- Откат: DROP FUNCTION public.oko_waiting_contacts_to_check(integer),
+-- Откат (эту миграцию — раньше 20260915120000):
+-- DROP FUNCTION public.oko_waiting_contacts_to_check(integer),
 -- public.oko_note_chat_contacts(bigint, bigint[]);
 -- DROP TABLE public.oko_contact_checks, public.oko_chat_contacts.
 BEGIN;
@@ -32,7 +32,8 @@ CREATE INDEX IF NOT EXISTS oko_chat_contacts_contact_idx ON public.oko_chat_cont
 
 CREATE TABLE IF NOT EXISTS public.oko_contact_checks (
     oko_contact_id bigint      PRIMARY KEY,
-    attempted_at   timestamptz NOT NULL
+    attempted_at   timestamptz NOT NULL,
+    attempts       integer     NOT NULL DEFAULT 1
 );
 
 ALTER TABLE public.oko_chat_contacts  ENABLE ROW LEVEL SECURITY;
@@ -84,14 +85,21 @@ GRANT EXECUTE ON FUNCTION public.oko_note_chat_contacts(bigint, bigint[]) TO ser
 
 /**
  * Кого сверять первым. Выданные контакты сразу помечаются взятыми: следующий
- * заход их 20 минут не получит, даже если Mac mini оборвался на полпути.
+ * заход их не получит, даже если Mac mini оборвался на полпути.
  *
- * Берутся чаты за три дня, где клиент написал последним больше 20 минут
- * назад (раньше менеджер обычно ещё не успел ответить):
+ * Нужна сверка чатам за две недели, где клиент написал последним больше
+ * 20 минут назад (раньше менеджер обычно ещё не успел ответить):
  *  1) не проверенные после последнего сообщения — сначала самые свежие;
- *  2) подтверждённые, но проверенные больше часа назад: экран такие уже
- *     не считает подтверждёнными — ответ мог уйти после проверки.
- * Контакт берётся из карточки клиента, иначе из oko_chat_contacts.
+ *  2) подтверждённые, но проверенные больше 40 минут назад — самые давно
+ *     ждущие первыми. Экран перестаёт верить проверке через 60 минут, и
+ *     перепроверка должна успеть раньше, иначе настоящие «Зависшие» мигают.
+ *
+ * Пауза перед повторной выдачей: 20 минут, дальше удваивается до 4 часов,
+ * пока контакт остаётся в списке нуждающихся. Как только сверка ему больше не
+ * нужна, счётчик сбрасывается.
+ *
+ * Контакт берётся из oko_chat_contacts (что сказало ОКО), иначе из карточки
+ * клиента: карточку могли неверно свести.
  */
 CREATE OR REPLACE FUNCTION public.oko_waiting_contacts_to_check(p_limit integer DEFAULT 2)
 RETURNS TABLE (oko_contact_id bigint, waiting_since timestamptz, unchecked boolean)
@@ -100,45 +108,71 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
 BEGIN
+    -- Ручной запуск во время расписания не должен получить тех же.
+    PERFORM pg_advisory_xact_lock(hashtext('oko_waiting_contacts_to_check'));
+
+    CREATE TEMP TABLE IF NOT EXISTS _oko_need (
+        contact_id  bigint PRIMARY KEY,
+        since       timestamptz,
+        not_checked boolean
+    ) ON COMMIT DROP;
+    DELETE FROM _oko_need;
+
+    -- oko_inbox(1, 500): ждущие чаты попадают в страницу при любой давности,
+    -- короткое окно лишь не пускает туда отвеченные.
+    INSERT INTO _oko_need (contact_id, since, not_checked)
+    SELECT ch.contact_id,
+           CASE WHEN bool_or(ch.not_checked) THEN max(ch.since) ELSE min(ch.since) END,
+           bool_or(ch.not_checked)
+      FROM (
+            SELECT i.waiting_since AS since,
+                   (i.checked_at IS NULL OR i.checked_at < i.last_at) AS not_checked,
+                   COALESCE(cc.oko_contact_id, c.oko_contact_id) AS contact_id
+              FROM public.oko_inbox(1, 500) AS i
+              LEFT JOIN public.clients AS c ON c.id = i.client_id
+              LEFT JOIN public.oko_chat_contacts AS cc ON cc.messenger_id = i.messenger_id
+             WHERE i.waiting_since IS NOT NULL
+               AND i.waiting_since >= now() - interval '14 days'
+               AND i.waiting_since <  now() - interval '20 minutes'
+               AND (i.checked_at IS NULL
+                    OR i.checked_at < i.last_at
+                    OR i.checked_at < now() - interval '40 minutes')
+           ) AS ch
+     WHERE ch.contact_id IS NOT NULL
+     GROUP BY ch.contact_id;
+
+    -- Кому сверка больше не нужна — счётчик неудач сбрасывается.
+    DELETE FROM public.oko_contact_checks AS k
+     WHERE NOT EXISTS (SELECT 1 FROM _oko_need AS n WHERE n.contact_id = k.oko_contact_id);
+
     RETURN QUERY
-    WITH chats AS (
-        SELECT i.waiting_since AS since,
-               (i.checked_at IS NULL OR i.checked_at < i.last_at) AS not_checked,
-               COALESCE(c.oko_contact_id, cc.oko_contact_id) AS contact_id
-          FROM public.oko_inbox(3, 500) AS i
-          LEFT JOIN public.clients AS c ON c.id = i.client_id
-          LEFT JOIN public.oko_chat_contacts AS cc ON cc.messenger_id = i.messenger_id
-         WHERE i.waiting_since IS NOT NULL
-           AND i.waiting_since >= now() - interval '3 days'
-           AND i.waiting_since <  now() - interval '20 minutes'
-           AND (i.checked_at IS NULL
-                OR i.checked_at < i.last_at
-                OR i.checked_at < now() - interval '1 hour')
-    ),
-    per_contact AS (
-        SELECT ch.contact_id, max(ch.since) AS since, bool_or(ch.not_checked) AS not_checked
-          FROM chats AS ch
-         WHERE ch.contact_id IS NOT NULL
-         GROUP BY ch.contact_id
-    ),
-    picked AS (
-        SELECT p.contact_id, p.since, p.not_checked
-          FROM per_contact AS p
-          LEFT JOIN public.oko_contact_checks AS k ON k.oko_contact_id = p.contact_id
-         WHERE k.attempted_at IS NULL OR k.attempted_at < now() - interval '20 minutes'
-         ORDER BY p.not_checked DESC, p.since DESC
+    WITH picked AS (
+        SELECT n.contact_id, n.since, n.not_checked
+          FROM _oko_need AS n
+          LEFT JOIN public.oko_contact_checks AS k ON k.oko_contact_id = n.contact_id
+         WHERE k.attempted_at IS NULL
+            OR k.attempted_at < now() - LEAST(
+                   interval '4 hours',
+                   interval '20 minutes' * power(2, GREATEST(k.attempts - 1, 0)))
+         ORDER BY n.not_checked DESC,
+                  CASE WHEN n.not_checked THEN n.since END DESC,
+                  CASE WHEN NOT n.not_checked THEN n.since END ASC
          LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 2), 20))
     ),
     stamped AS (
-        INSERT INTO public.oko_contact_checks AS k (oko_contact_id, attempted_at)
-        SELECT pk.contact_id, now() FROM picked AS pk
-        ON CONFLICT ON CONSTRAINT oko_contact_checks_pkey DO UPDATE SET attempted_at = EXCLUDED.attempted_at
+        INSERT INTO public.oko_contact_checks AS k (oko_contact_id, attempted_at, attempts)
+        SELECT pk.contact_id, now(), 1 FROM picked AS pk
+        ON CONFLICT ON CONSTRAINT oko_contact_checks_pkey DO UPDATE
+           SET attempted_at = EXCLUDED.attempted_at,
+               attempts = k.attempts + 1
         RETURNING k.oko_contact_id
     )
     SELECT pk.contact_id, pk.since, pk.not_checked
       FROM picked AS pk
       JOIN stamped AS s ON s.oko_contact_id = pk.contact_id
-     ORDER BY pk.not_checked DESC, pk.since DESC;
+     ORDER BY pk.not_checked DESC,
+              CASE WHEN pk.not_checked THEN pk.since END DESC,
+              CASE WHEN NOT pk.not_checked THEN pk.since END ASC;
 END;
 $$;
 

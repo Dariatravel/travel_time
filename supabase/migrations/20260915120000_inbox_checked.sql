@@ -17,7 +17,9 @@
 --    тоже снимает ожидание: в переписку он сам не записывается, а вебхук
 --    исходящие не присылает.
 --
--- Откат: DROP FUNCTION public.oko_mark_chats_checked(jsonb);
+-- Откат: СНАЧАЛА откатить 20260915130000_oko_waiting_targets.sql (она читает
+-- oko_inbox.checked_at). Затем DROP FUNCTION public.oko_mark_chats_checked(jsonb),
+-- public.oko_chat_waiting_since(bigint), public.oko_try_timestamptz(text);
 -- DROP TABLE public.oko_chat_checks; применить заново oko_inbox
 -- из 20260914090000_reliability_db.sql.
 BEGIN;
@@ -53,8 +55,48 @@ $$;
 REVOKE ALL ON FUNCTION public.oko_try_timestamptz(text) FROM PUBLIC, anon, authenticated;
 
 /**
+ * С какого момента клиент ждёт ответа в чате: первое его сообщение после
+ * последнего ответа человека. Та же формула, что в oko_inbox — меняются
+ * вместе.
+ */
+CREATE OR REPLACE FUNCTION public.oko_chat_waiting_since(p_messenger_id bigint)
+RETURNS timestamptz
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+    SELECT min(i.sent_at)
+      FROM public.deal_messages AS i
+     WHERE i.oko_contact_messenger_id = p_messenger_id
+       AND i.direction = 'in'
+       AND i.sent_at > COALESCE(GREATEST(
+               (SELECT max(o.sent_at)
+                  FROM public.deal_messages AS o
+                 WHERE o.oko_contact_messenger_id = p_messenger_id
+                   AND o.direction <> 'in'
+                   AND COALESCE(o.author_type, '') NOT IN ('robot', 'bot')),
+               (SELECT max(x.sent_at)
+                  FROM public.oko_outbox AS x
+                 WHERE x.kind = 'message'
+                   AND x.status = 'sent'
+                   AND x.payload -> 'contact_messenger_id' = to_jsonb(p_messenger_id))
+           ), '-infinity'::timestamptz)
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_chat_waiting_since(bigint) FROM PUBLIC, anon, authenticated;
+
+/**
  * Отметить, до какого момента сверка прочитала переписки.
- * p_checks: [{"messenger_id": 123, "checked_at": "2026-09-13T12:00:00Z"}, …]
+ * p_checks: [{"messenger_id": 123, "checked_at": "…Z", "covers_from": "…Z"}, …]
+ *
+ * covers_from — самое старое сообщение чата на прочитанной странице. ОКО
+ * отдаёт 20 последних сообщений контакта, и ответ менеджера может остаться на
+ * второй странице. Если клиент, по нашим данным, ждёт с момента РАНЬШЕ
+ * covers_from, между ними мог быть ответ, которого мы не видели — такой чат
+ * не отмечается. Сравнение идёт после записи пачки: ответ, найденный на
+ * странице, уже сдвинул ожидание.
+ *
  * Только вперёд: запоздавшая пачка не откатывает отметку. Время из будущего
  * срезается до now(). Мусорные строки (и несуществующие даты) пропускаются.
  */
@@ -72,25 +114,32 @@ BEGIN
     END IF;
 
     WITH raw AS (
-        SELECT e ->> 'messenger_id' AS mid, e ->> 'checked_at' AS at
+        SELECT e ->> 'messenger_id' AS mid, e ->> 'checked_at' AS at, e ->> 'covers_from' AS covers
           FROM jsonb_array_elements(p_checks) AS e
          WHERE jsonb_typeof(e) = 'object'
     ),
     parsed AS (
         SELECT mid::bigint AS messenger_id,
-               public.oko_try_timestamptz(at) AS at
+               public.oko_try_timestamptz(at) AS at,
+               public.oko_try_timestamptz(covers) AS covers
           FROM raw
          WHERE mid ~ '^[1-9][0-9]{0,17}$'
            AND at ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$'
+           AND covers ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$'
     ),
     merged AS (
-        SELECT messenger_id, LEAST(max(at), now()) AS checked_at
+        SELECT messenger_id, LEAST(max(at), now()) AS checked_at, max(covers) AS covers
           FROM parsed
-         WHERE at IS NOT NULL
+         WHERE at IS NOT NULL AND covers IS NOT NULL
          GROUP BY messenger_id
+    ),
+    covered AS (
+        SELECT m.messenger_id, m.checked_at
+          FROM merged AS m
+         WHERE COALESCE(public.oko_chat_waiting_since(m.messenger_id) >= m.covers, true)
     )
     INSERT INTO public.oko_chat_checks AS c (messenger_id, checked_at)
-    SELECT messenger_id, checked_at FROM merged
+    SELECT messenger_id, checked_at FROM covered
     ON CONFLICT (messenger_id) DO UPDATE
        SET checked_at = EXCLUDED.checked_at
      WHERE c.checked_at < EXCLUDED.checked_at;

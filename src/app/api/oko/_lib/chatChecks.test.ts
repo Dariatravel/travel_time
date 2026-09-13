@@ -6,6 +6,8 @@ import type { OkoMessage } from './processEvent';
 const NOW = Date.parse('2026-09-13T12:00:00Z');
 const sec = (iso: string) => Date.parse(iso) / 1000;
 const READ = sec('2026-09-13T11:30:00Z');
+// Момент проверки — на минуту раньше запроса.
+const CHECKED = '2026-09-13T11:29:00.000Z';
 
 const msg = (id: number, chat: number, at: string | null): OkoMessage => ({
     id,
@@ -15,7 +17,7 @@ const msg = (id: number, chat: number, at: string | null): OkoMessage => ({
 });
 
 describe('отметка «сверка прочитала чат»', () => {
-    it('чтение по контакту — все чаты пачки отмечаются временем запроса', () => {
+    it('чтение по контакту — время запроса с запасом и самое старое сообщение чата на странице', () => {
         const checks = chatChecks(
             [msg(1, 100, '2026-09-13T09:00:00Z'), msg(2, 100, '2026-09-13T10:00:00Z'), msg(3, 200, '2026-09-12T08:00:00Z')],
             new Set(),
@@ -23,8 +25,8 @@ describe('отметка «сверка прочитала чат»', () => {
             NOW,
         );
         expect(checks).toEqual([
-            { messenger_id: 100, checked_at: '2026-09-13T11:30:00.000Z' },
-            { messenger_id: 200, checked_at: '2026-09-13T11:30:00.000Z' },
+            { messenger_id: 100, checked_at: CHECKED, covers_from: '2026-09-13T09:00:00.000Z' },
+            { messenger_id: 200, checked_at: CHECKED, covers_from: '2026-09-12T08:00:00.000Z' },
         ]);
     });
 
@@ -34,27 +36,28 @@ describe('отметка «сверка прочитала чат»', () => {
     });
 
     it('сообщение не записалось — его чат не отмечается: это мог быть ответ менеджера', () => {
-        const checks = chatChecks(
-            [msg(1, 100, null), msg(2, 100, null), msg(3, 200, null)],
-            new Set([2]),
-            READ,
-            NOW,
-        );
+        const at = '2026-09-13T10:00:00Z';
+        const checks = chatChecks([msg(1, 100, at), msg(2, 100, at), msg(3, 200, at)], new Set([2]), READ, NOW);
         expect(checks.map((c) => c.messenger_id)).toEqual([200]);
     });
 
-    it('сообщение без своего номера — его чат не отмечается', () => {
+    it('сообщение без своего номера или без времени — его чат не отмечается', () => {
+        const at = '2026-09-13T10:00:00Z';
         const noId = { contact_messenger_id: 100, created_at: READ } as OkoMessage;
-        expect(chatChecks([msg(1, 100, null), noId, msg(3, 200, null)], new Set(), READ, NOW)).toEqual([
-            { messenger_id: 200, checked_at: '2026-09-13T11:30:00.000Z' },
+        expect(chatChecks([msg(1, 100, at), noId, msg(3, 200, at)], new Set(), READ, NOW).map((c) => c.messenger_id)).toEqual([
+            200,
+        ]);
+        expect(chatChecks([msg(1, 100, null), msg(3, 200, at)], new Set(), READ, NOW).map((c) => c.messenger_id)).toEqual([
+            200,
         ]);
     });
 
     it('сообщение без номера чата — не отмечается вся пачка: не знаем, чей это ответ', () => {
+        const at = '2026-09-13T10:00:00Z';
         const noChat = { id: 5, created_at: READ, direction: 'outgoing' } as OkoMessage;
-        const fraction = { id: 6, contact_messenger_id: 1.5 } as OkoMessage;
-        expect(chatChecks([msg(1, 100, null), noChat], new Set(), READ, NOW)).toEqual([]);
-        expect(chatChecks([msg(1, 100, null), fraction], new Set(), READ, NOW)).toEqual([]);
+        const fraction = { id: 6, contact_messenger_id: 1.5, created_at: READ } as OkoMessage;
+        expect(chatChecks([msg(1, 100, at), noChat], new Set(), READ, NOW)).toEqual([]);
+        expect(chatChecks([msg(1, 100, at), fraction], new Set(), READ, NOW)).toEqual([]);
     });
 
     it('пустая пачка — нечего отмечать', () => {

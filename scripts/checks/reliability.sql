@@ -211,18 +211,29 @@ SELECT count(*) AS первый_заход FROM public.oko_contacts_to_reconcile
 SELECT count(*) AS второй_заход_пусто FROM public.oko_contacts_to_reconcile(5);
 
 \echo '=== 12. «Входящие»: отметка сверки только вперёд, мусор пропускается ==='
+-- Страница не покрывает начало ожидания: между ними мог быть ответ на второй
+-- странице ОКО — чат не отмечается.
+SELECT public.oko_mark_chats_checked('[
+  {"messenger_id": 501, "checked_at": "2030-01-01T00:00:00Z", "covers_from": "2030-01-01T00:00:00Z"}
+]'::jsonb) AS страница_не_покрывает;
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.oko_chat_checks WHERE messenger_id = 501) THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: отмечен чат, начало ожидания которого страница не видела';
+  END IF;
+END $$;
 -- Время из будущего срезается до now(); мусорные строки не роняют пачку.
 SELECT public.oko_mark_chats_checked('[
-  {"messenger_id": 501, "checked_at": "2030-01-01T00:00:00Z"},
-  {"messenger_id": "мусор", "checked_at": "2026-01-01T00:00:00Z"},
-  {"messenger_id": 1.5, "checked_at": "2026-01-01T00:00:00Z"},
-  {"messenger_id": 502, "checked_at": "вчера"},
-  {"messenger_id": 504, "checked_at": "2026-02-30T00:00:00Z"},
-  {"messenger_id": 505, "checked_at": "2026-09-13T25:00:00Z"},
+  {"messenger_id": 501, "checked_at": "2030-01-01T00:00:00Z", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": "мусор", "checked_at": "2026-01-01T00:00:00Z", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": 1.5, "checked_at": "2026-01-01T00:00:00Z", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": 502, "checked_at": "вчера", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": 504, "checked_at": "2026-02-30T00:00:00Z", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": 505, "checked_at": "2026-09-13T25:00:00Z", "covers_from": "2000-01-01T00:00:00Z"},
+  {"messenger_id": 506, "checked_at": "2026-01-01T00:00:00Z"},
   {"messenger_id": 503},
   7
 ]'::jsonb) AS отмечено;
-SELECT public.oko_mark_chats_checked('[{"messenger_id": 501, "checked_at": "2020-01-01T00:00:00.000Z"}]'::jsonb) AS старая_отметка;
+SELECT public.oko_mark_chats_checked('[{"messenger_id": 501, "checked_at": "2020-01-01T00:00:00.000Z", "covers_from": "2000-01-01T00:00:00Z"}]'::jsonb) AS старая_отметка;
 SELECT public.oko_mark_chats_checked('"не массив"'::jsonb) AS не_массив;
 DO $$
 DECLARE t timestamptz; n int;
@@ -290,24 +301,36 @@ BEGIN
   SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
   IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: контакт выдан дважды подряд'; END IF;
 
-  -- Свежая проверка после последнего сообщения — сверять незачем.
-  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '1 hour' WHERE oko_contact_id = 4242;
+  -- Контакт, чей чат никак не подтверждается, не занимает очередь: пауза растёт.
+  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '30 minutes', attempts = 2
+   WHERE oko_contact_id = 4242;
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: после двух неудач пауза не выросла'; END IF;
+  UPDATE public.oko_contact_checks SET attempts = 1 WHERE oko_contact_id = 4242;
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 1 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: после паузы контакт не выдан'; END IF;
+
+  -- Свежая проверка после последнего сообщения — сверять незачем, счётчик сброшен.
   PERFORM public.oko_mark_chats_checked(jsonb_build_array(jsonb_build_object(
-    'messenger_id', 777, 'checked_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))));
+    'messenger_id', 777,
+    'checked_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'),
+    'covers_from', '2000-01-01T00:00:00Z')));
   SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
   IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: только что проверенный чат снова выдан'; END IF;
+  IF EXISTS (SELECT 1 FROM public.oko_contact_checks WHERE oko_contact_id = 4242) THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: счётчик неудач не сброшен';
+  END IF;
 
-  -- Проверка старше часа — перепроверить: ответ мог уйти после неё.
-  UPDATE public.oko_chat_checks SET checked_at = now() - interval '50 minutes' WHERE messenger_id = 777;
+  -- Проверка старше 40 минут — перепроверить до того, как экран перестанет ей верить.
   UPDATE public.deal_messages SET sent_at = now() - interval '3 hours' WHERE oko_contact_messenger_id = 777;
-  UPDATE public.oko_chat_checks SET checked_at = now() - interval '2 hours' WHERE messenger_id = 777;
+  UPDATE public.oko_chat_checks SET checked_at = now() - interval '45 minutes' WHERE messenger_id = 777;
   SELECT * INTO r FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
   IF r.oko_contact_id IS NULL OR r.unchecked THEN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: давно проверенный ждущий чат не выдан на перепроверку';
   END IF;
 
   -- Клиент написал только что — менеджеру даём 20 минут, сверку не тратим.
-  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '1 hour' WHERE oko_contact_id = 4242;
+  DELETE FROM public.oko_contact_checks WHERE oko_contact_id = 4242;
   DELETE FROM public.oko_chat_checks WHERE messenger_id = 777;
   UPDATE public.deal_messages SET sent_at = now() - interval '5 minutes' WHERE oko_contact_messenger_id = 777;
   SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;

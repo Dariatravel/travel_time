@@ -14,14 +14,26 @@ import { positive, type OkoMessage } from './processEvent';
  * ответ в чате может лежать в другой сделке. Время самого сообщения тоже не
  * годится — оно говорит, когда писали, а не когда мы смотрели.
  *
+ * Страница — только 20 последних сообщений контакта: ответ менеджера может
+ * остаться на второй. Поэтому для каждого чата передаётся covers_from —
+ * самое старое его сообщение на странице, и база отмечает чат, только если
+ * клиент ждёт не дольше, чем покрывает страница (oko_mark_chats_checked).
+ *
  * Не отмечаем:
- *  * чат, где хоть одно сообщение не записалось — это мог быть ответ;
+ *  * чат, где хоть одно сообщение не записалось или без времени — это мог
+ *    быть ответ, а без времени не понять, что покрывает страница;
  *  * всю пачку, если в ней есть сообщение без номера чата: такое сообщение
  *    не привязать ни к одному чату, а оно могло быть ответом менеджера
  *    (в выгрузке ОКО таких около 0,1%).
+ *
+ * Момент проверки берётся на минуту раньше запроса: часы Mac mini могут
+ * спешить, а ОКО — отдавать свежие сообщения с задержкой.
  */
 
-export type ChatCheck = { messenger_id: number; checked_at: string };
+export type ChatCheck = { messenger_id: number; checked_at: string; covers_from: string };
+
+/** Запас на часы и задержку ОКО, секунды. */
+const READ_SAFETY_SECONDS = 60;
 
 /** Ноябрь 2023: время раньше этого — явно мусор, а не момент запроса. */
 const EARLIEST_SECONDS = 1_700_000_000;
@@ -62,17 +74,29 @@ export const chatChecks = (
 ): ChatCheck[] => {
     if (contactReadAt === null) return [];
 
-    const chats = new Set<number>();
+    const oldest = new Map<number, number>();
     const broken = new Set<number>();
     for (const m of messages) {
         const chat = chatId(m.contact_messenger_id);
         if (chat === null) return [];
-        chats.add(chat);
         const id = positive(m.id);
-        if (id === null || failedIds.has(id)) broken.add(chat);
+        const at = positive(m.created_at);
+        if (id === null || failedIds.has(id) || at === null) {
+            broken.add(chat);
+            continue;
+        }
+        oldest.set(chat, Math.min(oldest.get(chat) ?? at, at));
     }
 
-    const checkedAt = new Date(Math.min(contactReadAt, nowMs / 1000) * 1000).toISOString();
+    const checkedAt = new Date(
+        (Math.min(contactReadAt, nowMs / 1000) - READ_SAFETY_SECONDS) * 1000,
+    ).toISOString();
 
-    return [...chats].filter((chat) => !broken.has(chat)).map((chat) => ({ messenger_id: chat, checked_at: checkedAt }));
+    return [...oldest]
+        .filter(([chat]) => !broken.has(chat))
+        .map(([chat, from]) => ({
+            messenger_id: chat,
+            checked_at: checkedAt,
+            covers_from: new Date(from * 1000).toISOString(),
+        }));
 };
