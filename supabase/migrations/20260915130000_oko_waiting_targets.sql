@@ -91,7 +91,9 @@ GRANT EXECUTE ON FUNCTION public.oko_note_chat_contacts(bigint, bigint[]) TO ser
  * 20 минут назад (раньше менеджер обычно ещё не успел ответить):
  *  1) не проверенные после последнего сообщения — сначала самые свежие;
  *  2) подтверждённые, но проверенные больше 40 минут назад — самые давно
- *     ждущие первыми. Экран перестаёт верить проверке через 60 минут, и
+ *     ждущие первыми, но только за последние двое суток: на перепроверку
+ *     всех двухнедельных запросов ОКО не хватит, и старые вытесняли бы
+ *     сегодняшние. Экран перестаёт верить проверке через 60 минут, и
  *     перепроверка должна успеть раньше, иначе настоящие «Зависшие» мигают.
  *
  * Пауза перед повторной выдачей: 20 минут, дальше удваивается до 4 часов,
@@ -111,16 +113,16 @@ BEGIN
     -- Ручной запуск во время расписания не должен получить тех же.
     PERFORM pg_advisory_xact_lock(hashtext('oko_waiting_contacts_to_check'));
 
-    CREATE TEMP TABLE IF NOT EXISTS _oko_need (
+    CREATE TEMP TABLE IF NOT EXISTS pg_temp._oko_need (
         contact_id  bigint PRIMARY KEY,
         since       timestamptz,
         not_checked boolean
     ) ON COMMIT DROP;
-    DELETE FROM _oko_need;
+    DELETE FROM pg_temp._oko_need;
 
     -- oko_inbox(1, 500): ждущие чаты попадают в страницу при любой давности,
     -- короткое окно лишь не пускает туда отвеченные.
-    INSERT INTO _oko_need (contact_id, since, not_checked)
+    INSERT INTO pg_temp._oko_need (contact_id, since, not_checked)
     SELECT ch.contact_id,
            CASE WHEN bool_or(ch.not_checked) THEN max(ch.since) ELSE min(ch.since) END,
            bool_or(ch.not_checked)
@@ -136,24 +138,27 @@ BEGIN
                AND i.waiting_since <  now() - interval '20 minutes'
                AND (i.checked_at IS NULL
                     OR i.checked_at < i.last_at
-                    OR i.checked_at < now() - interval '40 minutes')
+                    OR (i.checked_at < now() - interval '40 minutes'
+                        AND i.waiting_since >= now() - interval '2 days'))
            ) AS ch
      WHERE ch.contact_id IS NOT NULL
      GROUP BY ch.contact_id;
 
     -- Кому сверка больше не нужна — счётчик неудач сбрасывается.
     DELETE FROM public.oko_contact_checks AS k
-     WHERE NOT EXISTS (SELECT 1 FROM _oko_need AS n WHERE n.contact_id = k.oko_contact_id);
+     WHERE NOT EXISTS (SELECT 1 FROM pg_temp._oko_need AS n WHERE n.contact_id = k.oko_contact_id);
 
     RETURN QUERY
     WITH picked AS (
         SELECT n.contact_id, n.since, n.not_checked
-          FROM _oko_need AS n
+          FROM pg_temp._oko_need AS n
           LEFT JOIN public.oko_contact_checks AS k ON k.oko_contact_id = n.contact_id
          WHERE k.attempted_at IS NULL
+            -- Степень ограничена: LEAST считает оба аргумента, и 20 минут
+            -- на 2^33 переполняли interval — падала вся выдача.
             OR k.attempted_at < now() - LEAST(
                    interval '4 hours',
-                   interval '20 minutes' * power(2, GREATEST(k.attempts - 1, 0)))
+                   interval '20 minutes' * power(2, LEAST(GREATEST(k.attempts - 1, 0), 4)))
          ORDER BY n.not_checked DESC,
                   CASE WHEN n.not_checked THEN n.since END DESC,
                   CASE WHEN NOT n.not_checked THEN n.since END ASC
@@ -164,7 +169,7 @@ BEGIN
         SELECT pk.contact_id, now(), 1 FROM picked AS pk
         ON CONFLICT ON CONSTRAINT oko_contact_checks_pkey DO UPDATE
            SET attempted_at = EXCLUDED.attempted_at,
-               attempts = k.attempts + 1
+               attempts = LEAST(k.attempts + 1, 1000)
         RETURNING k.oko_contact_id
     )
     SELECT pk.contact_id, pk.since, pk.not_checked

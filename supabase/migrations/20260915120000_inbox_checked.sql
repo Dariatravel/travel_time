@@ -76,11 +76,16 @@ AS $$
                  WHERE o.oko_contact_messenger_id = p_messenger_id
                    AND o.direction <> 'in'
                    AND COALESCE(o.author_type, '') NOT IN ('robot', 'bot')),
+               -- Номер чата сравнивается так же, как в oko_inbox: только целое.
                (SELECT max(x.sent_at)
                   FROM public.oko_outbox AS x
                  WHERE x.kind = 'message'
                    AND x.status = 'sent'
-                   AND x.payload -> 'contact_messenger_id' = to_jsonb(p_messenger_id))
+                   AND x.sent_at IS NOT NULL
+                   AND jsonb_typeof(x.payload -> 'contact_messenger_id') = 'number'
+                   AND CASE WHEN (x.payload ->> 'contact_messenger_id') ~ '^[1-9][0-9]{0,17}$'
+                            THEN (x.payload ->> 'contact_messenger_id')::bigint
+                       END = p_messenger_id)
            ), '-infinity'::timestamptz)
 $$;
 

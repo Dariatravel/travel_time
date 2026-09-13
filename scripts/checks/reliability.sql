@@ -310,6 +310,13 @@ BEGIN
   SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
   IF n <> 1 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: после паузы контакт не выдан'; END IF;
 
+  -- Большой счётчик: пауза не больше 4 часов и не переполняется
+  -- (раньше падало «interval out of range» и вставала вся выдача).
+  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '5 hours', attempts = 40
+   WHERE oko_contact_id = 4242;
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 1 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: при большом счётчике контакт не выдан через 4 часа'; END IF;
+
   -- Свежая проверка после последнего сообщения — сверять незачем, счётчик сброшен.
   PERFORM public.oko_mark_chats_checked(jsonb_build_array(jsonb_build_object(
     'messenger_id', 777,
@@ -328,6 +335,13 @@ BEGIN
   IF r.oko_contact_id IS NULL OR r.unchecked THEN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: давно проверенный ждущий чат не выдан на перепроверку';
   END IF;
+
+  -- Подтверждённое ожидание старше двух суток не перепроверяется: запросов не хватит.
+  DELETE FROM public.oko_contact_checks WHERE oko_contact_id = 4242;
+  UPDATE public.deal_messages SET sent_at = now() - interval '3 days' WHERE oko_contact_messenger_id = 777;
+  UPDATE public.oko_chat_checks SET checked_at = now() - interval '2 days' WHERE messenger_id = 777;
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: перепроверяется ожидание старше двух суток'; END IF;
 
   -- Клиент написал только что — менеджеру даём 20 минут, сверку не тратим.
   DELETE FROM public.oko_contact_checks WHERE oko_contact_id = 4242;
