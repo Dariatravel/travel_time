@@ -88,7 +88,7 @@ VALUES ('b0000000-0000-0000-0000-000000000001', 501, 'in', 'contact', 'прив�
 \i supabase/migrations/20260913200000_temp_cards.sql
 \i supabase/migrations/20260914090000_reliability_db.sql
 \i supabase/migrations/20260914100000_webhook_reliability.sql
-\i supabase/migrations/20260915090000_inbox_checked.sql
+\i supabase/migrations/20260915120000_inbox_checked.sql
 
 SET app.role = 'admin';
 
