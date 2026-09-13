@@ -1,0 +1,181 @@
+-- «Входящие»: честный статус «ждёт ответа» (13.09.2026).
+--
+-- Вебхук ОКО присылает только сообщения клиентов. Проверено на рабочей базе
+-- 13.09: с 10.09 пришло 1 008 событий, ни одного исходящего. Ответы,
+-- написанные менеджером в самом ОКО, приносит только сверка с Mac mini — с
+-- опозданием (медиана около двух часов) и пока не для всех чатов. Поэтому
+-- «клиент написал последним» ещё не значит «ему не ответили»: 166 из 183
+-- чатов на экране стояли «ждёт», хотя менеджеры отвечали.
+--
+-- Здесь:
+--  * oko_chat_checks — до какого момента сверка прочитала переписку;
+--    отметка двигается только вперёд (oko_mark_chats_checked);
+--  * oko_inbox отдаёт checked_at: экран считает ожидание подтверждённым,
+--    только если сверка прочитала чат уже после сообщения клиента;
+--  * ответ, ушедший из АБХАЗБИЗНЕС через очередь (oko_outbox, status sent),
+--    тоже снимает ожидание: в переписку он сам не записывается, а вебхук
+--    исходящие не присылает.
+--
+-- Откат: DROP FUNCTION public.oko_mark_chats_checked(jsonb);
+-- DROP TABLE public.oko_chat_checks; применить заново oko_inbox
+-- из 20260914090000_reliability_db.sql.
+BEGIN;
+
+CREATE TABLE IF NOT EXISTS public.oko_chat_checks (
+    messenger_id bigint      PRIMARY KEY,
+    checked_at   timestamptz NOT NULL
+);
+
+ALTER TABLE public.oko_chat_checks ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS oko_chat_checks_admin_read ON public.oko_chat_checks;
+CREATE POLICY oko_chat_checks_admin_read ON public.oko_chat_checks FOR SELECT TO authenticated
+    USING (public.current_app_role() = 'admin');
+
+REVOKE ALL ON public.oko_chat_checks FROM PUBLIC, anon, authenticated;
+GRANT SELECT ON public.oko_chat_checks TO authenticated;
+
+/**
+ * Отметить, до какого момента сверка прочитала переписки.
+ * p_checks: [{"messenger_id": 123, "checked_at": "2026-09-13T12:00:00Z"}, …]
+ * Только вперёд: запоздавшая пачка не откатывает отметку. Время из будущего
+ * срезается до now(). Мусорные строки пропускаются.
+ */
+CREATE OR REPLACE FUNCTION public.oko_mark_chats_checked(p_checks jsonb)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    n integer;
+BEGIN
+    IF jsonb_typeof(p_checks) IS DISTINCT FROM 'array' THEN
+        RETURN 0;
+    END IF;
+
+    WITH raw AS (
+        SELECT e ->> 'messenger_id' AS mid, e ->> 'checked_at' AS at
+          FROM jsonb_array_elements(p_checks) AS e
+         WHERE jsonb_typeof(e) = 'object'
+    ),
+    valid AS (
+        SELECT mid::bigint AS messenger_id,
+               LEAST(at::timestamptz, now()) AS checked_at
+          FROM raw
+         WHERE mid ~ '^[1-9][0-9]{0,17}$'
+           AND at ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$'
+    ),
+    merged AS (
+        SELECT messenger_id, max(checked_at) AS checked_at FROM valid GROUP BY messenger_id
+    )
+    INSERT INTO public.oko_chat_checks AS c (messenger_id, checked_at)
+    SELECT messenger_id, checked_at FROM merged
+    ON CONFLICT (messenger_id) DO UPDATE
+       SET checked_at = GREATEST(c.checked_at, EXCLUDED.checked_at);
+
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RETURN n;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_mark_chats_checked(jsonb) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.oko_mark_chats_checked(jsonb) TO service_role;
+
+DROP FUNCTION IF EXISTS public.oko_inbox(integer, integer);
+CREATE FUNCTION public.oko_inbox(p_days integer DEFAULT 14, p_limit integer DEFAULT 200)
+RETURNS TABLE (
+    messenger_id      bigint,
+    client_id         uuid,
+    client_name       text,
+    client_phones     text[],
+    is_temporary      boolean,
+    oko_client_id     bigint,
+    integration_id    integer,
+    last_text         text,
+    last_direction    text,
+    last_author_type  text,
+    last_at           timestamptz,
+    waiting_since     timestamptz,
+    checked_at        timestamptz,
+    deal_id           uuid,
+    deal_stage        text
+)
+LANGUAGE sql
+STABLE
+SECURITY INVOKER
+SET search_path = ''
+AS $$
+    WITH last_msg AS (
+        SELECT DISTINCT ON (m.oko_contact_messenger_id)
+               m.oko_contact_messenger_id AS messenger_id,
+               m.client_id,
+               m.integration_id,
+               m.text,
+               m.direction,
+               m.author_type,
+               m.sent_at
+          FROM public.deal_messages AS m
+         WHERE m.oko_contact_messenger_id IS NOT NULL
+         ORDER BY m.oko_contact_messenger_id, m.sent_at DESC
+    ),
+    page AS (
+        SELECT * FROM last_msg
+         WHERE direction = 'in'
+            OR COALESCE(author_type, '') IN ('robot', 'bot')
+            OR sent_at >= now() - make_interval(days => GREATEST(1, LEAST(COALESCE(p_days, 14), 365)))
+         ORDER BY sent_at DESC
+         LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 200), 500))
+    )
+    SELECT l.messenger_id,
+           l.client_id,
+           c.name,
+           c.phones,
+           COALESCE(c.is_provisional, true) AS is_temporary,
+           c.oko_client_ids[1],
+           l.integration_id,
+           left(COALESCE(l.text, ''), 300),
+           l.direction,
+           l.author_type,
+           l.sent_at,
+           w.since AS waiting_since,
+           k.checked_at,
+           d.id,
+           d.stage
+      FROM page AS l
+      LEFT JOIN public.clients AS c ON c.id = l.client_id
+      LEFT JOIN public.oko_chat_checks AS k ON k.messenger_id = l.messenger_id
+      LEFT JOIN LATERAL (
+            SELECT min(i.sent_at) AS since
+              FROM public.deal_messages AS i
+             WHERE i.oko_contact_messenger_id = l.messenger_id
+               AND i.direction = 'in'
+               AND i.sent_at > COALESCE(GREATEST(
+                       -- ответ человека, пришедший из ОКО (сверка) или импортом
+                       (SELECT max(o.sent_at)
+                          FROM public.deal_messages AS o
+                         WHERE o.oko_contact_messenger_id = l.messenger_id
+                           AND o.direction <> 'in'
+                           AND COALESCE(o.author_type, '') NOT IN ('robot', 'bot')),
+                       -- ответ, отправленный из АБХАЗБИЗНЕС через очередь
+                       (SELECT max(x.sent_at)
+                          FROM public.oko_outbox AS x
+                         WHERE x.kind = 'message'
+                           AND x.status = 'sent'
+                           AND x.payload -> 'contact_messenger_id' = to_jsonb(l.messenger_id))
+                   ), '-infinity'::timestamptz)
+      ) AS w ON true
+      LEFT JOIN LATERAL (
+            SELECT dl.id, dl.stage
+              FROM public.deals AS dl
+             WHERE dl.client_id = l.client_id
+             ORDER BY dl.updated_at DESC
+             LIMIT 1
+      ) AS d ON true
+     ORDER BY l.sent_at DESC
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_inbox(integer, integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.oko_inbox(integer, integer) TO authenticated;
+
+COMMIT;

@@ -34,7 +34,9 @@ CREATE TABLE public.deal_messages (
 );
 CREATE TABLE public.oko_outbox (
     id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-    client_id uuid REFERENCES public.clients (id) ON DELETE SET NULL
+    client_id uuid REFERENCES public.clients (id) ON DELETE SET NULL,
+    kind text NOT NULL DEFAULT 'message', status text NOT NULL DEFAULT 'pending',
+    payload jsonb NOT NULL DEFAULT '{}', sent_at timestamptz
 );
 CREATE TABLE public.oko_webhook_events (
     oko_message_id bigint PRIMARY KEY, payload jsonb NOT NULL,
@@ -86,6 +88,7 @@ VALUES ('b0000000-0000-0000-0000-000000000001', 501, 'in', 'contact', 'прив�
 \i supabase/migrations/20260913200000_temp_cards.sql
 \i supabase/migrations/20260914090000_reliability_db.sql
 \i supabase/migrations/20260914100000_webhook_reliability.sql
+\i supabase/migrations/20260915090000_inbox_checked.sql
 
 SET app.role = 'admin';
 
@@ -205,5 +208,50 @@ SELECT count(*) AS после_десяти_попыток FROM public.oko_events
 UPDATE public.clients SET last_incoming_at = now() WHERE oko_contact_id IS NOT NULL;
 SELECT count(*) AS первый_заход FROM public.oko_contacts_to_reconcile(5);
 SELECT count(*) AS второй_заход_пусто FROM public.oko_contacts_to_reconcile(5);
+
+\echo '=== 12. «Входящие»: отметка сверки только вперёд, мусор пропускается ==='
+-- Время из будущего срезается до now(); мусорные строки не роняют пачку.
+SELECT public.oko_mark_chats_checked('[
+  {"messenger_id": 501, "checked_at": "2030-01-01T00:00:00Z"},
+  {"messenger_id": "мусор", "checked_at": "2026-01-01T00:00:00Z"},
+  {"messenger_id": 1.5, "checked_at": "2026-01-01T00:00:00Z"},
+  {"messenger_id": 502, "checked_at": "вчера"},
+  {"messenger_id": 503},
+  7
+]'::jsonb) AS отмечено;
+SELECT public.oko_mark_chats_checked('[{"messenger_id": 501, "checked_at": "2020-01-01T00:00:00.000Z"}]'::jsonb) AS старая_отметка;
+SELECT public.oko_mark_chats_checked('"не массив"'::jsonb) AS не_массив;
+DO $$
+DECLARE t timestamptz; n int;
+BEGIN
+  SELECT checked_at INTO t FROM public.oko_chat_checks WHERE messenger_id = 501;
+  IF t IS NULL OR t > now() OR t < now() - interval '1 minute' THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: отметка сверки не та (%)', t;
+  END IF;
+  SELECT count(*) INTO n FROM public.oko_chat_checks;
+  IF n <> 1 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отмечено чатов % вместо 1', n; END IF;
+  SELECT checked_at INTO t FROM public.oko_inbox(14, 100) WHERE messenger_id = 501;
+  IF t IS NULL THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: «Входящие» не отдают checked_at'; END IF;
+  RAISE NOTICE 'отметка на месте, назад не откатилась, мусор пропущен';
+END $$;
+
+\echo '=== 13. ответ из АБХАЗБИЗНЕС через очередь снимает «ждёт» ==='
+DO $$
+DECLARE w timestamptz;
+BEGIN
+  SELECT waiting_since INTO w FROM public.oko_inbox(14, 100) WHERE messenger_id = 501;
+  IF w IS NULL THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: до ответа чат должен ждать'; END IF;
+  -- Неотправленное и чужой чат не считаются ответом.
+  INSERT INTO public.oko_outbox (kind, status, payload, sent_at) VALUES
+    ('message', 'failed', '{"contact_messenger_id": 501, "text": "не ушло"}', now() + interval '1 second'),
+    ('message', 'sent',   '{"contact_messenger_id": 999, "text": "другому"}', now() + interval '1 second');
+  SELECT waiting_since INTO w FROM public.oko_inbox(14, 100) WHERE messenger_id = 501;
+  IF w IS NULL THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: неотправленный ответ снял ожидание'; END IF;
+  INSERT INTO public.oko_outbox (kind, status, payload, sent_at)
+  VALUES ('message', 'sent', '{"contact_messenger_id": 501, "text": "ответили"}', now() + interval '1 second');
+  SELECT waiting_since INTO w FROM public.oko_inbox(14, 100) WHERE messenger_id = 501;
+  IF w IS NOT NULL THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отправленный ответ не снял ожидание'; END IF;
+  RAISE NOTICE 'ответ из очереди считается, неотправленный и чужой — нет';
+END $$;
 
 \echo '=== ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ==='

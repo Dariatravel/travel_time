@@ -9,6 +9,7 @@ import {
     isOverdue,
     lastSpeaker,
     waitingHours,
+    waitState,
     type InboxRow,
 } from './inbox';
 
@@ -28,6 +29,8 @@ const row = (extra: Partial<InboxRow> = {}): InboxRow => ({
     last_author_type: 'contact',
     last_at: hoursAgo(2),
     waiting_since: hoursAgo(2),
+    // По умолчанию сверка прочитала чат после сообщения клиента.
+    checked_at: hoursAgo(1),
     deal_id: 'd1',
     deal_stage: 'podbor',
     ...extra,
@@ -44,9 +47,33 @@ describe('ожидание ответа', () => {
     });
 
     it('зависшим считается чат старше часа', () => {
-        expect(isOverdue(row({ waiting_since: hoursAgo(0.5) }), NOW)).toBe(false);
-        expect(isOverdue(row({ waiting_since: hoursAgo(1) }), NOW)).toBe(true);
+        expect(isOverdue(row({ waiting_since: hoursAgo(0.5), checked_at: hoursAgo(0.1) }), NOW)).toBe(false);
+        expect(isOverdue(row({ waiting_since: hoursAgo(1), checked_at: hoursAgo(0.1) }), NOW)).toBe(true);
         expect(isOverdue(row({ waiting_since: null }), NOW)).toBe(false);
+    });
+});
+
+describe('можно ли верить «ждёт» (ОКО не присылает ответы менеджеров)', () => {
+    it('ответили — ожидания нет', () => {
+        expect(waitState(row({ waiting_since: null, checked_at: null }))).toBe('answered');
+    });
+
+    it('сверка читала чат после сообщения клиента — ожидание подтверждено', () => {
+        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(1) }))).toBe('confirmed');
+        // Прочитала ровно это сообщение, ответа после него не было.
+        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(2) }))).toBe('confirmed');
+    });
+
+    it('сверка не читала или читала раньше сообщения — не проверено', () => {
+        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: null }))).toBe('unchecked');
+        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(3) }))).toBe('unchecked');
+    });
+
+    it('непроверенный чат не попадает в «Зависшие», сколько бы ни ждал', () => {
+        const old = row({ waiting_since: hoursAgo(30), checked_at: null });
+        expect(isOverdue(old, NOW)).toBe(false);
+        expect(filterRows([old], 'unchecked', NOW)).toEqual([old]);
+        expect(filterRows([old], 'waiting', NOW)).toEqual([old]);
     });
 
     it('человеческое время ожидания', () => {
@@ -69,7 +96,7 @@ describe('ожидание ответа', () => {
 describe('отборы и счётчики', () => {
     const rows = [
         row({ messenger_id: 1, waiting_since: hoursAgo(3) }), // зависший
-        row({ messenger_id: 2, waiting_since: hoursAgo(0.2) }), // ждёт, но недолго
+        row({ messenger_id: 2, waiting_since: hoursAgo(0.2) }), // ждёт недолго, сверка ещё не читала
         row({ messenger_id: 3, waiting_since: null, last_direction: 'out' }), // ответили
         row({ messenger_id: 4, waiting_since: hoursAgo(5), client_id: null, client_name: null, is_temporary: true }),
     ];
@@ -77,6 +104,7 @@ describe('отборы и счётчики', () => {
     it('отбирает по виду', () => {
         expect(filterRows(rows, 'waiting', NOW).map((r) => r.messenger_id)).toEqual([1, 2, 4]);
         expect(filterRows(rows, 'overdue', NOW).map((r) => r.messenger_id)).toEqual([1, 4]);
+        expect(filterRows(rows, 'unchecked', NOW).map((r) => r.messenger_id)).toEqual([2]);
         expect(filterRows(rows, 'unknown', NOW).map((r) => r.messenger_id)).toEqual([4]);
         expect(filterRows(rows, 'all', NOW)).toHaveLength(4);
     });
@@ -88,12 +116,12 @@ describe('отборы и счётчики', () => {
     });
 
     it('считает для шапки', () => {
-        expect(counts(rows, NOW)).toEqual({ all: 4, waiting: 3, overdue: 2, unknown: 1 });
+        expect(counts(rows, NOW)).toEqual({ all: 4, waiting: 3, overdue: 2, unchecked: 1, unknown: 1 });
     });
 
     it('пустой список не ломает отборы и счётчики', () => {
         expect(filterRows([], 'overdue', NOW)).toEqual([]);
-        expect(counts([], NOW)).toEqual({ all: 0, waiting: 0, overdue: 0, unknown: 0 });
+        expect(counts([], NOW)).toEqual({ all: 0, waiting: 0, overdue: 0, unchecked: 0, unknown: 0 });
     });
 });
 

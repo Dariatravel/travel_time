@@ -20,6 +20,8 @@ export type InboxRow = {
     last_at: string;
     /** Первое сообщение клиента без ответа человека; ответили — null. */
     waiting_since: string | null;
+    /** До какого момента сверка с ОКО прочитала этот чат; не читала — null. */
+    checked_at: string | null;
     deal_id: string | null;
     deal_stage: string | null;
 };
@@ -45,16 +47,37 @@ export const lastSpeaker = (row: Pick<InboxRow, 'last_direction' | 'last_author_
     return 'мы';
 };
 
-export type InboxFilter = 'waiting' | 'overdue' | 'unknown' | 'all';
+export type InboxFilter = 'waiting' | 'overdue' | 'unchecked' | 'unknown' | 'all';
 
 export const FILTER_LABELS: Record<InboxFilter, string> = {
-    waiting: 'Ждут ответа',
+    waiting: 'Клиент написал последним',
     overdue: 'Зависшие',
+    unchecked: 'Не проверено',
     unknown: 'Без клиента',
     all: 'Все',
 };
 
-/** Сколько часов клиент ждёт ответа; ответили — null. */
+/**
+ * Насколько можно верить «ждёт ответа» (13.09.2026).
+ *
+ * Вебхук ОКО присылает только сообщения клиентов. Ответ, написанный
+ * менеджером в самом ОКО, приходит сюда лишь со сверкой — с опозданием и
+ * пока не для всех чатов. Поэтому:
+ *  * answered  — ответ человека после сообщения клиента есть;
+ *  * confirmed — сверка прочитала чат уже после сообщения клиента, и ответа
+ *                не было: клиент действительно ждёт (на момент сверки);
+ *  * unchecked — клиент написал последним, но ответ из ОКО мог ещё не дойти.
+ */
+export type WaitState = 'answered' | 'confirmed' | 'unchecked';
+
+export const waitState = (row: Pick<InboxRow, 'waiting_since' | 'checked_at'>): WaitState => {
+    if (!row.waiting_since) return 'answered';
+    if (row.checked_at && Date.parse(row.checked_at) >= Date.parse(row.waiting_since)) return 'confirmed';
+
+    return 'unchecked';
+};
+
+/** Сколько часов прошло с неотвеченного сообщения клиента; ответили — null. */
 export const waitingHours = (row: InboxRow, nowMs: number): number | null => {
     if (!row.waiting_since) return null;
 
@@ -64,10 +87,11 @@ export const waitingHours = (row: InboxRow, nowMs: number): number | null => {
 /** Зависший чат: клиент ждёт дольше часа. Так Алина и отбирает их вручную. */
 export const OVERDUE_HOURS = 1;
 
+/** Зависшим считается только подтверждённое сверкой ожидание. */
 export const isOverdue = (row: InboxRow, nowMs: number): boolean => {
     const hours = waitingHours(row, nowMs);
 
-    return hours !== null && hours >= OVERDUE_HOURS;
+    return waitState(row) === 'confirmed' && hours !== null && hours >= OVERDUE_HOURS;
 };
 
 export const filterRows = (rows: InboxRow[], filter: InboxFilter, nowMs: number): InboxRow[] => {
@@ -76,6 +100,8 @@ export const filterRows = (rows: InboxRow[], filter: InboxFilter, nowMs: number)
             return rows.filter((r) => r.waiting_since !== null);
         case 'overdue':
             return rows.filter((r) => isOverdue(r, nowMs));
+        case 'unchecked':
+            return rows.filter((r) => waitState(r) === 'unchecked');
         case 'unknown':
             return rows.filter((r) => r.is_temporary || !r.client_id);
         default:
@@ -87,6 +113,7 @@ export const counts = (rows: InboxRow[], nowMs: number) => ({
     all: rows.length,
     waiting: rows.filter((r) => r.waiting_since !== null).length,
     overdue: rows.filter((r) => isOverdue(r, nowMs)).length,
+    unchecked: rows.filter((r) => waitState(r) === 'unchecked').length,
     unknown: rows.filter((r) => r.is_temporary || !r.client_id).length,
 });
 

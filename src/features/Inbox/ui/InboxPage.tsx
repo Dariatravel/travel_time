@@ -28,11 +28,12 @@ import {
     isOverdue,
     lastSpeaker,
     waitingHours,
+    waitState,
     type InboxFilter,
     type InboxRow,
 } from '../lib/inbox';
 
-const FILTERS: InboxFilter[] = ['waiting', 'overdue', 'unknown', 'all'];
+const FILTERS: InboxFilter[] = ['waiting', 'overdue', 'unchecked', 'unknown', 'all'];
 
 /** Привязать чат к существующему клиенту: поиск по имени или телефону. */
 const MergeDialog: FC<{ row: InboxRow; onClose: () => void }> = ({ row, onClose }) => {
@@ -148,6 +149,14 @@ const ChatPanel: FC<{ row: InboxRow; actor: string; onMerge: () => void }> = ({ 
                     {row.client_phones?.length ? row.client_phones.join(', ') : 'телефон неизвестен'}
                     {row.deal_id && row.deal_stage ? ` · сделка: ${STAGE_LABELS[row.deal_stage as Stage] ?? row.deal_stage}` : ''}
                 </CardDescription>
+                {waitState(row) === 'unchecked' && (
+                    <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
+                        Клиент написал последним, но ответ из ОКО мог ещё не дойти — проверьте в ОКО.{' '}
+                        {row.checked_at
+                            ? `Сверка читала чат ${formatMoment(row.checked_at)}.`
+                            : 'Сверка этот чат ещё не читала.'}
+                    </p>
+                )}
             </CardHeader>
             <CardContent className="flex min-h-0 flex-1 flex-col gap-2 p-4 pt-0">
                 <div className="min-h-0 flex-1 space-y-2 overflow-y-auto rounded-lg border bg-muted/30 p-2 text-sm">
@@ -265,9 +274,7 @@ export const InboxPage = () => {
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border bg-white/90 p-4 shadow-sm">
                 <div>
                     <h1 className="text-2xl font-semibold">Входящие</h1>
-                    <p className="text-sm text-muted-foreground">
-                        Живая переписка из ОКО по всем каналам. Видно, кто ждёт ответа и сколько.
-                    </p>
+                    <p className="text-sm text-muted-foreground">Живая переписка из ОКО по всем каналам.</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                     <Link href={routes[PagesEnum.DEALS]} className="text-sm underline">
@@ -305,6 +312,13 @@ export const InboxPage = () => {
                 ))}
             </div>
 
+            <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                ОКО присылает сюда только сообщения клиентов. Ответы, написанные в самом ОКО, подтягивает
+                сверка — с опозданием, обычно до пары часов, и пока не для всех чатов.{' '}
+                <b>«Не проверено»</b> — клиент написал последним, но ответ мог ещё не дойти: загляните в ОКО.{' '}
+                <b>«Зависшие»</b> — сверка подтвердила, что ответа нет больше часа.
+            </p>
+
             {error && (
                 <p className="text-sm text-destructive">
                     Не удалось загрузить: {error instanceof Error ? error.message : 'ошибка'}
@@ -338,9 +352,21 @@ export const InboxPage = () => {
                                         {row.client_name ?? 'Клиент без имени'}
                                         {row.is_temporary && <span className="ml-1 text-xs text-amber-700">новый</span>}
                                     </span>
-                                    {hours !== null && nowMs > 0 && (
-                                        <Badge variant={overdue ? 'destructive' : 'secondary'}>ждёт {humanWait(hours)}</Badge>
-                                    )}
+                                    {hours !== null &&
+                                        nowMs > 0 &&
+                                        (waitState(row) === 'confirmed' ? (
+                                            <Badge variant={overdue ? 'destructive' : 'secondary'}>
+                                                ждёт {humanWait(hours)}
+                                            </Badge>
+                                        ) : (
+                                            <Badge
+                                                variant="outline"
+                                                className="border-amber-300 text-amber-800"
+                                                title="Ответ из ОКО мог ещё не дойти — проверьте в ОКО"
+                                            >
+                                                не проверено · {humanWait(hours)}
+                                            </Badge>
+                                        ))}
                                 </div>
                                 <div className="truncate text-muted-foreground">{row.last_text || '—'}</div>
                                 <div className="text-xs text-muted-foreground">

@@ -2,6 +2,7 @@ import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/s
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { chatChecks, parseReadAt } from '../_lib/chatChecks';
 import { processEvent, type OkoMessage } from '../_lib/processEvent';
 
 export const dynamic = 'force-dynamic';
@@ -43,10 +44,16 @@ export async function POST(request: NextRequest) {
     }
 
     let messages: OkoMessage[];
+    let readAt: number | null;
     try {
-        const body = (await request.json()) as { messages?: unknown };
+        // contact_read_at — когда Mac mini читал переписку в ОКО (секунды),
+        // только если читал ПО КОНТАКТУ. См. chatChecks.
+        const body = (await request.json()) as { messages?: unknown; contact_read_at?: unknown };
         if (!Array.isArray(body.messages)) throw new Error('нет сообщений');
-        messages = body.messages as OkoMessage[];
+        messages = (body.messages as unknown[]).filter(
+            (m): m is OkoMessage => !!m && typeof m === 'object',
+        );
+        readAt = parseReadAt(body.contact_read_at, Date.now());
     } catch {
         return NextResponse.json({ error: 'Ожидался {"messages": [...]}' }, { status: 400 });
     }
@@ -72,6 +79,7 @@ export async function POST(request: NextRequest) {
 
     let added = 0;
     let failed = 0;
+    const failedIds = new Set<number>();
     const errors: string[] = [];
     for (const message of messages) {
         const id = message.id;
@@ -84,6 +92,7 @@ export async function POST(request: NextRequest) {
             .upsert({ oko_message_id: id, payload, headers: { источник: 'сверка' } }, { onConflict: 'oko_message_id' });
         if (saveError) {
             failed += 1;
+            failedIds.add(id);
             if (errors.length < 5) errors.push(`${id}: ${saveError.message}`);
             continue;
         }
@@ -92,8 +101,19 @@ export async function POST(request: NextRequest) {
         if (result.ok) added += 1;
         else {
             failed += 1;
+            failedIds.add(id);
             if (errors.length < 5) errors.push(`${id}: ${result.error}`);
         }
+    }
+
+    // Отметка «сверка прочитала чат». Вебхук исходящие не присылает, и без
+    // отметки экран не отличит неотвеченный чат от чата, ответ в котором
+    // просто ещё не дошёл. Сбой отметки не отменяет добранные сообщения.
+    const checks = chatChecks(messages, failedIds, readAt, Date.now());
+    let checkError: string | null = null;
+    if (checks.length) {
+        const { error } = await service.rpc('oko_mark_chats_checked', { p_checks: checks });
+        if (error) checkError = error.message;
     }
 
     return NextResponse.json({
@@ -103,5 +123,7 @@ export async function POST(request: NextRequest) {
         добрано: added,
         не_вышло: failed,
         ошибки: errors,
+        чатов_проверено: checkError ? 0 : checks.length,
+        ...(checkError ? { ошибка_отметки: checkError } : {}),
     });
 }
