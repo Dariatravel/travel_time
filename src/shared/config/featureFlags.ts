@@ -22,6 +22,12 @@ export const isCrmEnabled = (role?: string | null): boolean => isAdminRole(role)
 export const isFinanceEnabled = (role?: string | null): boolean => isAdminRole(role);
 
 /**
+ * Instagram через Wazzup — первый мессенджер, переехавший из ОКО.
+ * Данные (RLS messenger_*) и маршруты /api/wazzup/* тоже пускают только admin.
+ */
+export const isInstagramEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/**
  * Кабинет отельера («Мои расчёты»): роль hotel и admin (для проверки).
  * Что именно видно — решает база: только отели с hotel_terms.hotelier_visible.
  */

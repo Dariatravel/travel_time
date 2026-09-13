@@ -24,6 +24,7 @@ migrations=(
     "supabase/migrations/20260913200000_temp_cards.sql"
     "supabase/migrations/20260914090000_reliability_db.sql"
     "supabase/migrations/20260914100000_webhook_reliability.sql"
+    "supabase/migrations/20260915090000_messenger_wazzup.sql"
     "supabase/migrations/20260915120000_inbox_checked.sql"
     "supabase/migrations/20260915130000_oko_waiting_targets.sql"
     "supabase/migrations/20260915140000_oko_safeupdate.sql"

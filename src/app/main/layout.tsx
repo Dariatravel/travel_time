@@ -12,6 +12,7 @@ import {
     isCrmEnabled,
     isFinanceEnabled,
     isHotelierCabinetEnabled,
+    isInstagramEnabled,
     isMorningEnabled,
 } from '@/shared/config/featureFlags';
 import {
@@ -20,6 +21,7 @@ import {
     ClipboardList,
     Contact,
     HomeIcon,
+    Instagram,
     KanbanSquare,
     LayoutDashboard,
     MessagesSquare,
@@ -80,6 +82,10 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
                         { href: routes[PagesEnum.DEALS], label: 'Сделки', icon: KanbanSquare },
                         { href: routes[PagesEnum.CLIENTS], label: 'Клиенты', icon: Contact },
                     ]
+                  : []),
+              // Instagram через Wazzup — первый канал, переехавший из ОКО.
+              ...(isInstagramEnabled(user?.role)
+                  ? [{ href: routes[PagesEnum.INSTAGRAM], label: 'Instagram', icon: Instagram }]
                   : []),
               // Финансы с отелями (этап 4) — только Дарья.
               ...(isFinanceEnabled(user?.role)

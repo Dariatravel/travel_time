@@ -26,6 +26,7 @@ const PATH_LABELS: Record<string, string> = {
     '/main/finance': 'Финансы',
     '/main/my-finance': 'Мои расчёты',
     '/main/inbox': 'Входящие',
+    '/main/instagram': 'Instagram',
     '/main/admin/operators': 'Операторы',
     '/login': 'Вход',
     '/advanced-filters': 'Расширенные фильтры',

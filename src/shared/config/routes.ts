@@ -14,6 +14,7 @@ export enum PagesEnum {
     FINANCE = 'FINANCE',
     MY_FINANCE = 'MY_FINANCE',
     INBOX = 'INBOX',
+    INSTAGRAM = 'INSTAGRAM',
 }
 
 export const routes = {
@@ -29,6 +30,7 @@ export const routes = {
     [PagesEnum.FINANCE]: '/main/finance',
     [PagesEnum.MY_FINANCE]: '/main/my-finance',
     [PagesEnum.INBOX]: '/main/inbox',
+    [PagesEnum.INSTAGRAM]: '/main/instagram',
     [PagesEnum.LOGIN]: '/login',
     [PagesEnum.ADVANCED_FILTERS]: '/advanced-filters',
     [PagesEnum.ADMIN_OPERATORS]: '/main/admin/operators',
