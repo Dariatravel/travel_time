@@ -7,6 +7,8 @@ import type { WazzupCallResult } from './wazzupApi';
  * Главное правило: сомнение — это «неизвестно», а не «не ушло». Если связь
  * оборвалась или Wazzup ответил 5xx, сообщение могло уйти; менеджер должен
  * проверить в Instagram, а не отправлять повторно вслепую.
+ * Повтор с тем же crmMessageId исключён ещё до Wazzup: ключ черновика —
+ * первичный ключ строки очереди, второй раз она не вставится.
  */
 
 export type SendMode = 'direct' | 'comment_public' | 'comment_private';
@@ -30,6 +32,8 @@ export type WazzupSendBody = {
     crmMessageId: string;
 };
 
+export const WAZZUP_NOT_CONFIGURED = 'Wazzup на этом контуре не подключён (нет ключа WAZZUP_API_KEY)';
+
 export const modeAllowed = (kind: ChatForSend['kind'], mode: SendMode): boolean =>
     kind === 'direct' ? mode === 'direct' : mode === 'comment_public' || mode === 'comment_private';
 
@@ -40,7 +44,7 @@ export const modeAllowed = (kind: ChatForSend['kind'], mode: SendMode): boolean 
  *                    Wazzup уходит публично под пост;
  *  comment_private — ответ без цитаты тому же человеку: по справке уходит в Direct.
  * Оба режима комментариев в API-документации НЕ подтверждены — проверим на
- * пробном периоде. crmMessageId = номер строки очереди (защита от повтора).
+ * пробном периоде. crmMessageId = ключ черновика (строка очереди).
  */
 export const buildSendBody = (
     chat: ChatForSend,
@@ -73,7 +77,6 @@ export const buildSendBody = (
 };
 
 const KNOWN_ERRORS: Record<string, string> = {
-    REPEATED_CRM_MESSAGE_ID: 'Wazzup уже получал это сообщение — проверьте в Instagram, не ушло ли оно',
     MESSAGE_TEXT_TOO_LONG: 'Текст слишком длинный для этого канала',
     CHANNEL_NOT_FOUND: 'Канал не найден в Wazzup — нажмите «Обновить каналы»',
     MESSAGE_DOWNLOAD_CONTENT_ERROR: 'Wazzup не смог скачать вложение',
@@ -143,10 +146,8 @@ export const classifySendResult = (
         return { status: 'sent', externalMessageId: id, error: null };
     }
 
-    const code = wazzupErrorCode(result.body);
-    // Повтор crmMessageId значит, что Wazzup это сообщение уже получал.
-    // 5xx — сбой на их стороне, сообщение могло уйти.
-    if (code === 'REPEATED_CRM_MESSAGE_ID' || result.status >= 500) {
+    // 5xx — сбой на стороне Wazzup, сообщение могло уйти.
+    if (result.status >= 500) {
         return {
             status: 'unknown',
             externalMessageId: null,

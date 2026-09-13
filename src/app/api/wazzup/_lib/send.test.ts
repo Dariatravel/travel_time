@@ -53,12 +53,6 @@ describe('разбор ответа Wazzup', () => {
         expect(classifySendResult({ kind: 'http', status: 502, ok: false, body: 'Bad gateway' }).status).toBe('unknown');
     });
 
-    it('повтор crmMessageId — «неизвестно»: Wazzup это уже получал', () => {
-        expect(
-            classifySendResult({ kind: 'http', status: 400, ok: false, body: { error: 'REPEATED_CRM_MESSAGE_ID' } }).status,
-        ).toBe('unknown');
-    });
-
     it('понятные отказы — «не ушло» с причиной по-русски', () => {
         expect(
             classifySendResult({ kind: 'http', status: 400, ok: false, body: { error: 'CHANNEL_NOT_FOUND' } }),

@@ -9,6 +9,7 @@ import {
     formatMoment,
     groupCommentsByPost,
     humanDuration,
+    normalizeOutgoingText,
     outboxLabel,
     postPreview,
     privateReplyUsed,
@@ -82,6 +83,13 @@ describe('длина ответа', () => {
 
     it('другие каналы — общий лимит', () => {
         expect(checkReplyText('а'.repeat(2000), 'whatsapp').ok).toBe(true);
+    });
+});
+
+describe('текст ответа перед отправкой', () => {
+    it('переносы \\r\\n → \\n, края без пробелов — как в базе при сверке с эхом', () => {
+        expect(normalizeOutgoingText('  Здравствуйте!\r\nЕсть номера \r\n')).toBe('Здравствуйте!\nЕсть номера');
+        expect(normalizeOutgoingText('\n\n')).toBe('');
     });
 });
 

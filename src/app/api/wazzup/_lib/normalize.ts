@@ -86,6 +86,13 @@ const errorText = (value: unknown): string | null => {
     return str(value, 500);
 };
 
+/**
+ * Ключ чата. Ник Instagram не зависит от регистра и может прийти с «@»:
+ * kate и Kate — один человек, один чат и одна карточка клиента.
+ */
+export const chatKeyOf = (chatType: string, chatId: string): string =>
+    chatType === 'instagram' ? chatId.replace(/^@+/, '').toLowerCase() : chatId;
+
 export type NormalizedPost = {
     external_id: string;
     src: string | null;
@@ -101,7 +108,7 @@ export type NormalizedMessage = {
     chat_id: string;
     kind: 'direct' | 'comment';
     post: NormalizedPost | null;
-    /** Вид личности для карточки клиента; null — клиента не заводить. */
+    /** Вид личности для карточки клиента; null — клиента не заводить (группы, комментарии). */
     identity_kind: string | null;
     contact: { name: string | null; username: string | null; avatar_uri: string | null };
     direction: 'in' | 'out';
@@ -117,7 +124,7 @@ export type NormalizedMessage = {
     is_edited: boolean;
     is_deleted: boolean;
     sent_at: string | null;
-    raw: Json;
+    raw: Json | null;
 };
 
 export type NormalizedStatus = {
@@ -152,28 +159,36 @@ export const normalizeMessage = (raw: unknown): Result<NormalizedMessage> => {
     if (!externalId) return { ok: false, reason: 'сообщение без messageId' };
     const channel = str(raw.channelId, 200);
     if (!channel) return { ok: false, reason: `${externalId}: нет channelId` };
-    const chatId = str(raw.chatId, 300);
-    if (!chatId) return { ok: false, reason: `${externalId}: нет chatId` };
+    const chatIdRaw = str(raw.chatId, 300);
+    if (!chatIdRaw) return { ok: false, reason: `${externalId}: нет chatId` };
     const chatType = str(raw.chatType, 64)?.toLowerCase() ?? null;
     if (!chatType || !SAFE_CHAT_TYPE.test(chatType)) {
         return { ok: false, reason: `${externalId}: неизвестный тип чата «${String(raw.chatType).slice(0, 40)}»` };
     }
+    const chatId = chatKeyOf(chatType, chatIdRaw);
+    if (!chatId) return { ok: false, reason: `${externalId}: нет chatId` };
     const known = (KNOWN_CHAT_TYPES as readonly string[]).includes(chatType);
 
     // Отдельного флага «комментарий» у Wazzup нет — признак только instPost.
     const inst = isObject(raw.instPost) ? raw.instPost : null;
-    const post: NormalizedPost | null = inst
-        ? {
-              external_id: str(inst.id, 200) ?? str(inst.sha1, 200) ?? str(inst.src, 500) ?? 'unknown',
-              src: str(inst.src, 1000),
-              description: str(inst.description, 5000),
-              author: str(inst.authorName, 200) ?? str(inst.author, 200),
-              posted_at: toIso(inst.timestamp),
-          }
-        : null;
+    let post: NormalizedPost | null = null;
+    if (inst) {
+        const postKey = str(inst.id, 200) ?? str(inst.sha1, 200) ?? str(inst.src, 500);
+        // Без ключа пост не склеиваем в общий «unknown»: комментарии разных
+        // постов смешались бы в один чат.
+        if (!postKey) return { ok: false, reason: `${externalId}: у поста нет id, sha1 и src` };
+        post = {
+            external_id: postKey,
+            src: str(inst.src, 1000),
+            description: str(inst.description, 5000),
+            author: str(inst.authorName, 200) ?? str(inst.author, 200),
+            posted_at: toIso(inst.timestamp),
+        };
+    }
 
     const contact = isObject(raw.contact) ? raw.contact : {};
     const isEcho = bool(raw.isEcho);
+    const isDeleted = bool(raw.isDeleted);
 
     return {
         ok: true,
@@ -184,7 +199,8 @@ export const normalizeMessage = (raw: unknown): Result<NormalizedMessage> => {
             chat_id: chatId,
             kind: post ? 'comment' : 'direct',
             post,
-            identity_kind: known && !GROUP_CHAT_TYPES.has(chatType) ? chatType : null,
+            // Карточка — только для Direct одного человека (решение 15.09.2026).
+            identity_kind: !post && known && !GROUP_CHAT_TYPES.has(chatType) ? chatType : null,
             contact: {
                 name: str(contact.name, 200),
                 username: str(contact.username, 200),
@@ -196,16 +212,17 @@ export const normalizeMessage = (raw: unknown): Result<NormalizedMessage> => {
             sent_from_app: bool(raw.sentFromApp),
             author_name: str(raw.authorName, 200),
             type: str(raw.type, 40)?.toLowerCase() ?? 'unknown',
-            text: textOf(raw.text),
+            // Удалённое клиентом не храним: ни текст, ни ссылку, ни сырое тело.
+            text: isDeleted ? null : textOf(raw.text),
             // Только ссылка: медиа из упоминаний в историях хранить нельзя.
-            content_uri: str(raw.contentUri, 2000),
+            content_uri: isDeleted ? null : str(raw.contentUri, 2000),
             status: str(raw.status, 40)?.toLowerCase() ?? null,
             error: errorText(raw.error),
             quoted_external_id: isObject(raw.quotedMessage) ? str(raw.quotedMessage.messageId, 200) : null,
             is_edited: bool(raw.isEdited),
-            is_deleted: bool(raw.isDeleted),
+            is_deleted: isDeleted,
             sent_at: toIso(raw.dateTime),
-            raw,
+            raw: isDeleted ? null : raw,
         },
     };
 };
@@ -284,6 +301,34 @@ export const normalizeWebhook = (body: unknown): NormalizedWebhook => {
     }
 
     return result;
+};
+
+/**
+ * Сырое событие без содержимого удалённых сообщений: клиент удалил — в
+ * журнале не должно остаться ни текста, ни ссылки. Нечего чистить — null.
+ */
+export const scrubDeletedPayload = (body: unknown): Json | null => {
+    if (!isObject(body) || !Array.isArray(body.messages)) return null;
+    let changed = false;
+    const messages = body.messages.map((item) => {
+        if (!isObject(item) || !bool(item.isDeleted)) return item;
+        const rest: Json = { ...item };
+        for (const key of ['text', 'contentUri', 'oldInfo', 'quotedMessage']) {
+            if (key in rest) {
+                delete rest[key];
+                changed = true;
+            }
+        }
+        // Пост оставляем без подписи: по его id сообщение найдёт свой чат.
+        if (isObject(item.instPost) && 'description' in item.instPost) {
+            rest.instPost = { id: item.instPost.id, sha1: item.instPost.sha1, src: item.instPost.src };
+            changed = true;
+        }
+
+        return rest;
+    });
+
+    return changed ? { ...body, messages } : null;
 };
 
 /** Ответ GET /v3/channels → каналы. Не массив — пусто. */

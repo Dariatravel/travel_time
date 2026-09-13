@@ -1,0 +1,59 @@
+# Проверки базы: SQL-сценарии из scripts/checks/ на чистом Postgres 17.
+#
+# Триггеры, функции и права живут в базе — vitest их не видит. Каждый файл
+# scripts/checks/*.sql сам создаёт заглушки и роли, накатывает миграции и
+# падает с «ОШИБКА ТЕСТА», если сценарий не прошёл. Для каждого файла —
+# своя пустая база. Ничего не деплоит.
+name: DB checks
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: db-checks-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  sql:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 12
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: SQL-сценарии
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=(scripts/checks/*.sql)
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "::error::Нет сценариев в scripts/checks"
+            exit 1
+          fi
+          for file in "${files[@]}"; do
+            db="check_$(basename "$file" .sql | tr -c 'a-zA-Z0-9_\n' '_')"
+            echo "::group::$file"
+            createdb "$db"
+            # Запуск из корня: сценарии подключают миграции относительными путями.
+            psql -q -v ON_ERROR_STOP=1 -d "$db" -f "$file"
+            dropdb "$db"
+            echo "::endgroup::"
+          done

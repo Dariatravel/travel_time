@@ -67,25 +67,55 @@ export const maskToken = (url: string): string => url.replace(/([?&]token=)[^&#]
 /** Wazzup принимает адрес вебхука не длиннее 200 символов. */
 export const WEBHOOK_URI_MAX = 200;
 
-const HOST_RE = /^[a-z0-9.-]+(:\d{1,5})?$/i;
-
 /**
- * Публичный адрес программы. Своей переменной с адресом в проекте нет, поэтому:
- * WAZZUP_WEBHOOK_BASE_URL, если задана, иначе заголовки шлюза, иначе адрес запроса.
+ * Публичный адрес программы — только из WAZZUP_WEBHOOK_BASE_URL. Из заголовков
+ * запроса его не берём: их можно подделать, и вебхук аккаунта ушёл бы не туда.
+ * Разрешён только https без параметров.
  */
-export const publicBaseUrl = (
-    override: string | undefined,
-    header: (name: string) => string | null,
-    fallbackOrigin: string,
-): string => {
-    if (override && override.trim()) return override.trim().replace(/\/+$/, '');
-    const host = (header('x-forwarded-host') ?? header('host') ?? '').split(',')[0].trim();
-    const protoRaw = (header('x-forwarded-proto') ?? '').split(',')[0].trim().toLowerCase();
-    const proto = protoRaw === 'http' || protoRaw === 'https' ? protoRaw : fallbackOrigin.startsWith('http:') ? 'http' : 'https';
-    if (host && HOST_RE.test(host)) return `${proto}://${host}`;
+export const webhookBaseUrl = (value: string | undefined): string | null => {
+    const raw = value?.trim();
+    if (!raw) return null;
+    try {
+        const url = new URL(raw);
+        if (url.protocol !== 'https:' || url.search || url.hash || url.username || url.password) return null;
 
-    return fallbackOrigin.replace(/\/+$/, '');
+        return `${url.origin}${url.pathname.replace(/\/+$/, '')}`;
+    } catch {
+        return null;
+    }
 };
 
 export const buildWebhookUrl = (base: string, token: string): string =>
     `${base.replace(/\/+$/, '')}/api/wazzup/webhook?token=${encodeURIComponent(token)}`;
+
+/**
+ * Тот же ли это наш адрес: сравниваем без параметров (токен мог смениться).
+ * Непонятный адрес — не наш.
+ */
+export const sameWebhookTarget = (current: string, ours: string): boolean => {
+    try {
+        const a = new URL(current);
+        const b = new URL(ours);
+
+        return a.origin === b.origin && a.pathname.replace(/\/+$/, '') === b.pathname.replace(/\/+$/, '');
+    } catch {
+        return false;
+    }
+};
+
+/**
+ * Чужой адрес для показа человеку: домен и начало пути, без параметров —
+ * в них у чужой системы может быть её ключ.
+ */
+export const maskForeignUri = (uri: string, pathChars = 12): string => {
+    try {
+        const url = new URL(uri);
+        const path = url.pathname === '/' ? '' : url.pathname;
+
+        return `${url.host}${path.slice(0, pathChars)}${path.length > pathChars ? '…' : ''}`;
+    } catch {
+        const head = uri.split(/[?#]/)[0].replace(/^[a-z]+:\/\//i, '');
+
+        return `${head.slice(0, 24)}${head.length > 24 ? '…' : ''}`;
+    }
+};

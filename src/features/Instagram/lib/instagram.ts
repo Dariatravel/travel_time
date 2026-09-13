@@ -91,6 +91,13 @@ export const DEFAULT_TEXT_LIMIT = 4096;
 export const textLimit = (chatType: string): number => TEXT_LIMITS[chatType] ?? DEFAULT_TEXT_LIMIT;
 
 /**
+ * Текст ответа в том виде, в каком он уходит и хранится: переносы \r\n → \n,
+ * пробелы по краям убраны. Та же нормализация в базе (messenger_norm_text)
+ * сравнивает эхо с нашей отправкой.
+ */
+export const normalizeOutgoingText = (text: string): string => text.replace(/\r\n/g, '\n').trim();
+
+/**
  * Длина считается по String.length (эмодзи — за два знака). Это строже, чем
  * «по буквам», и потому безопасно: слишком длинное Wazzup отклонит.
  */

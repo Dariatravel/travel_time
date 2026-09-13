@@ -3,52 +3,98 @@ import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/s
 import { NextRequest, NextResponse } from 'next/server';
 
 import { normalizeChannelList, WAZZUP_PROVIDER } from '../_lib/normalize';
-import { describeWazzupError } from '../_lib/send';
-import { buildWebhookUrl, maskToken, publicBaseUrl, WEBHOOK_URI_MAX } from '../_lib/security';
+import { describeWazzupError, WAZZUP_NOT_CONFIGURED } from '../_lib/send';
+import {
+    buildWebhookUrl,
+    maskForeignUri,
+    maskToken,
+    sameWebhookTarget,
+    webhookBaseUrl,
+    WEBHOOK_URI_MAX,
+} from '../_lib/security';
 import { callWazzup, wazzupApiKey } from '../_lib/wazzupApi';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Настройка Wazzup (только admin, по кнопке «Подключить приём»).
+ * Настройка Wazzup (только admin).
  *
- * 1. GET /v3/channels → каналы в messenger_channels.
- * 2. Если subscribe (по умолчанию да): PATCH /v3/webhooks с адресом
- *    <публичный адрес>/api/wazzup/webhook?token=… Wazzup тут же шлёт на него
- *    {"test": true}; адрес ответил 200 — подписка прошла.
+ * GET  — подключён ли Wazzup на этом контуре (для экрана), без запросов в Wazzup.
+ * POST {subscribe:false} — «Обновить каналы»: GET /v3/channels → messenger_channels.
+ * POST {subscribe:true}  — «Подключить приём»: то же плюс подписка вебхука.
  *
- * Публичный адрес: WAZZUP_WEBHOOK_BASE_URL, иначе заголовки шлюза.
- * У Wazzup один адрес вебхука на аккаунт, поэтому на тестовом контуре
- * подписка выключена (иначе рабочий сайт перестал бы получать сообщения);
- * включить можно переменной WAZZUP_ALLOW_STAGING_SETUP=true.
- * Таймауты по 10 секунд: у контейнера на весь запрос 30.
+ * У Wazzup ОДИН адрес вебхука на аккаунт, поэтому подписка осторожная:
+ *  - разрешена только при APP_ENV=production (тестовый контур не заберёт
+ *    вебхук у рабочего сайта);
+ *  - адрес — только из WAZZUP_WEBHOOK_BASE_URL, не из заголовков запроса;
+ *  - сначала GET /v3/webhooks: там чужой адрес — отказ, показываем его
+ *    маскированным и ждём {"confirm": "заменить"}.
+ * Условия проверяются ДО обращений к Wazzup. Таймауты по 8 секунд.
  */
 
-const STEP_TIMEOUT_MS = 10_000;
+const STEP_TIMEOUT_MS = 8_000;
+const CONFIRM_REPLACE = 'заменить';
 
-type Subscription = { ok: boolean; message: string; url?: string };
+const subscribeBlocker = (): string | null => {
+    if (process.env.APP_ENV !== 'production') {
+        return 'Подключать приём можно только на рабочем контуре (APP_ENV=production)';
+    }
+    if (!process.env.WAZZUP_WEBHOOK_TOKEN?.trim()) return 'Токен приёма не задан (WAZZUP_WEBHOOK_TOKEN)';
+    if (!webhookBaseUrl(process.env.WAZZUP_WEBHOOK_BASE_URL)) {
+        return 'Адрес программы не задан или неверный (WAZZUP_WEBHOOK_BASE_URL, нужен https)';
+    }
+
+    return null;
+};
+
+export async function GET(request: NextRequest) {
+    const auth = await requireAdmin(request);
+    if (!auth.user) return auth.error ?? NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
+
+    const configured = !!wazzupApiKey();
+
+    return NextResponse.json({
+        configured,
+        message: configured ? null : 'Wazzup на этом контуре не подключён',
+        subscribeBlocker: configured ? subscribeBlocker() : null,
+    });
+}
 
 export async function POST(request: NextRequest) {
     const auth = await requireAdmin(request);
-    if ('error' in auth) return auth.error;
+    if (!auth.user) return auth.error ?? NextResponse.json({ error: 'Не авторизован' }, { status: 401 });
 
     const apiKey = wazzupApiKey();
-    if (!apiKey) {
-        return NextResponse.json(
-            { error: 'Ключ Wazzup не задан: добавьте секрет WAZZUP_API_KEY и перевыкатите программу' },
-            { status: 400 },
-        );
-    }
+    if (!apiKey) return NextResponse.json({ error: WAZZUP_NOT_CONFIGURED }, { status: 503 });
 
     let subscribe = true;
+    let confirm = '';
     try {
-        const body = (await request.json()) as { subscribe?: unknown } | null;
+        const body = (await request.json()) as { subscribe?: unknown; confirm?: unknown } | null;
         if (body && body.subscribe === false) subscribe = false;
+        if (body && typeof body.confirm === 'string') confirm = body.confirm.trim().toLowerCase();
     } catch {
         // Пустое тело — полная настройка.
     }
 
+    let webhookUrl: string | null = null;
+    if (subscribe) {
+        const blocker = subscribeBlocker();
+        if (blocker) return NextResponse.json({ error: blocker }, { status: 403 });
+        webhookUrl = buildWebhookUrl(
+            webhookBaseUrl(process.env.WAZZUP_WEBHOOK_BASE_URL) ?? '',
+            process.env.WAZZUP_WEBHOOK_TOKEN?.trim() ?? '',
+        );
+        if (webhookUrl.length > WEBHOOK_URI_MAX) {
+            return NextResponse.json(
+                { error: `Адрес длиннее ${WEBHOOK_URI_MAX} символов — Wazzup его не примет. Сократите токен.` },
+                { status: 400 },
+            );
+        }
+    }
+
+    // 1. Каналы — их список нужен и для приёма: сообщения чужих каналов не пишутся.
     const listed = await callWazzup(apiKey, 'GET', '/channels', undefined, STEP_TIMEOUT_MS);
     if (listed.kind === 'network') {
         return NextResponse.json({ error: `Wazzup не ответил: ${listed.message}` }, { status: 502 });
@@ -56,10 +102,9 @@ export async function POST(request: NextRequest) {
     if (!listed.ok) {
         return NextResponse.json({ error: describeWazzupError(listed.status, listed.body) }, { status: 502 });
     }
-
     const channels = normalizeChannelList(listed.body);
-    const service = createSupabaseServiceRoleClient();
     if (channels.length > 0) {
+        const service = createSupabaseServiceRoleClient();
         const now = new Date().toISOString();
         const { error } = await service.from('messenger_channels').upsert(
             channels.map((c) => ({
@@ -75,60 +120,62 @@ export async function POST(request: NextRequest) {
         if (error) return NextResponse.json({ error: `Каналы не записались: ${error.message}` }, { status: 502 });
     }
 
-    let subscription: Subscription | null = null;
-    if (subscribe) {
-        const token = process.env.WAZZUP_WEBHOOK_TOKEN?.trim();
-        if (process.env.APP_ENV === 'staging' && process.env.WAZZUP_ALLOW_STAGING_SETUP !== 'true') {
-            subscription = {
-                ok: false,
-                message:
-                    'На тестовом контуре подписка выключена: у Wazzup один адрес на аккаунт, и рабочий сайт перестал бы получать сообщения.',
-            };
-        } else if (!token) {
-            subscription = { ok: false, message: 'Токен приёма не задан (WAZZUP_WEBHOOK_TOKEN)' };
-        } else {
-            const base = publicBaseUrl(
-                process.env.WAZZUP_WEBHOOK_BASE_URL,
-                (name) => request.headers.get(name),
-                request.nextUrl.origin,
-            );
-            const url = buildWebhookUrl(base, token);
-            const shown = maskToken(url);
-            if (url.length > WEBHOOK_URI_MAX) {
-                subscription = {
-                    ok: false,
-                    message: `Адрес длиннее ${WEBHOOK_URI_MAX} символов — Wazzup его не примет. Сократите токен.`,
-                    url: shown,
-                };
-            } else {
-                const patched = await callWazzup(
-                    apiKey,
-                    'PATCH',
-                    '/webhooks',
-                    {
-                        webhooksUri: url,
-                        subscriptions: {
-                            messagesAndStatuses: true,
-                            contactsAndDealsCreation: false,
-                            channelsUpdates: true,
-                            templateStatus: false,
-                        },
-                    },
-                    STEP_TIMEOUT_MS,
-                );
-                subscription =
-                    patched.kind === 'network'
-                        ? {
-                              ok: false,
-                              message: `Wazzup не ответил (${patched.message}). Подписка могла пройти — нажмите ещё раз через минуту.`,
-                              url: shown,
-                          }
-                        : patched.ok
-                          ? { ok: true, message: 'Приём подключён: Wazzup проверил адрес.', url: shown }
-                          : { ok: false, message: describeWazzupError(patched.status, patched.body), url: shown };
-            }
-        }
+    if (!webhookUrl) return NextResponse.json({ channels, subscription: null });
+
+    // 2. Какой адрес сейчас у аккаунта. Не узнали — не трогаем.
+    const current = await callWazzup(apiKey, 'GET', '/webhooks', undefined, STEP_TIMEOUT_MS);
+    if (current.kind === 'network' || !current.ok) {
+        const reason =
+            current.kind === 'network' ? current.message : describeWazzupError(current.status, current.body);
+
+        return NextResponse.json(
+            { error: `Не удалось узнать текущий адрес вебхука (${reason}) — подписку не меняли`, channels },
+            { status: 502 },
+        );
     }
+    const rawUri = (current.body as { webhooksUri?: unknown } | null)?.webhooksUri;
+    const currentUri = typeof rawUri === 'string' ? rawUri.trim() : '';
+    if (currentUri && !sameWebhookTarget(currentUri, webhookUrl) && confirm !== CONFIRM_REPLACE) {
+        const masked = maskForeignUri(currentUri);
+
+        return NextResponse.json(
+            {
+                error: `В Wazzup уже указан другой адрес приёма: ${masked}. Если его заменить, та система перестанет получать сообщения.`,
+                needsConfirm: true,
+                current: masked,
+                channels,
+            },
+            { status: 409 },
+        );
+    }
+
+    // 3. Подписка. Wazzup тут же проверит адрес запросом {"test": true}.
+    const patched = await callWazzup(
+        apiKey,
+        'PATCH',
+        '/webhooks',
+        {
+            webhooksUri: webhookUrl,
+            subscriptions: {
+                messagesAndStatuses: true,
+                contactsAndDealsCreation: false,
+                channelsUpdates: true,
+                templateStatus: false,
+            },
+        },
+        STEP_TIMEOUT_MS,
+    );
+    const shown = maskToken(webhookUrl);
+    const subscription =
+        patched.kind === 'network'
+            ? {
+                  ok: false,
+                  message: `Wazzup не ответил (${patched.message}). Подписка могла пройти — нажмите ещё раз через минуту.`,
+                  url: shown,
+              }
+            : patched.ok
+              ? { ok: true, message: 'Приём подключён: Wazzup проверил адрес.', url: shown }
+              : { ok: false, message: describeWazzupError(patched.status, patched.body), url: shown };
 
     return NextResponse.json({ channels, subscription });
 }

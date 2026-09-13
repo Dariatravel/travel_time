@@ -14,7 +14,20 @@ export const INSTAGRAM_KEYS = {
     messages: (chatId: string) => ['instagram', 'messages', chatId] as const,
     outbox: (chatId: string) => ['instagram', 'outbox', chatId] as const,
     channels: ['instagram', 'channels'] as const,
+    status: ['instagram', 'wazzup-status'] as const,
 };
+
+/** Ошибка сервера вместе с телом ответа: экрану нужны, например, needsConfirm. */
+export class ApiError extends Error {
+    status: number;
+    data: Record<string, unknown> | null;
+
+    constructor(message: string, status: number, data: Record<string, unknown> | null) {
+        super(message);
+        this.status = status;
+        this.data = data;
+    }
+}
 
 const authHeaders = async (): Promise<Record<string, string>> => {
     const { data } = await supabase.auth.getSession();
@@ -23,20 +36,24 @@ const authHeaders = async (): Promise<Record<string, string>> => {
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-const postJson = async <T>(url: string, payload: unknown): Promise<T> => {
+const requestJson = async <T>(url: string, payload?: unknown): Promise<T> => {
     const response = await fetch(url, {
-        method: 'POST',
+        method: payload === undefined ? 'GET' : 'POST',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
-        body: JSON.stringify(payload),
+        body: payload === undefined ? undefined : JSON.stringify(payload),
     });
-    let data: unknown = null;
+    let data: Record<string, unknown> | null = null;
     try {
-        data = await response.json();
+        data = (await response.json()) as Record<string, unknown>;
     } catch {
         // Пустой или не-JSON ответ — ниже будет общая ошибка.
     }
     if (!response.ok) {
-        throw new Error((data as { error?: string } | null)?.error ?? `Ошибка сервера ${response.status}`);
+        throw new ApiError(
+            typeof data?.error === 'string' ? data.error : `Ошибка сервера ${response.status}`,
+            response.status,
+            data,
+        );
     }
 
     return data as T;
@@ -115,14 +132,29 @@ export const useChannels = () =>
         },
     });
 
-export type SendResult = { id: string; status: OutboxStatus; error: string | null };
+export type WazzupStatus = { configured: boolean; message: string | null; subscribeBlocker: string | null };
+
+/** Подключён ли Wazzup на этом контуре — без обращений к самому Wazzup. */
+export const useWazzupStatus = () =>
+    useQuery({
+        queryKey: INSTAGRAM_KEYS.status,
+        staleTime: 5 * 60_000,
+        queryFn: () => requestJson<WazzupStatus>('/api/wazzup/setup'),
+    });
+
+export type SendResult = { id: string; status: OutboxStatus; error: string | null; repeated?: boolean };
 
 export const useSendReply = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (input: { chatId: string; mode: SendMode; text: string; refExternalId: string | null }) =>
-            postJson<SendResult>('/api/wazzup/send', input),
+        mutationFn: (input: {
+            draftId: string;
+            chatId: string;
+            mode: SendMode;
+            text: string;
+            refExternalId: string | null;
+        }) => requestJson<SendResult>('/api/wazzup/send', input),
         onSettled: () => queryClient.invalidateQueries({ queryKey: INSTAGRAM_KEYS.all }),
     });
 };
@@ -136,7 +168,8 @@ export const useWazzupSetup = () => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: (subscribe: boolean) => postJson<SetupResult>('/api/wazzup/setup', { subscribe }),
+        mutationFn: (input: { subscribe: boolean; confirm?: string }) =>
+            requestJson<SetupResult>('/api/wazzup/setup', input),
         onSettled: () => queryClient.invalidateQueries({ queryKey: INSTAGRAM_KEYS.channels }),
     });
 };

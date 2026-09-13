@@ -12,12 +12,14 @@ import { ExternalLink, PlugZap, RefreshCw, Send } from 'lucide-react';
 import { FC, useEffect, useMemo, useState } from 'react';
 
 import {
+    ApiError,
     useChannels,
     useChatMessages,
     useChatOutbox,
     useInstagramChats,
     useSendReply,
     useWazzupSetup,
+    useWazzupStatus,
 } from '../api/instagram';
 import {
     channelStateLabel,
@@ -30,6 +32,7 @@ import {
     humanDuration,
     isChannelHealthy,
     MESSAGE_STATUS_LABELS,
+    normalizeOutgoingText,
     outboxLabel,
     postPreview,
     privateReplyUsed,
@@ -38,6 +41,7 @@ import {
     visibleOutbox,
     type ChatKind,
     type ChatRow,
+    type MessageRow,
     type SendMode,
     type WindowHint,
 } from '../lib/instagram';
@@ -49,23 +53,34 @@ const TONE_CLASS: Record<WindowHint['tone'], string> = {
     none: 'text-amber-700',
 };
 
+const CONFIRM_REPLACE = 'заменить';
+
+const newDraftKey = (): string => crypto.randomUUID();
+
 /** Каналы Wazzup и кнопка «Подключить приём». */
 const ChannelsCard: FC = () => {
+    const { data: status } = useWazzupStatus();
     const { data: channels = [], error } = useChannels();
     const setup = useWazzupSetup();
     const [note, setNote] = useState<{ ok: boolean; text: string } | null>(null);
+    const [foreign, setForeign] = useState<string | null>(null);
+    const notConfigured = status ? !status.configured : false;
 
-    const run = (subscribe: boolean) =>
+    const run = (subscribe: boolean, confirm?: string) =>
         setup
-            .mutateAsync(subscribe)
-            .then((result) =>
+            .mutateAsync({ subscribe, confirm })
+            .then((result) => {
+                setForeign(null);
                 setNote(
                     result.subscription
                         ? { ok: result.subscription.ok, text: result.subscription.message }
                         : { ok: true, text: `Каналов в Wazzup: ${result.channels.length}` },
-                ),
-            )
-            .catch((e: unknown) => setNote({ ok: false, text: e instanceof Error ? e.message : 'Не получилось' }));
+                );
+            })
+            .catch((e: unknown) => {
+                if (e instanceof ApiError && e.data?.needsConfirm) setForeign(String(e.data.current ?? ''));
+                setNote({ ok: false, text: e instanceof Error ? e.message : 'Не получилось' });
+            });
 
     return (
         <Card className="bg-white/90">
@@ -73,23 +88,55 @@ const ChannelsCard: FC = () => {
                 <CardTitle className="flex flex-wrap items-center justify-between gap-2 text-base">
                     <span>Подключение Wazzup</span>
                     <span className="flex flex-wrap gap-2">
-                        <Button type="button" size="sm" disabled={setup.isPending} onClick={() => run(true)}>
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={setup.isPending || notConfigured || !!status?.subscribeBlocker}
+                            onClick={() => run(true)}
+                        >
                             <PlugZap className="size-4" />
                             {setup.isPending ? 'Подключаю…' : 'Подключить приём'}
                         </Button>
-                        <Button type="button" size="sm" variant="outline" disabled={setup.isPending} onClick={() => run(false)}>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={setup.isPending || notConfigured}
+                            onClick={() => run(false)}
+                        >
                             <RefreshCw className="size-4" />
                             Обновить каналы
                         </Button>
                     </span>
                 </CardTitle>
                 <CardDescription>
-                    «Подключить приём» говорит Wazzup, куда присылать сообщения. Нажимать один раз после настройки ключа
-                    или если сообщения перестали приходить.
+                    Сначала «Обновить каналы», потом «Подключить приём» — он говорит Wazzup, куда присылать сообщения.
+                    Нажимать один раз после настройки ключа или если сообщения перестали приходить.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 p-4 pt-0 text-sm">
+                {notConfigured && <p className="text-amber-700">Wazzup на этом контуре не подключён.</p>}
+                {!notConfigured && status?.subscribeBlocker && (
+                    <p className="text-muted-foreground">{status.subscribeBlocker}</p>
+                )}
                 {note && <p className={note.ok ? 'text-green-700' : 'text-destructive'}>{note.text}</p>}
+                {foreign !== null && (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-destructive/40 p-2">
+                        <span>Заменить адрес {foreign} на адрес нашей программы?</span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="destructive"
+                            disabled={setup.isPending}
+                            onClick={() => run(true, CONFIRM_REPLACE)}
+                        >
+                            Заменить адрес
+                        </Button>
+                        <Button type="button" size="sm" variant="outline" onClick={() => setForeign(null)}>
+                            Отмена
+                        </Button>
+                    </div>
+                )}
                 {error && <p className="text-destructive">Каналы не загрузились: {error.message}</p>}
                 {channels.length === 0 ? (
                     <p className="text-muted-foreground">Каналов пока нет — нажмите «Обновить каналы».</p>
@@ -107,60 +154,105 @@ const ChannelsCard: FC = () => {
     );
 };
 
+type Pinned = Pick<MessageRow, 'external_id' | 'text' | 'sent_at'>;
+
 /** Переписка одного чата и поле ответа. */
-const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
+const ChatPanel: FC<{ row: ChatRow; nowMs: number; missing: boolean }> = ({ row, nowMs, missing }) => {
     const { data: messages = [], isPending } = useChatMessages(row.chat_id);
     const { data: outbox = [] } = useChatOutbox(row.chat_id);
     const send = useSendReply();
     const [text, setText] = useState('');
     const [mode, setMode] = useState<SendMode>(row.kind === 'direct' ? 'direct' : 'comment_public');
+    // Ключ черновика: живёт до успеха или правки текста. Повторное нажатие
+    // с тем же ключом сервер второй раз не отправит.
+    const [draftKey, setDraftKey] = useState<string | null>(null);
+    // Запрос оборвался или ответ «могло уйти»: обычная кнопка выключена,
+    // новый ключ создаёт только «Отправить ещё раз».
+    const [uncertain, setUncertain] = useState<string | null>(null);
+    // Комментарий, на который отвечаем, закрепляется при начале набора:
+    // новый комментарий, пришедший во время набора, не подменит адресата.
+    const [pinned, setPinned] = useState<Pinned | null>(null);
 
     const echoed = useMemo(() => new Set(messages.map((m) => m.external_id)), [messages]);
     const pendingRows = useMemo(() => visibleOutbox(outbox, echoed), [outbox, echoed]);
 
-    // На какой комментарий отвечаем — последний входящий из свежей переписки,
-    // а не из списка (список обновляется реже).
-    const lastInbound = useMemo(() => {
+    const lastInbound = useMemo<Pinned | null>(() => {
         for (let i = messages.length - 1; i >= 0; i -= 1) {
             if (messages[i].direction === 'in' && !messages[i].is_deleted) return messages[i];
         }
 
-        return null;
-    }, [messages]);
-    const refExternalId = lastInbound?.external_id ?? row.last_inbound_external_id;
-    const refAt = lastInbound?.sent_at ?? row.last_inbound_at;
+        return row.last_inbound_external_id
+            ? { external_id: row.last_inbound_external_id, text: null, sent_at: row.last_inbound_at ?? '' }
+            : null;
+    }, [messages, row.last_inbound_external_id, row.last_inbound_at]);
+    const target = pinned ?? lastInbound;
+    const refExternalId = target?.external_id ?? null;
+    const refAt = target?.sent_at || null;
 
-    const trimmed = text.trim();
-    const check = checkReplyText(trimmed, row.chat_type);
+    const outgoing = normalizeOutgoingText(text);
+    const check = checkReplyText(outgoing, row.chat_type);
     const used =
         privateReplyUsed(outbox, refExternalId) ||
         (row.private_reply_used && row.last_inbound_external_id === refExternalId);
-    const hint: WindowHint =
-        row.kind === 'direct'
-            ? directWindow(refAt, nowMs)
-            : mode === 'comment_private'
-              ? privateReplyWindow(refAt, used, nowMs)
-              : { tone: 'ok', remainingMs: null, text: PUBLIC_REPLY_HINT };
+    // До установки времени окна не показываем: иначе первый кадр посчитал бы
+    // от 1970 года и напугал бы «сроком, который прошёл».
+    let hint: WindowHint | null = null;
+    if (nowMs > 0) {
+        if (row.kind === 'direct') hint = directWindow(lastInbound?.sent_at || row.last_inbound_at, nowMs);
+        else if (mode === 'comment_private') hint = privateReplyWindow(refAt, used, nowMs);
+        else hint = { tone: 'ok', remainingMs: null, text: PUBLIC_REPLY_HINT };
+    }
     const needsRef = mode !== 'direct';
-    const canSend = check.ok && !send.isPending && (!needsRef || !!refExternalId);
+    const canSend = check.ok && !send.isPending && !uncertain && (!needsRef || !!refExternalId);
 
-    const submit = () =>
-        send
-            .mutateAsync({ chatId: row.chat_id, mode, text: trimmed, refExternalId: needsRef ? refExternalId : null })
+    const onTextChange = (value: string) => {
+        setText(value);
+        // Правка текста — это новый черновик.
+        setDraftKey(null);
+        setUncertain(null);
+        if (!value.trim()) setPinned(null);
+        else if (!pinned && lastInbound) setPinned(lastInbound);
+    };
+
+    const submit = (key: string) => {
+        setDraftKey(key);
+        send.mutateAsync({
+            draftId: key,
+            chatId: row.chat_id,
+            mode,
+            text: outgoing,
+            refExternalId: needsRef ? refExternalId : null,
+        })
             .then((result) => {
                 if (result.status === 'sent') {
                     setText('');
-                    showToast('Отправлено', 'success');
-                } else if (result.status === 'unknown') {
-                    // Текст убираем, чтобы не отправить второй раз по привычке:
-                    // он остаётся виден в переписке с пометкой «могло уйти».
-                    setText('');
-                    showToast('Связь оборвалась — проверьте в Instagram, сообщение могло уйти', 'error');
-                } else {
+                    setDraftKey(null);
+                    setUncertain(null);
+                    setPinned(null);
+                    showToast(result.repeated ? 'Это сообщение уже отправлено' : 'Отправлено', 'success');
+                } else if (result.status === 'failed') {
+                    // Точно не ушло: следующая попытка — новый черновик.
+                    setDraftKey(null);
                     showToast(result.error ?? 'Не ушло', 'error');
+                } else {
+                    setUncertain(
+                        result.status === 'pending'
+                            ? 'Сообщение ещё отправляется — подождите и проверьте в Instagram.'
+                            : 'Связь оборвалась — проверьте в Instagram, сообщение могло уйти.',
+                    );
                 }
             })
-            .catch((e: unknown) => showToast(e instanceof Error ? e.message : 'Не получилось', 'error'));
+            .catch((e: unknown) => {
+                // Понятный отказ сервера (400/403/409) — ничего не ушло.
+                if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
+                    setDraftKey(null);
+                    showToast(e.message, 'error');
+
+                    return;
+                }
+                setUncertain('Не получили ответ сервера — проверьте в Instagram, сообщение могло уйти.');
+            });
+    };
 
     return (
         <Card className="flex h-full flex-col bg-white/90">
@@ -175,11 +267,18 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
                     <Badge variant="outline">{row.kind === 'direct' ? 'Direct' : 'Комментарий'}</Badge>
                 </CardTitle>
                 <CardDescription className="space-y-1">
-                    <span className="block">
-                        Клиент: {row.client_name ?? '—'}
-                        {row.is_provisional && <span className="ml-1 text-amber-700">(временная карточка)</span>}
-                    </span>
-                    {row.kind === 'comment' && (
+                    {missing && (
+                        <span className="block text-amber-700">Чат выпал из списка при обновлении — текст сохранён.</span>
+                    )}
+                    {row.kind === 'direct' ? (
+                        <span className="block">
+                            Клиент: {row.client_name ?? '—'}
+                            {row.is_provisional && <span className="ml-1 text-amber-700">(временная карточка)</span>}
+                            <span className="block text-xs">
+                                Привязан к нику Instagram. Ник может смениться — тогда появится новый чат и новая карточка.
+                            </span>
+                        </span>
+                    ) : (
                         <span className="block">
                             Пост: {postPreview(row.post_description)}{' '}
                             {row.post_src && (
@@ -206,8 +305,8 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
                                     ? ` · ${MESSAGE_STATUS_LABELS[m.status]}`
                                     : ''}
                                 {m.is_edited ? ' · изменено' : ''}
-                                {m.is_deleted ? ' · удалено' : ''}
                             </div>
+                            {m.is_deleted && <div className="italic text-muted-foreground">сообщение удалено</div>}
                             {m.text && <div className="whitespace-pre-wrap">{m.text}</div>}
                             {m.content_uri && (
                                 <a href={m.content_uri} target="_blank" rel="noreferrer" className="text-xs underline">
@@ -218,7 +317,7 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
                         </div>
                     ))}
                     {pendingRows.map((o) => {
-                        const status = effectiveOutboxStatus(o, nowMs);
+                        const status = nowMs > 0 ? effectiveOutboxStatus(o, nowMs) : o.status;
 
                         return (
                             <div key={o.id} className="ml-auto max-w-[85%] rounded-lg border border-dashed px-3 py-2">
@@ -243,7 +342,10 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
                             type="button"
                             size="sm"
                             variant={mode === 'comment_public' ? 'default' : 'outline'}
-                            onClick={() => setMode('comment_public')}
+                            onClick={() => {
+                                setMode('comment_public');
+                                setDraftKey(null);
+                            }}
                         >
                             Ответить под постом
                         </Button>
@@ -251,13 +353,21 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
                             type="button"
                             size="sm"
                             variant={mode === 'comment_private' ? 'default' : 'outline'}
-                            onClick={() => setMode('comment_private')}
+                            onClick={() => {
+                                setMode('comment_private');
+                                setDraftKey(null);
+                            }}
                         >
                             Написать в Direct
                         </Button>
                     </div>
                 )}
-                <p className={`text-xs ${TONE_CLASS[hint.tone]}`}>{hint.text}</p>
+                {row.kind === 'comment' && target && (
+                    <p className="text-xs text-muted-foreground">
+                        Отвечаете на: «{postPreview(target.text, 80)}»{pinned ? ' (закреплено на время набора)' : ''}
+                    </p>
+                )}
+                {hint && <p className={`text-xs ${TONE_CLASS[hint.tone]}`}>{hint.text}</p>}
                 {row.kind === 'comment' && (
                     <p className="text-xs text-muted-foreground">
                         Как именно Wazzup разводит ответ «под постом» и «в Direct», проверим на пробном периоде.
@@ -266,17 +376,32 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number }> = ({ row, nowMs }) => {
 
                 <Textarea
                     rows={3}
-                    placeholder={
-                        mode === 'comment_public' ? 'Ответ под постом — его увидят все' : 'Ответ клиенту в Direct'
-                    }
+                    placeholder={mode === 'comment_public' ? 'Ответ под постом — его увидят все' : 'Ответ клиенту в Direct'}
                     value={text}
-                    onChange={(e) => setText(e.target.value)}
+                    onChange={(e) => onTextChange(e.target.value)}
                 />
+                {uncertain && (
+                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
+                        <span>{uncertain}</span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            disabled={send.isPending || !check.ok}
+                            onClick={() => {
+                                setUncertain(null);
+                                submit(newDraftKey());
+                            }}
+                        >
+                            Отправить ещё раз
+                        </Button>
+                    </div>
+                )}
                 <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs ${check.length > check.limit ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {check.length} / {check.limit}
                     </span>
-                    <Button type="button" size="sm" disabled={!canSend} onClick={submit}>
+                    <Button type="button" size="sm" disabled={!canSend} onClick={() => submit(draftKey ?? newDraftKey())}>
                         <Send className="size-4" />
                         {send.isPending ? 'Отправляю…' : 'Отправить'}
                     </Button>
@@ -292,7 +417,7 @@ const ChatButton: FC<{ row: ChatRow; active: boolean; nowMs: number; onClick: ()
     nowMs,
     onClick,
 }) => {
-    const waitingMs = row.waiting_since ? Math.max(0, nowMs - Date.parse(row.waiting_since)) : null;
+    const waitingMs = row.waiting_since && nowMs > 0 ? Math.max(0, nowMs - Date.parse(row.waiting_since)) : null;
 
     return (
         <button
@@ -302,7 +427,7 @@ const ChatButton: FC<{ row: ChatRow; active: boolean; nowMs: number; onClick: ()
         >
             <div className="flex items-center justify-between gap-2">
                 <span className="truncate font-medium">{chatTitle(row)}</span>
-                {waitingMs !== null && nowMs > 0 && (
+                {waitingMs !== null && (
                     <Badge variant={waitingMs >= 3_600_000 ? 'destructive' : 'secondary'}>ждёт {humanDuration(waitingMs)}</Badge>
                 )}
             </div>
@@ -322,7 +447,9 @@ const ChatButton: FC<{ row: ChatRow; active: boolean; nowMs: number; onClick: ()
 export const InstagramPage = () => {
     const user = useUnit($user);
     const [tab, setTab] = useState<ChatKind>('direct');
-    const [selectedId, setSelectedId] = useState<string | null>(null);
+    // Выбранный чат держим снимком: если при обновлении он выпадет из списка,
+    // панель не закроется и набранный текст не пропадёт.
+    const [selected, setSelected] = useState<ChatRow | null>(null);
     const [nowMs, setNowMs] = useState(0);
     useEffect(() => {
         setNowMs(Date.now());
@@ -341,12 +468,16 @@ export const InstagramPage = () => {
     const waitingDirect = (directQuery.data ?? []).filter((r) => r.waiting_since).length;
     const waitingComments = (commentQuery.data ?? []).filter((r) => r.waiting_since).length;
 
-    // Выбранный чат ищем по id во всём списке: список обновляется сам, и
-    // панель не должна переехать на соседний чат вместе с набранным текстом.
-    const selected = useMemo(
-        () => (selectedId ? (rows.find((r) => r.chat_id === selectedId) ?? null) : null),
-        [rows, selectedId],
-    );
+    // Свежая строка выбранного чата — из любой вкладки; нет — остаётся снимок.
+    const fresh = useMemo(() => {
+        if (!selected) return null;
+
+        return (
+            [...(directQuery.data ?? []), ...(commentQuery.data ?? [])].find((r) => r.chat_id === selected.chat_id) ?? null
+        );
+    }, [selected, directQuery.data, commentQuery.data]);
+    const panelRow = fresh ?? selected;
+    const listsLoaded = !!directQuery.data && !!commentQuery.data;
 
     if (!allowed) {
         return (
@@ -376,29 +507,13 @@ export const InstagramPage = () => {
             <ChannelsCard />
 
             <div className="flex flex-wrap gap-2">
-                <Button
-                    type="button"
-                    size="sm"
-                    variant={tab === 'direct' ? 'default' : 'outline'}
-                    onClick={() => {
-                        setTab('direct');
-                        setSelectedId(null);
-                    }}
-                >
+                <Button type="button" size="sm" variant={tab === 'direct' ? 'default' : 'outline'} onClick={() => setTab('direct')}>
                     Direct
                     <Badge variant="secondary" className="ml-1">
                         {waitingDirect}
                     </Badge>
                 </Button>
-                <Button
-                    type="button"
-                    size="sm"
-                    variant={tab === 'comment' ? 'default' : 'outline'}
-                    onClick={() => {
-                        setTab('comment');
-                        setSelectedId(null);
-                    }}
-                >
+                <Button type="button" size="sm" variant={tab === 'comment' ? 'default' : 'outline'} onClick={() => setTab('comment')}>
                     Комментарии
                     <Badge variant="secondary" className="ml-1">
                         {waitingComments}
@@ -421,8 +536,8 @@ export const InstagramPage = () => {
                                 key={row.chat_id}
                                 row={row}
                                 nowMs={nowMs}
-                                active={selected?.chat_id === row.chat_id}
-                                onClick={() => setSelectedId(row.chat_id)}
+                                active={panelRow?.chat_id === row.chat_id}
+                                onClick={() => setSelected(row)}
                             />
                         ))}
                     {tab === 'comment' &&
@@ -446,8 +561,8 @@ export const InstagramPage = () => {
                                         key={row.chat_id}
                                         row={row}
                                         nowMs={nowMs}
-                                        active={selected?.chat_id === row.chat_id}
-                                        onClick={() => setSelectedId(row.chat_id)}
+                                        active={panelRow?.chat_id === row.chat_id}
+                                        onClick={() => setSelected(row)}
                                     />
                                 ))}
                             </div>
@@ -462,10 +577,10 @@ export const InstagramPage = () => {
                 </div>
 
                 <div className="min-h-[50vh]">
-                    {selected ? (
+                    {panelRow ? (
                         // key обязателен: без него набранный текст и выбранный
                         // способ ответа переехали бы в другой чат.
-                        <ChatPanel key={selected.chat_id} row={selected} nowMs={nowMs} />
+                        <ChatPanel key={panelRow.chat_id} row={panelRow} nowMs={nowMs} missing={listsLoaded && !fresh} />
                     ) : (
                         <Card className="bg-white/90">
                             <CardContent className="p-4 text-sm text-muted-foreground">Выберите чат слева.</CardContent>

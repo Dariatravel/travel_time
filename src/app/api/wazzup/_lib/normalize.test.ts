@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { normalizeChannelList, normalizeWebhook, toIso } from './normalize';
+import { chatKeyOf, normalizeChannelList, normalizeWebhook, scrubDeletedPayload, toIso } from './normalize';
 
 const direct = (extra: Record<string, unknown> = {}) => ({
     messageId: '11111111-1111-1111-1111-111111111111',
@@ -133,8 +133,10 @@ describe('вебхук: сообщения', () => {
         expect(bySha.messages[0].post?.external_id).toBe('abc');
         const bySrc = normalizeWebhook({ messages: [direct({ instPost: { src: 'https://x' } })] });
         expect(bySrc.messages[0].post?.external_id).toBe('https://x');
-        const none = normalizeWebhook({ messages: [direct({ instPost: {} })] });
-        expect(none.messages[0].post?.external_id).toBe('unknown');
+        // Без id, sha1 и src пост не склеивается в общий «unknown» — пропуск с причиной.
+        const none = normalizeWebhook({ messages: [direct({ instPost: { description: 'без ключа' } })] });
+        expect(none.messages).toEqual([]);
+        expect(none.skipped).toEqual(['11111111-1111-1111-1111-111111111111: у поста нет id, sha1 и src']);
     });
 
     it('групповой чат — без карточки клиента', () => {
@@ -150,7 +152,6 @@ describe('вебхук: сообщения', () => {
                     contentUri: 'https://store.wazzup24.com/story.jpg',
                     type: 'IMAGE',
                     isEdited: true,
-                    isDeleted: true,
                     quotedMessage: { messageId: 'q-1' },
                     error: { error: 'CHANNEL_UNAVAILABLE', description: 'нет связи' },
                 }),
@@ -160,7 +161,7 @@ describe('вебхук: сообщения', () => {
         expect(m.content_uri).toBe('https://store.wazzup24.com/story.jpg');
         expect(m.type).toBe('image');
         expect(m.is_edited).toBe(true);
-        expect(m.is_deleted).toBe(true);
+        expect(m.is_deleted).toBe(false);
         expect(m.quoted_external_id).toBe('q-1');
         expect(m.error).toBe('CHANNEL_UNAVAILABLE: нет связи');
     });
@@ -168,6 +169,60 @@ describe('вебхук: сообщения', () => {
     it('кривое время — null (база поставит время приёма)', () => {
         const [m] = normalizeWebhook({ messages: [direct({ dateTime: 'вчера' })] }).messages;
         expect(m.sent_at).toBeNull();
+    });
+});
+
+describe('вебхук: решения ревью', () => {
+    it('ник Instagram — нижний регистр без @; у других каналов ключ как есть', () => {
+        const [m] = normalizeWebhook({ messages: [direct({ chatId: '@Kate.Travel' })] }).messages;
+        expect(m.chat_id).toBe('kate.travel');
+        expect(chatKeyOf('whatsapp', '79001234567')).toBe('79001234567');
+        expect(chatKeyOf('telegram', 'SomeUser')).toBe('SomeUser');
+    });
+
+    it('комментатор карточку не получает, автор Direct — получает', () => {
+        const r = normalizeWebhook({
+            messages: [direct(), direct({ messageId: 'c-1', instPost: { id: 'P1' } })],
+        });
+        expect(r.messages.map((m) => [m.kind, m.identity_kind])).toEqual([
+            ['direct', 'instagram'],
+            ['comment', null],
+        ]);
+    });
+
+    it('удалённое клиентом: ни текста, ни ссылки, ни сырого тела', () => {
+        const [m] = normalizeWebhook({
+            messages: [direct({ isDeleted: true, contentUri: 'https://x/story.jpg', oldInfo: { oldText: 'старое' } })],
+        }).messages;
+        expect(m.is_deleted).toBe(true);
+        expect(m.text).toBeNull();
+        expect(m.content_uri).toBeNull();
+        expect(m.raw).toBeNull();
+    });
+
+    it('журнал события чистится от содержимого удалённых сообщений', () => {
+        const body = {
+            messages: [
+                direct({ text: 'остаётся' }),
+                direct({
+                    messageId: 'del',
+                    isDeleted: true,
+                    text: 'телефон 8900',
+                    contentUri: 'https://x/1.jpg',
+                    oldInfo: { oldText: 'x' },
+                    instPost: { id: 'P1', description: 'подпись', src: 'https://p' },
+                }),
+            ],
+        };
+        const scrubbed = scrubDeletedPayload(body) as { messages: Record<string, unknown>[] };
+        expect(scrubbed.messages[0].text).toBe('остаётся');
+        expect(scrubbed.messages[1]).not.toHaveProperty('text');
+        expect(scrubbed.messages[1]).not.toHaveProperty('contentUri');
+        expect(scrubbed.messages[1]).not.toHaveProperty('oldInfo');
+        expect(scrubbed.messages[1].instPost).toEqual({ id: 'P1', sha1: undefined, src: 'https://p' });
+        expect(JSON.stringify(scrubbed)).not.toContain('8900');
+        expect(scrubDeletedPayload({ messages: [direct()] })).toBeNull();
+        expect(scrubDeletedPayload({ test: true })).toBeNull();
     });
 });
 

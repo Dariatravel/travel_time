@@ -1,6 +1,15 @@
 import { describe, expect, it } from 'vitest';
 
-import { bearerOf, buildWebhookUrl, maskToken, publicBaseUrl, sanitizeHeaders, tokenMatches } from './security';
+import {
+    bearerOf,
+    buildWebhookUrl,
+    maskForeignUri,
+    maskToken,
+    sameWebhookTarget,
+    sanitizeHeaders,
+    tokenMatches,
+    webhookBaseUrl,
+} from './security';
 
 const TOKEN = 'secret-token-123';
 
@@ -60,27 +69,32 @@ describe('заголовки для журнала', () => {
 });
 
 describe('адрес вебхука', () => {
-    const headers = (map: Record<string, string>) => (name: string) => map[name] ?? null;
-
-    it('переменная окружения важнее заголовков', () => {
-        expect(publicBaseUrl('https://abhaz.ru/', headers({ host: 'other' }), 'http://localhost:3000')).toBe('https://abhaz.ru');
-    });
-
-    it('заголовки шлюза', () => {
-        expect(
-            publicBaseUrl(
-                undefined,
-                headers({ 'x-forwarded-host': 'd5d.apigw.yandexcloud.net, inner', 'x-forwarded-proto': 'https', host: 'inner:8080' }),
-                'http://inner:8080',
-            ),
-        ).toBe('https://d5d.apigw.yandexcloud.net');
-    });
-
-    it('кривой хост — адрес самого запроса', () => {
-        expect(publicBaseUrl(undefined, headers({ host: 'evil.ru/path?x' }), 'http://localhost:3000')).toBe('http://localhost:3000');
+    it('только из переменной, только https и без параметров', () => {
+        expect(webhookBaseUrl('https://d5d.apigw.yandexcloud.net/')).toBe('https://d5d.apigw.yandexcloud.net');
+        expect(webhookBaseUrl('  https://abhaz.ru/app/ ')).toBe('https://abhaz.ru/app');
+        expect(webhookBaseUrl(undefined)).toBeNull();
+        expect(webhookBaseUrl('')).toBeNull();
+        expect(webhookBaseUrl('http://abhaz.ru')).toBeNull();
+        expect(webhookBaseUrl('https://abhaz.ru/?x=1')).toBeNull();
+        expect(webhookBaseUrl('не адрес')).toBeNull();
     });
 
     it('токен кодируется', () => {
         expect(buildWebhookUrl('https://a.ru/', 'a b&c')).toBe('https://a.ru/api/wazzup/webhook?token=a%20b%26c');
+    });
+
+    it('наш адрес узнаётся и со старым токеном; чужой — нет', () => {
+        const ours = buildWebhookUrl('https://a.ru', 'new');
+        expect(sameWebhookTarget('https://a.ru/api/wazzup/webhook?token=old', ours)).toBe(true);
+        expect(sameWebhookTarget('https://crm.example.org/api/wazzup/webhook?token=new', ours)).toBe(false);
+        expect(sameWebhookTarget('https://a.ru/other', ours)).toBe(false);
+        expect(sameWebhookTarget('мусор', ours)).toBe(false);
+    });
+
+    it('чужой адрес показывается без параметров и хвоста пути', () => {
+        expect(maskForeignUri('https://crm.example.org/hooks/wazzup/abc?key=SECRET')).toBe('crm.example.org/hooks/wazzu…');
+        expect(maskForeignUri('https://crm.example.org/?key=SECRET')).toBe('crm.example.org');
+        expect(maskForeignUri('crm.example.org/hook?key=SECRET')).toBe('crm.example.org/hook');
+        expect(maskForeignUri('https://crm.example.org/hooks?key=SECRET')).not.toContain('SECRET');
     });
 });
