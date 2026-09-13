@@ -89,6 +89,7 @@ VALUES ('b0000000-0000-0000-0000-000000000001', 501, 'in', 'contact', 'прив�
 \i supabase/migrations/20260914090000_reliability_db.sql
 \i supabase/migrations/20260914100000_webhook_reliability.sql
 \i supabase/migrations/20260915120000_inbox_checked.sql
+\i supabase/migrations/20260915130000_oko_waiting_targets.sql
 
 SET app.role = 'admin';
 
@@ -216,6 +217,8 @@ SELECT public.oko_mark_chats_checked('[
   {"messenger_id": "мусор", "checked_at": "2026-01-01T00:00:00Z"},
   {"messenger_id": 1.5, "checked_at": "2026-01-01T00:00:00Z"},
   {"messenger_id": 502, "checked_at": "вчера"},
+  {"messenger_id": 504, "checked_at": "2026-02-30T00:00:00Z"},
+  {"messenger_id": 505, "checked_at": "2026-09-13T25:00:00Z"},
   {"messenger_id": 503},
   7
 ]'::jsonb) AS отмечено;
@@ -252,6 +255,65 @@ BEGIN
   SELECT waiting_since INTO w FROM public.oko_inbox(14, 100) WHERE messenger_id = 501;
   IF w IS NOT NULL THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отправленный ответ не снял ожидание'; END IF;
   RAISE NOTICE 'ответ из очереди считается, неотправленный и чужой — нет';
+END $$;
+
+\echo '=== 14. сверка: сначала «ждущие» чаты, контакт временной карточки узнаётся из ОКО ==='
+DO $$
+DECLARE
+  v_client uuid;
+  n int;
+  r record;
+BEGIN
+  -- Чат 777 завёл вебхук: временная карточка без номера контакта ОКО.
+  SELECT id INTO v_client FROM public.clients WHERE oko_messenger_ids @> ARRAY[777::bigint];
+  INSERT INTO public.deal_messages (client_id, oko_contact_messenger_id, direction, author_type, text, sent_at)
+  VALUES (v_client, 777, 'in', 'contact', 'есть места?', now() - interval '1 hour');
+
+  -- Контакт неизвестен — сверить нечем.
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: выдан контакт, которого никто не сообщал'; END IF;
+
+  -- Мусор не записывается.
+  IF public.oko_note_chat_contacts(NULL, ARRAY[777::bigint]) <> 0
+     OR public.oko_note_chat_contacts(-1, ARRAY[777::bigint]) <> 0 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: мусорный контакт записан';
+  END IF;
+
+  -- Сверка узнала контакт из сделки — чат становится проверяемым.
+  PERFORM public.oko_note_chat_contacts(4242, ARRAY[777::bigint]);
+  SELECT * INTO r FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF r.oko_contact_id IS NULL OR NOT r.unchecked THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: непроверенный ждущий чат не выдан на сверку';
+  END IF;
+
+  -- Второй заход сразу — не выдаётся: не чаще раза в 20 минут.
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: контакт выдан дважды подряд'; END IF;
+
+  -- Свежая проверка после последнего сообщения — сверять незачем.
+  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '1 hour' WHERE oko_contact_id = 4242;
+  PERFORM public.oko_mark_chats_checked(jsonb_build_array(jsonb_build_object(
+    'messenger_id', 777, 'checked_at', to_char(now() AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"'))));
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: только что проверенный чат снова выдан'; END IF;
+
+  -- Проверка старше часа — перепроверить: ответ мог уйти после неё.
+  UPDATE public.oko_chat_checks SET checked_at = now() - interval '50 minutes' WHERE messenger_id = 777;
+  UPDATE public.deal_messages SET sent_at = now() - interval '3 hours' WHERE oko_contact_messenger_id = 777;
+  UPDATE public.oko_chat_checks SET checked_at = now() - interval '2 hours' WHERE messenger_id = 777;
+  SELECT * INTO r FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF r.oko_contact_id IS NULL OR r.unchecked THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: давно проверенный ждущий чат не выдан на перепроверку';
+  END IF;
+
+  -- Клиент написал только что — менеджеру даём 20 минут, сверку не тратим.
+  UPDATE public.oko_contact_checks SET attempted_at = now() - interval '1 hour' WHERE oko_contact_id = 4242;
+  DELETE FROM public.oko_chat_checks WHERE messenger_id = 777;
+  UPDATE public.deal_messages SET sent_at = now() - interval '5 minutes' WHERE oko_contact_messenger_id = 777;
+  SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: чат пятиминутной давности выдан на сверку'; END IF;
+
+  RAISE NOTICE 'ждущие выдаются по делу, не чаще раза в 20 минут';
 END $$;
 
 \echo '=== ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ==='

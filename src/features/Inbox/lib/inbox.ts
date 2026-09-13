@@ -64,17 +64,31 @@ export const FILTER_LABELS: Record<InboxFilter, string> = {
  * менеджером в самом ОКО, приходит сюда лишь со сверкой — с опозданием и
  * пока не для всех чатов. Поэтому:
  *  * answered  — ответ человека после сообщения клиента есть;
- *  * confirmed — сверка прочитала чат уже после сообщения клиента, и ответа
- *                не было: клиент действительно ждёт (на момент сверки);
- *  * unchecked — клиент написал последним, но ответ из ОКО мог ещё не дойти.
+ *  * confirmed — сверка недавно прочитала чат и видела его ПОСЛЕДНЕЕ
+ *                сообщение: ответа действительно нет;
+ *  * unchecked — клиент написал последним, но ответ из ОКО мог не дойти.
+ *
+ * Сравнивать надо с последним сообщением, а не с первым неотвеченным:
+ * клиент написал в 11:00, сверка прочитала в 12:00, менеджер ответил в ОКО
+ * в 12:30 (до нас не дошло), клиент в 13:00 пишет «спасибо» — ожидание с
+ * 11:00, проверка после 11:00, но ответ был.
  */
 export type WaitState = 'answered' | 'confirmed' | 'unchecked';
 
-export const waitState = (row: Pick<InboxRow, 'waiting_since' | 'checked_at'>): WaitState => {
-    if (!row.waiting_since) return 'answered';
-    if (row.checked_at && Date.parse(row.checked_at) >= Date.parse(row.waiting_since)) return 'confirmed';
+/** Сколько минут проверка сверки считается свежей: ответ мог уйти уже после неё. */
+export const CHECK_FRESH_MINUTES = 60;
 
-    return 'unchecked';
+export const waitState = (
+    row: Pick<InboxRow, 'waiting_since' | 'checked_at' | 'last_at'>,
+    nowMs: number,
+): WaitState => {
+    if (!row.waiting_since) return 'answered';
+    if (!row.checked_at) return 'unchecked';
+    const checked = Date.parse(row.checked_at);
+    if (checked < Date.parse(row.last_at)) return 'unchecked';
+    if (nowMs - checked > CHECK_FRESH_MINUTES * 60_000) return 'unchecked';
+
+    return 'confirmed';
 };
 
 /** Сколько часов прошло с неотвеченного сообщения клиента; ответили — null. */
@@ -87,11 +101,11 @@ export const waitingHours = (row: InboxRow, nowMs: number): number | null => {
 /** Зависший чат: клиент ждёт дольше часа. Так Алина и отбирает их вручную. */
 export const OVERDUE_HOURS = 1;
 
-/** Зависшим считается только подтверждённое сверкой ожидание. */
+/** Зависшим считается только подтверждённое свежей сверкой ожидание. */
 export const isOverdue = (row: InboxRow, nowMs: number): boolean => {
     const hours = waitingHours(row, nowMs);
 
-    return waitState(row) === 'confirmed' && hours !== null && hours >= OVERDUE_HOURS;
+    return waitState(row, nowMs) === 'confirmed' && hours !== null && hours >= OVERDUE_HOURS;
 };
 
 export const filterRows = (rows: InboxRow[], filter: InboxFilter, nowMs: number): InboxRow[] => {
@@ -101,7 +115,7 @@ export const filterRows = (rows: InboxRow[], filter: InboxFilter, nowMs: number)
         case 'overdue':
             return rows.filter((r) => isOverdue(r, nowMs));
         case 'unchecked':
-            return rows.filter((r) => waitState(r) === 'unchecked');
+            return rows.filter((r) => waitState(r, nowMs) === 'unchecked');
         case 'unknown':
             return rows.filter((r) => r.is_temporary || !r.client_id);
         default:
@@ -113,7 +127,7 @@ export const counts = (rows: InboxRow[], nowMs: number) => ({
     all: rows.length,
     waiting: rows.filter((r) => r.waiting_since !== null).length,
     overdue: rows.filter((r) => isOverdue(r, nowMs)).length,
-    unchecked: rows.filter((r) => waitState(r) === 'unchecked').length,
+    unchecked: rows.filter((r) => waitState(r, nowMs) === 'unchecked').length,
     unknown: rows.filter((r) => r.is_temporary || !r.client_id).length,
 });
 

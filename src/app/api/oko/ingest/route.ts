@@ -2,7 +2,7 @@ import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/s
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
-import { chatChecks, parseReadAt } from '../_lib/chatChecks';
+import { batchChatIds, chatChecks, parseContactId, parseReadAt } from '../_lib/chatChecks';
 import { processEvent, type OkoMessage } from '../_lib/processEvent';
 
 export const dynamic = 'force-dynamic';
@@ -45,19 +45,29 @@ export async function POST(request: NextRequest) {
 
     let messages: OkoMessage[];
     let readAt: number | null;
+    let contactId: number | null;
+    let received = 0;
     try {
-        // contact_read_at — когда Mac mini читал переписку в ОКО (секунды),
-        // только если читал ПО КОНТАКТУ. См. chatChecks.
-        const body = (await request.json()) as { messages?: unknown; contact_read_at?: unknown };
+        // oko_contact_id — чей это чат в ОКО (сверка берёт из сделки или
+        // читает по контакту). contact_read_at — когда Mac mini читал
+        // переписку (секунды), только при чтении ПО КОНТАКТУ; без номера
+        // контакта не принимается. См. chatChecks.
+        const body = (await request.json()) as {
+            messages?: unknown;
+            contact_read_at?: unknown;
+            oko_contact_id?: unknown;
+        };
         if (!Array.isArray(body.messages)) throw new Error('нет сообщений');
+        received = body.messages.length;
         messages = (body.messages as unknown[]).filter(
             (m): m is OkoMessage => !!m && typeof m === 'object',
         );
-        readAt = parseReadAt(body.contact_read_at, Date.now());
+        contactId = parseContactId(body.oko_contact_id);
+        readAt = contactId ? parseReadAt(body.contact_read_at, Date.now()) : null;
     } catch {
         return NextResponse.json({ error: 'Ожидался {"messages": [...]}' }, { status: 400 });
     }
-    if (messages.length > MAX_MESSAGES) {
+    if (received > MAX_MESSAGES) {
         return NextResponse.json({ error: `Не больше ${MAX_MESSAGES} сообщений за раз` }, { status: 413 });
     }
 
@@ -116,14 +126,27 @@ export async function POST(request: NextRequest) {
         if (error) checkError = error.message;
     }
 
+    // Чей это чат в ОКО: без номера контакта сверка не может перечитать чат
+    // временной карточки. Карточки клиентов при этом не меняются.
+    const chats = batchChatIds(messages);
+    let contactError: string | null = null;
+    if (contactId && chats.length) {
+        const { error } = await service.rpc('oko_note_chat_contacts', {
+            p_contact_id: contactId,
+            p_messenger_ids: chats,
+        });
+        if (error) contactError = error.message;
+    }
+
     return NextResponse.json({
         ok: true,
-        прислано: messages.length,
-        уже_было: messages.length - (added + failed),
+        прислано: received,
+        уже_было: received - (added + failed),
         добрано: added,
         не_вышло: failed,
         ошибки: errors,
         чатов_проверено: checkError ? 0 : checks.length,
         ...(checkError ? { ошибка_отметки: checkError } : {}),
+        ...(contactError ? { ошибка_контакта: contactError } : {}),
     });
 }

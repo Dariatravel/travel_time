@@ -11,7 +11,8 @@
 --  * oko_chat_checks — до какого момента сверка прочитала переписку;
 --    отметка двигается только вперёд (oko_mark_chats_checked);
 --  * oko_inbox отдаёт checked_at: экран считает ожидание подтверждённым,
---    только если сверка прочитала чат уже после сообщения клиента;
+--    только если сверка (чтение по контакту) видела последнее сообщение
+--    чата и было это не больше часа назад — ответ мог уйти после проверки;
 --  * ответ, ушедший из АБХАЗБИЗНЕС через очередь (oko_outbox, status sent),
 --    тоже снимает ожидание: в переписку он сам не записывается, а вебхук
 --    исходящие не присылает.
@@ -35,11 +36,27 @@ CREATE POLICY oko_chat_checks_admin_read ON public.oko_chat_checks FOR SELECT TO
 REVOKE ALL ON public.oko_chat_checks FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.oko_chat_checks TO authenticated;
 
+/** Время из текста или NULL — без ошибки на «2026-02-30» и прочем мусоре. */
+CREATE OR REPLACE FUNCTION public.oko_try_timestamptz(p_value text)
+RETURNS timestamptz
+LANGUAGE plpgsql
+STABLE
+SET search_path = ''
+AS $$
+BEGIN
+    RETURN p_value::timestamptz;
+EXCEPTION WHEN others THEN
+    RETURN NULL;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.oko_try_timestamptz(text) FROM PUBLIC, anon, authenticated;
+
 /**
  * Отметить, до какого момента сверка прочитала переписки.
  * p_checks: [{"messenger_id": 123, "checked_at": "2026-09-13T12:00:00Z"}, …]
  * Только вперёд: запоздавшая пачка не откатывает отметку. Время из будущего
- * срезается до now(). Мусорные строки пропускаются.
+ * срезается до now(). Мусорные строки (и несуществующие даты) пропускаются.
  */
 CREATE OR REPLACE FUNCTION public.oko_mark_chats_checked(p_checks jsonb)
 RETURNS integer
@@ -59,20 +76,24 @@ BEGIN
           FROM jsonb_array_elements(p_checks) AS e
          WHERE jsonb_typeof(e) = 'object'
     ),
-    valid AS (
+    parsed AS (
         SELECT mid::bigint AS messenger_id,
-               LEAST(at::timestamptz, now()) AS checked_at
+               public.oko_try_timestamptz(at) AS at
           FROM raw
          WHERE mid ~ '^[1-9][0-9]{0,17}$'
            AND at ~ '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})$'
     ),
     merged AS (
-        SELECT messenger_id, max(checked_at) AS checked_at FROM valid GROUP BY messenger_id
+        SELECT messenger_id, LEAST(max(at), now()) AS checked_at
+          FROM parsed
+         WHERE at IS NOT NULL
+         GROUP BY messenger_id
     )
     INSERT INTO public.oko_chat_checks AS c (messenger_id, checked_at)
     SELECT messenger_id, checked_at FROM merged
     ON CONFLICT (messenger_id) DO UPDATE
-       SET checked_at = GREATEST(c.checked_at, EXCLUDED.checked_at);
+       SET checked_at = EXCLUDED.checked_at
+     WHERE c.checked_at < EXCLUDED.checked_at;
 
     GET DIAGNOSTICS n = ROW_COUNT;
     RETURN n;
@@ -126,6 +147,21 @@ AS $$
             OR sent_at >= now() - make_interval(days => GREATEST(1, LEAST(COALESCE(p_days, 14), 365)))
          ORDER BY sent_at DESC
          LIMIT GREATEST(1, LEAST(COALESCE(p_limit, 200), 500))
+    ),
+    sent_out AS (
+        -- Ответы, ушедшие из АБХАЗБИЗНЕС через очередь: в переписку они сами
+        -- не записываются. Один проход по очереди, а не подзапрос на строку.
+        -- Пишет в очередь сейчас только человек из интерфейса; если через неё
+        -- пойдут автоответы, их здесь надо будет отсеять.
+        SELECT (x.payload ->> 'contact_messenger_id')::bigint AS messenger_id,
+               max(x.sent_at) AS sent_at
+          FROM public.oko_outbox AS x
+         WHERE x.kind = 'message'
+           AND x.status = 'sent'
+           AND x.sent_at IS NOT NULL
+           AND jsonb_typeof(x.payload -> 'contact_messenger_id') = 'number'
+           AND (x.payload ->> 'contact_messenger_id') ~ '^[1-9][0-9]{0,17}$'
+         GROUP BY 1
     )
     SELECT l.messenger_id,
            l.client_id,
@@ -145,6 +181,7 @@ AS $$
       FROM page AS l
       LEFT JOIN public.clients AS c ON c.id = l.client_id
       LEFT JOIN public.oko_chat_checks AS k ON k.messenger_id = l.messenger_id
+      LEFT JOIN sent_out AS so ON so.messenger_id = l.messenger_id
       LEFT JOIN LATERAL (
             SELECT min(i.sent_at) AS since
               FROM public.deal_messages AS i
@@ -158,11 +195,7 @@ AS $$
                            AND o.direction <> 'in'
                            AND COALESCE(o.author_type, '') NOT IN ('robot', 'bot')),
                        -- ответ, отправленный из АБХАЗБИЗНЕС через очередь
-                       (SELECT max(x.sent_at)
-                          FROM public.oko_outbox AS x
-                         WHERE x.kind = 'message'
-                           AND x.status = 'sent'
-                           AND x.payload -> 'contact_messenger_id' = to_jsonb(l.messenger_id))
+                       so.sent_at
                    ), '-infinity'::timestamptz)
       ) AS w ON true
       LEFT JOIN LATERAL (

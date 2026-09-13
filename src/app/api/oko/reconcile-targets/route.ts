@@ -2,16 +2,20 @@ import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/s
 import { timingSafeEqual } from 'node:crypto';
 import { NextRequest, NextResponse } from 'next/server';
 
+import { mergeTargets, type CircleTarget, type WaitingTarget } from '../_lib/reconcileTargets';
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * Кого перечитать при сверке с ОКО (14.09.2026).
+ * Кого перечитать при сверке с ОКО (14.09.2026, «ждущие» — 13.09.2026).
  *
- * ОКО отдаёт сообщения только по сделке или контакту, поэтому сверка идёт
- * по кругу: берём контакты, которые давно не перечитывали, начиная с тех,
- * где недавно была переписка. Отметка о сверке ставится тут же, чтобы круг
- * двигался даже если Mac mini оборвётся на полпути.
+ * ОКО отдаёт сообщения только по сделке или контакту. Сначала — контакты
+ * чатов, где клиент написал последним и это не проверено: вебхук ОКО не
+ * присылает ответы менеджеров, и без сверки «Входящие» не отличат
+ * неотвеченный чат от отвеченного в ОКО. Остальные места — старому кругу:
+ * контакты, которые давно не перечитывали. Отметки о выдаче ставятся тут же,
+ * чтобы очередь двигалась, даже если Mac mini оборвётся на полпути.
  */
 
 const constantEquals = (a: string, b: string): boolean => {
@@ -32,8 +36,21 @@ export async function POST(request: NextRequest) {
     const limit = Math.max(1, Math.min(Number(body.limit) || 2, 20));
 
     const service = createSupabaseServiceRoleClient();
-    const { data, error } = await service.rpc('oko_contacts_to_reconcile', { p_limit: limit });
-    if (error) return NextResponse.json({ error: error.message }, { status: 502 });
 
-    return NextResponse.json({ контакты: data ?? [] });
+    // Сбой выбора «ждущих» не останавливает круг: пропущенное вебхуком
+    // добирать всё равно надо.
+    const { data: waitingData, error: waitingError } = await service.rpc('oko_waiting_contacts_to_check', {
+        p_limit: limit,
+    });
+    if (waitingError) console.error('Сверка: не выбрали ждущие чаты', waitingError.message);
+    const waiting = (waitingData ?? []) as WaitingTarget[];
+
+    let circle: CircleTarget[] = [];
+    if (waiting.length < limit) {
+        const { data, error } = await service.rpc('oko_contacts_to_reconcile', { p_limit: limit - waiting.length });
+        if (error && waitingError) return NextResponse.json({ error: error.message }, { status: 502 });
+        circle = (data ?? []) as CircleTarget[];
+    }
+
+    return NextResponse.json({ контакты: mergeTargets(waiting, circle, limit) });
 }

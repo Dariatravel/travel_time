@@ -25,6 +25,7 @@ migrations=(
     "supabase/migrations/20260914090000_reliability_db.sql"
     "supabase/migrations/20260914100000_webhook_reliability.sql"
     "supabase/migrations/20260915120000_inbox_checked.sql"
+    "supabase/migrations/20260915130000_oko_waiting_targets.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.

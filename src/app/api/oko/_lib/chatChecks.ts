@@ -4,27 +4,32 @@ import { positive, type OkoMessage } from './processEvent';
  * До какого момента сверка прочитала переписку (13.09.2026).
  *
  * Вебхук ОКО присылает только сообщения клиентов, ответы менеджеров из ОКО
- * приносит сверка. Поэтому «клиент написал последним» подтверждено, только
- * если сверка читала чат уже после этого сообщения.
+ * приносит сверка. Поэтому «клиент ждёт» подтверждено, только если сверка
+ * недавно читала чат и видела его последнее сообщение.
  *
- * ОКО отдаёт сообщения новыми вперёд: в странице есть всё, что в каждом её
- * чате новее присланных сообщений. Отсюда момент проверки чата:
- *  * contactReadAt — время запроса в ОКО, если переписку читали ПО КОНТАКТУ.
- *    Страница по сделке для этого не годится: робот ОКО заводит новую сделку
- *    на обращение, и свежие сообщения чата могут лежать в другой сделке;
- *  * иначе — время самого свежего сообщения чата в пачке: всё, что было до
- *    него, мы видели, это надёжная нижняя граница.
+ * Отметку даёт только чтение ПО КОНТАКТУ (contactReadAt — время запроса):
+ * ОКО отдаёт сообщения контакта новыми вперёд, и для каждого чата страницы
+ * всё, что пришло до запроса и новее присланного, в ней есть. Страница по
+ * сделке ничего не доказывает: робот ОКО заводит сделку на обращение, и
+ * ответ в чате может лежать в другой сделке. Время самого сообщения тоже не
+ * годится — оно говорит, когда писали, а не когда мы смотрели.
  *
- * Чат не отмечается, если хоть одно его сообщение не записалось: пропущенным
- * мог оказаться именно ответ менеджера.
+ * Не отмечаем:
+ *  * чат, где хоть одно сообщение не записалось — это мог быть ответ;
+ *  * всю пачку, если в ней есть сообщение без номера чата: такое сообщение
+ *    не привязать ни к одному чату, а оно могло быть ответом менеджера
+ *    (в выгрузке ОКО таких около 0,1%).
  */
 
 export type ChatCheck = { messenger_id: number; checked_at: string };
 
 /** Ноябрь 2023: время раньше этого — явно мусор, а не момент запроса. */
 const EARLIEST_SECONDS = 1_700_000_000;
-/** Часы Mac mini могут немного спешить. */
-const CLOCK_SKEW_SECONDS = 300;
+/**
+ * Допуск на расхождение часов Mac mini и сервера. Больше — отказ, а не
+ * срезание: спешащие часы сдвинули бы отметку позже реального чтения.
+ */
+const CLOCK_SKEW_SECONDS = 30;
 
 /** Время запроса в ОКО (секунды) из тела запроса; мусор — null. */
 export const parseReadAt = (value: unknown, nowMs: number): number | null => {
@@ -41,36 +46,33 @@ const chatId = (value: unknown): number | null => {
     return id !== null && Number.isSafeInteger(id) ? id : null;
 };
 
+/** Номер контакта ОКО из тела запроса; мусор — null. */
+export const parseContactId = (value: unknown): number | null => chatId(value);
+
+/** Все чаты пачки, без повторов. */
+export const batchChatIds = (messages: OkoMessage[]): number[] => [
+    ...new Set(messages.map((m) => chatId(m.contact_messenger_id)).filter((id): id is number => id !== null)),
+];
+
 export const chatChecks = (
     messages: OkoMessage[],
     failedIds: ReadonlySet<number>,
     contactReadAt: number | null,
     nowMs: number,
 ): ChatCheck[] => {
-    const latest = new Map<number, number | null>();
-    const broken = new Set<number>();
+    if (contactReadAt === null) return [];
 
+    const chats = new Set<number>();
+    const broken = new Set<number>();
     for (const m of messages) {
         const chat = chatId(m.contact_messenger_id);
-        if (chat === null) continue;
+        if (chat === null) return [];
+        chats.add(chat);
         const id = positive(m.id);
         if (id === null || failedIds.has(id)) broken.add(chat);
-        const at = positive(m.created_at);
-        const previous = latest.get(chat) ?? null;
-        latest.set(chat, at !== null && (previous === null || at > previous) ? at : previous);
     }
 
-    const nowSeconds = nowMs / 1000;
-    const result: ChatCheck[] = [];
-    for (const [chat, at] of latest) {
-        if (broken.has(chat)) continue;
-        const seconds = contactReadAt ?? at;
-        if (seconds === null) continue;
-        result.push({
-            messenger_id: chat,
-            checked_at: new Date(Math.min(seconds, nowSeconds) * 1000).toISOString(),
-        });
-    }
+    const checkedAt = new Date(Math.min(contactReadAt, nowMs / 1000) * 1000).toISOString();
 
-    return result;
+    return [...chats].filter((chat) => !broken.has(chat)).map((chat) => ({ messenger_id: chat, checked_at: checkedAt }));
 };

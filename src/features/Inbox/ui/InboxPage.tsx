@@ -113,7 +113,12 @@ const MergeDialog: FC<{ row: InboxRow; onClose: () => void }> = ({ row, onClose 
 };
 
 /** Переписка одного чата с полем ответа. */
-const ChatPanel: FC<{ row: InboxRow; actor: string; onMerge: () => void }> = ({ row, actor, onMerge }) => {
+const ChatPanel: FC<{ row: InboxRow; actor: string; nowMs: number; onMerge: () => void }> = ({
+    row,
+    actor,
+    nowMs,
+    onMerge,
+}) => {
     const { data: messages = [], isPending } = useChat(row.messenger_id);
     const { data: outbox = [] } = useChatOutbox(row.messenger_id);
     const reply = useReply();
@@ -149,11 +154,11 @@ const ChatPanel: FC<{ row: InboxRow; actor: string; onMerge: () => void }> = ({ 
                     {row.client_phones?.length ? row.client_phones.join(', ') : 'телефон неизвестен'}
                     {row.deal_id && row.deal_stage ? ` · сделка: ${STAGE_LABELS[row.deal_stage as Stage] ?? row.deal_stage}` : ''}
                 </CardDescription>
-                {waitState(row) === 'unchecked' && (
+                {nowMs > 0 && waitState(row, nowMs) === 'unchecked' && (
                     <p className="rounded-md bg-amber-50 px-2 py-1 text-xs text-amber-800">
-                        Клиент написал последним, но ответ из ОКО мог ещё не дойти — проверьте в ОКО.{' '}
+                        Клиент написал последним, но ответ из ОКО мог не дойти — проверьте в ОКО.{' '}
                         {row.checked_at
-                            ? `Сверка читала чат ${formatMoment(row.checked_at)}.`
+                            ? `Сверка читала чат ${formatMoment(row.checked_at)}, после этого могли ответить.`
                             : 'Сверка этот чат ещё не читала.'}
                     </p>
                 )}
@@ -228,8 +233,9 @@ const ChatPanel: FC<{ row: InboxRow; actor: string; onMerge: () => void }> = ({ 
 
 /**
  * «Входящие» — живая переписка из ОКО. Заменяет ежедневный обход мессенджеров:
- * видно, кто ждёт ответа и сколько, кто завис дольше часа, чей чат ещё не
- * привязан к клиенту.
+ * видно, где клиент написал последним, где сверка подтвердила, что ответа нет
+ * дольше часа, чей чат ещё не привязан к клиенту. Ответы, написанные в самом
+ * ОКО, вебхук не присылает — их приносит сверка, отсюда «Не проверено».
  */
 export const InboxPage = () => {
     const user = useUnit($user);
@@ -316,7 +322,7 @@ export const InboxPage = () => {
                 ОКО присылает сюда только сообщения клиентов. Ответы, написанные в самом ОКО, подтягивает
                 сверка — с опозданием, обычно до пары часов, и пока не для всех чатов.{' '}
                 <b>«Не проверено»</b> — клиент написал последним, но ответ мог ещё не дойти: загляните в ОКО.{' '}
-                <b>«Зависшие»</b> — сверка подтвердила, что ответа нет больше часа.
+                <b>«Зависшие»</b> — сверка в последний час подтвердила, что клиент ждёт ответа больше часа.
             </p>
 
             {error && (
@@ -354,8 +360,15 @@ export const InboxPage = () => {
                                     </span>
                                     {hours !== null &&
                                         nowMs > 0 &&
-                                        (waitState(row) === 'confirmed' ? (
-                                            <Badge variant={overdue ? 'destructive' : 'secondary'}>
+                                        (waitState(row, nowMs) === 'confirmed' ? (
+                                            <Badge
+                                                variant={overdue ? 'destructive' : 'secondary'}
+                                                title={
+                                                    row.checked_at
+                                                        ? `Сверка проверила ${formatMoment(row.checked_at)}`
+                                                        : undefined
+                                                }
+                                            >
                                                 ждёт {humanWait(hours)}
                                             </Badge>
                                         ) : (
@@ -389,6 +402,7 @@ export const InboxPage = () => {
                             key={selected.messenger_id}
                             row={selected}
                             actor={actor}
+                            nowMs={nowMs}
                             onMerge={() => setMergeRow(selected)}
                         />
                     ) : (

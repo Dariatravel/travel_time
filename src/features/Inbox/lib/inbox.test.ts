@@ -29,8 +29,8 @@ const row = (extra: Partial<InboxRow> = {}): InboxRow => ({
     last_author_type: 'contact',
     last_at: hoursAgo(2),
     waiting_since: hoursAgo(2),
-    // По умолчанию сверка прочитала чат после сообщения клиента.
-    checked_at: hoursAgo(1),
+    // По умолчанию сверка полчаса назад прочитала чат после последнего сообщения.
+    checked_at: hoursAgo(0.5),
     deal_id: 'd1',
     deal_stage: 'podbor',
     ...extra,
@@ -55,18 +55,37 @@ describe('ожидание ответа', () => {
 
 describe('можно ли верить «ждёт» (ОКО не присылает ответы менеджеров)', () => {
     it('ответили — ожидания нет', () => {
-        expect(waitState(row({ waiting_since: null, checked_at: null }))).toBe('answered');
+        expect(waitState(row({ waiting_since: null, checked_at: null }), NOW)).toBe('answered');
     });
 
-    it('сверка читала чат после сообщения клиента — ожидание подтверждено', () => {
-        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(1) }))).toBe('confirmed');
-        // Прочитала ровно это сообщение, ответа после него не было.
-        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(2) }))).toBe('confirmed');
+    it('сверка недавно видела последнее сообщение — ожидание подтверждено', () => {
+        const chat = { waiting_since: hoursAgo(2), last_at: hoursAgo(1) };
+        expect(waitState(row({ ...chat, checked_at: hoursAgo(0.5) }), NOW)).toBe('confirmed');
+        // Прочитала ровно последнее сообщение, ответа после него не было.
+        expect(waitState(row({ ...chat, checked_at: hoursAgo(1) }), NOW)).toBe('confirmed');
     });
 
-    it('сверка не читала или читала раньше сообщения — не проверено', () => {
-        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: null }))).toBe('unchecked');
-        expect(waitState(row({ waiting_since: hoursAgo(2), checked_at: hoursAgo(3) }))).toBe('unchecked');
+    it('сверка не читала или читала раньше последнего сообщения — не проверено', () => {
+        expect(waitState(row({ checked_at: null }), NOW)).toBe('unchecked');
+        expect(waitState(row({ last_at: hoursAgo(1), checked_at: hoursAgo(1.5) }), NOW)).toBe('unchecked');
+    });
+
+    it('после проверки клиент написал ещё раз — ответ мог быть между ними', () => {
+        // 11:00 клиент, 12:00 проверка, 12:30 ответ в ОКО (не дошёл), 13:00 «спасибо».
+        const chat = row({
+            waiting_since: '2026-09-12T11:00:00Z',
+            checked_at: '2026-09-12T12:00:00Z',
+            last_at: '2026-09-12T13:00:00Z',
+        });
+        const at = Date.parse('2026-09-12T13:10:00Z');
+        expect(waitState(chat, at)).toBe('unchecked');
+        expect(isOverdue(chat, at)).toBe(false);
+    });
+
+    it('проверка старше часа уже ничего не подтверждает: ответ мог уйти после неё', () => {
+        const chat = row({ waiting_since: hoursAgo(5), last_at: hoursAgo(5), checked_at: hoursAgo(1.5) });
+        expect(waitState(chat, NOW)).toBe('unchecked');
+        expect(isOverdue(chat, NOW)).toBe(false);
     });
 
     it('непроверенный чат не попадает в «Зависшие», сколько бы ни ждал', () => {
@@ -96,7 +115,7 @@ describe('можно ли верить «ждёт» (ОКО не присыла�
 describe('отборы и счётчики', () => {
     const rows = [
         row({ messenger_id: 1, waiting_since: hoursAgo(3) }), // зависший
-        row({ messenger_id: 2, waiting_since: hoursAgo(0.2) }), // ждёт недолго, сверка ещё не читала
+        row({ messenger_id: 2, waiting_since: hoursAgo(0.2), last_at: hoursAgo(0.2) }), // сверка ещё не видела
         row({ messenger_id: 3, waiting_since: null, last_direction: 'out' }), // ответили
         row({ messenger_id: 4, waiting_since: hoursAgo(5), client_id: null, client_name: null, is_temporary: true }),
     ];
