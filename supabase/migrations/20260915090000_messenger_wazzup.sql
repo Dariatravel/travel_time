@@ -17,7 +17,15 @@
 --
 -- Решения (15.09.2026): карточка клиента заводится только по Direct —
 -- комментаторы под постами карточек не получают. Сообщения принимаются
--- только для каналов, известных в messenger_channels.
+-- только для каналов, известных в messenger_channels, и только разрешённых
+-- транспортов (список — src/shared/config/wazzupTransports.ts; сейчас только
+-- Instagram, WhatsApp и MAX пока идут через ОКО). Остальное пропускается по
+-- правилу, без ошибки: событие считается разобранным.
+--
+-- Карточку клиента с привязкой к мессенджеру (client_identities) нельзя
+-- удалить напрямую — внешний ключ ON DELETE RESTRICT. Только через сведение
+-- карточек (oko_merge_clients / oko_merge_clients_unchecked), которое
+-- переносит привязки и чаты к получателю.
 --
 -- Откат: DROP TABLE public.messenger_outbox, public.messenger_messages,
 -- public.messenger_pending_statuses, public.messenger_chats,
@@ -62,6 +70,8 @@ CREATE TABLE IF NOT EXISTS public.messenger_events (
     received_at  timestamptz NOT NULL DEFAULT now(),
     processed_at timestamptz,
     attempts     integer     NOT NULL DEFAULT 0,
+    -- Отсрочки подряд (не хватило времени): первые 5 — без траты попытки.
+    defers       integer     NOT NULL DEFAULT 0,
     next_try_at  timestamptz,
     error        text
 );
@@ -71,6 +81,9 @@ CREATE INDEX IF NOT EXISTS messenger_events_retry_idx
     WHERE processed_at IS NULL;
 CREATE INDEX IF NOT EXISTS messenger_events_received_idx
     ON public.messenger_events (received_at DESC);
+-- Поиск событий с данным messageId: удалённое сообщение стирается во всех.
+CREATE INDEX IF NOT EXISTS messenger_events_messages_idx
+    ON public.messenger_events USING gin ((payload -> 'messages') jsonb_path_ops);
 
 /** Посты, под которыми пишут комментарии (у Wazzup — instPost). */
 CREATE TABLE IF NOT EXISTS public.messenger_posts (
@@ -561,6 +574,21 @@ BEGIN
     DELETE FROM public.messenger_pending_statuses
      WHERE provider = p_provider AND external_id = v_ext;
 
+    -- Клиент удалил сообщение — стираем его содержимое и из сырого журнала,
+    -- во ВСЕХ событиях, где оно встречалось. Соседние сообщения пачек не трогаем.
+    IF v_deleted THEN
+        UPDATE public.messenger_events AS e
+           SET payload = jsonb_set(e.payload, '{messages}', (
+                   SELECT jsonb_agg(CASE WHEN t.m ->> 'messageId' = v_ext
+                                         THEN t.m - 'text' - 'contentUri' - 'oldInfo'
+                                         ELSE t.m END
+                                    ORDER BY t.ord)
+                     FROM jsonb_array_elements(e.payload -> 'messages') WITH ORDINALITY AS t(m, ord)))
+         WHERE e.provider = p_provider
+           AND jsonb_typeof(e.payload -> 'messages') = 'array'
+           AND (e.payload -> 'messages') @> jsonb_build_array(jsonb_build_object('messageId', v_ext));
+    END IF;
+
     IF v_dir = 'out' THEN
         -- Эхо нашего ответа: связываем с очередью, дубля не создаём.
         -- Эхо с ошибкой — отправка «не ушла», даже если Wazzup её принял.
@@ -705,15 +733,17 @@ GRANT EXECUTE ON FUNCTION public.messenger_apply_status(text, text, text, text, 
 /**
  * Разбор пачки из одного события одним обращением к базе: сообщения,
  * статусы, состояния каналов. Каждое сообщение — в своей подтранзакции:
- * одно кривое не откатывает остальные. Сообщения неизвестных каналов не
- * пишутся (карточки не заводятся) и возвращаются списком — событие останется
- * неразобранным и переразберётся, когда setup добавит канал.
+ * одно кривое не откатывает остальные. Сообщения неизвестных каналов и
+ * каналов с неразрешённым транспортом (p_allowed_transports; пустой список —
+ * не принимается ничего) не пишутся и карточек не заводят. Это пропуск по
+ * правилу, а не ошибка: причины возвращаются в skipped, событие разобрано.
  */
 CREATE OR REPLACE FUNCTION public.messenger_ingest_batch(
     p_provider text,
     p_messages jsonb,
     p_statuses jsonb,
-    p_channels jsonb
+    p_channels jsonb,
+    p_allowed_transports text[]
 )
 RETURNS jsonb
 LANGUAGE plpgsql
@@ -726,24 +756,39 @@ DECLARE
     v_statuses integer := 0;
     v_channels integer := 0;
     v_errors   jsonb := '[]'::jsonb;
-    v_unknown  jsonb := '[]'::jsonb;
     v_skipped  jsonb := '[]'::jsonb;
     v_rows     integer;
+    v_allowed  text[] := COALESCE(p_allowed_transports, '{}'::text[]);
+    v_transport text;
+    v_reason   text;
 BEGIN
     FOR v_item IN SELECT value FROM jsonb_array_elements(
             CASE WHEN jsonb_typeof(p_messages) = 'array' THEN p_messages ELSE '[]'::jsonb END)
     LOOP
+        SELECT ch.transport INTO v_transport
+          FROM public.messenger_channels AS ch
+         WHERE ch.provider = p_provider AND ch.external_id = v_item ->> 'channel_external_id';
+        IF NOT FOUND THEN
+            v_reason := format('неизвестный канал %s', v_item ->> 'channel_external_id');
+        ELSIF NOT (lower(COALESCE(v_transport, '')) = ANY (v_allowed)) THEN
+            v_reason := format('канал %s (%s) не принимается, пока он в ОКО',
+                               v_item ->> 'channel_external_id', COALESCE(v_transport, '?'));
+        ELSE
+            v_reason := NULL;
+        END IF;
+        IF v_reason IS NOT NULL THEN
+            IF NOT v_skipped @> jsonb_build_array(v_reason) THEN
+                v_skipped := v_skipped || jsonb_build_array(v_reason);
+            END IF;
+            CONTINUE;
+        END IF;
+
         BEGIN
             PERFORM public.messenger_ingest_message(p_provider, v_item);
             v_messages := v_messages + 1;
-        EXCEPTION
-            WHEN no_data_found THEN
-                IF NOT v_unknown @> jsonb_build_array(v_item ->> 'channel_external_id') THEN
-                    v_unknown := v_unknown || jsonb_build_array(v_item ->> 'channel_external_id');
-                END IF;
-            WHEN OTHERS THEN
-                v_errors := v_errors || jsonb_build_array(
-                    left(format('%s: %s', v_item ->> 'external_id', SQLERRM), 300));
+        EXCEPTION WHEN OTHERS THEN
+            v_errors := v_errors || jsonb_build_array(
+                left(format('%s: %s', v_item ->> 'external_id', SQLERRM), 300));
         END;
     END LOOP;
 
@@ -767,23 +812,26 @@ BEGIN
     LOOP
         UPDATE public.messenger_channels
            SET state = COALESCE(v_item ->> 'state', state), updated_at = now()
-         WHERE provider = p_provider AND external_id = v_item ->> 'external_id';
+         WHERE provider = p_provider AND external_id = v_item ->> 'external_id'
+           AND lower(COALESCE(transport, '')) = ANY (v_allowed);
         GET DIAGNOSTICS v_rows = ROW_COUNT;
         IF v_rows > 0 THEN
             v_channels := v_channels + 1;
         ELSE
-            v_skipped := v_skipped || jsonb_build_array(v_item ->> 'external_id');
+            v_reason := format('состояние канала %s (неизвестный или не принимается)', v_item ->> 'external_id');
+            IF NOT v_skipped @> jsonb_build_array(v_reason) THEN
+                v_skipped := v_skipped || jsonb_build_array(v_reason);
+            END IF;
         END IF;
     END LOOP;
 
     RETURN jsonb_build_object('messages', v_messages, 'statuses', v_statuses, 'channels', v_channels,
-                              'errors', v_errors, 'unknown_channels', v_unknown,
-                              'skipped_channels', v_skipped);
+                              'errors', v_errors, 'skipped', v_skipped);
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.messenger_ingest_batch(text, jsonb, jsonb, jsonb) FROM PUBLIC, anon, authenticated;
-GRANT EXECUTE ON FUNCTION public.messenger_ingest_batch(text, jsonb, jsonb, jsonb) TO service_role;
+REVOKE ALL ON FUNCTION public.messenger_ingest_batch(text, jsonb, jsonb, jsonb, text[]) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.messenger_ingest_batch(text, jsonb, jsonb, jsonb, text[]) TO service_role;
 
 /**
  * Выдать события на повторный разбор — как oko_events_to_retry: каждая
@@ -828,6 +876,10 @@ GRANT EXECUTE ON FUNCTION public.messenger_events_to_retry(integer) TO service_r
 /**
  * Не успели разобрать за отведённое время — вернуть событие в очередь,
  * не засчитывая попытку: это не сбой, а нехватка времени у запроса.
+ * Но не больше 5 отсрочек подряд: событие, которое никогда не укладывается
+ * во время, иначе откладывалось бы вечно. Дальше отсрочка засчитывается как
+ * попытка, и после десяти попыток событие ждёт человека. Счётчик сбрасывает
+ * обычная ошибка разбора (processEvent).
  */
 CREATE OR REPLACE FUNCTION public.messenger_event_defer(p_id bigint)
 RETURNS void
@@ -836,9 +888,12 @@ SECURITY DEFINER
 SET search_path = ''
 AS $$
     UPDATE public.messenger_events
-       SET attempts = GREATEST(attempts - 1, 0),
+       SET attempts = CASE WHEN defers < 5 THEN GREATEST(attempts - 1, 0) ELSE attempts END,
+           defers = defers + 1,
            next_try_at = now() + interval '1 minute',
-           error = 'не успели разобрать за отведённое время — доразберём'
+           error = CASE WHEN defers < 5
+                        THEN 'не успели разобрать за отведённое время — доразберём'
+                        ELSE 'не укладывается во время уже 5 раз подряд — отсрочка засчитана как попытка' END
      WHERE id = p_id AND processed_at IS NULL;
 $$;
 

@@ -1,5 +1,6 @@
 import { requireAdmin } from '@/app/api/admin/_lib/requireAdmin';
 import { createSupabaseServiceRoleClient } from '@/app/api/yandex-backend/_lib/supabaseServer';
+import { isWazzupTransportAccepted } from '@/shared/config/wazzupTransports';
 import { NextRequest, NextResponse } from 'next/server';
 
 import { normalizeChannelList, WAZZUP_PROVIDER } from '../_lib/normalize';
@@ -8,6 +9,7 @@ import {
     buildWebhookUrl,
     maskForeignUri,
     maskToken,
+    parseCurrentWebhook,
     sameWebhookTarget,
     webhookBaseUrl,
     WEBHOOK_URI_MAX,
@@ -22,19 +24,36 @@ export const runtime = 'nodejs';
  *
  * GET  — подключён ли Wazzup на этом контуре (для экрана), без запросов в Wazzup.
  * POST {subscribe:false} — «Обновить каналы»: GET /v3/channels → messenger_channels.
+ *      Записываются ВСЕ каналы аккаунта (экран их показывает), но принимаются
+ *      только разрешённые транспорты (src/shared/config/wazzupTransports.ts).
  * POST {subscribe:true}  — «Подключить приём»: то же плюс подписка вебхука.
  *
  * У Wazzup ОДИН адрес вебхука на аккаунт, поэтому подписка осторожная:
  *  - разрешена только при APP_ENV=production (тестовый контур не заберёт
  *    вебхук у рабочего сайта);
  *  - адрес — только из WAZZUP_WEBHOOK_BASE_URL, не из заголовков запроса;
- *  - сначала GET /v3/webhooks: там чужой адрес — отказ, показываем его
- *    маскированным и ждём {"confirm": "заменить"}.
+ *  - сначала GET /v3/webhooks: неожиданный формат ответа — ничего не меняем;
+ *    чужой адрес — отказ, показываем его маскированным и ждём {"confirm": "заменить"}.
  * Условия проверяются ДО обращений к Wazzup. Таймауты по 8 секунд.
+ * Токены в тексты ответов не попадают (hideSecrets).
  */
 
 const STEP_TIMEOUT_MS = 8_000;
 const CONFIRM_REPLACE = 'заменить';
+const UNEXPECTED_FORMAT = 'Wazzup ответил в неожиданном формате, адрес не меняем';
+
+/** Токен приёма и ключ API не должны попасть на экран даже из текста ошибки Wazzup. */
+const hideSecrets = (text: string): string => {
+    let clean = maskToken(text);
+    for (const secret of [process.env.WAZZUP_WEBHOOK_TOKEN?.trim(), wazzupApiKey()]) {
+        if (secret && secret.length >= 4) clean = clean.split(secret).join('***');
+    }
+
+    return clean;
+};
+
+const fail = (error: string, status: number, extra: Record<string, unknown> = {}) =>
+    NextResponse.json({ error: hideSecrets(error), ...extra }, { status });
 
 const subscribeBlocker = (): string | null => {
     if (process.env.APP_ENV !== 'production') {
@@ -81,28 +100,25 @@ export async function POST(request: NextRequest) {
     let webhookUrl: string | null = null;
     if (subscribe) {
         const blocker = subscribeBlocker();
-        if (blocker) return NextResponse.json({ error: blocker }, { status: 403 });
+        if (blocker) return fail(blocker, 403);
         webhookUrl = buildWebhookUrl(
             webhookBaseUrl(process.env.WAZZUP_WEBHOOK_BASE_URL) ?? '',
             process.env.WAZZUP_WEBHOOK_TOKEN?.trim() ?? '',
         );
         if (webhookUrl.length > WEBHOOK_URI_MAX) {
-            return NextResponse.json(
-                { error: `Адрес длиннее ${WEBHOOK_URI_MAX} символов — Wazzup его не примет. Сократите токен.` },
-                { status: 400 },
-            );
+            return fail(`Адрес длиннее ${WEBHOOK_URI_MAX} символов — Wazzup его не примет. Сократите токен.`, 400);
         }
     }
 
     // 1. Каналы — их список нужен и для приёма: сообщения чужих каналов не пишутся.
     const listed = await callWazzup(apiKey, 'GET', '/channels', undefined, STEP_TIMEOUT_MS);
-    if (listed.kind === 'network') {
-        return NextResponse.json({ error: `Wazzup не ответил: ${listed.message}` }, { status: 502 });
-    }
-    if (!listed.ok) {
-        return NextResponse.json({ error: describeWazzupError(listed.status, listed.body) }, { status: 502 });
-    }
-    const channels = normalizeChannelList(listed.body);
+    if (listed.kind === 'network') return fail(`Wazzup не ответил: ${listed.message}`, 502);
+    if (!listed.ok) return fail(describeWazzupError(listed.status, listed.body), 502);
+
+    const channels = normalizeChannelList(listed.body).map((c) => ({
+        ...c,
+        accepted: isWazzupTransportAccepted(c.transport),
+    }));
     if (channels.length > 0) {
         const service = createSupabaseServiceRoleClient();
         const now = new Date().toISOString();
@@ -117,35 +133,29 @@ export async function POST(request: NextRequest) {
             })),
             { onConflict: 'provider,external_id' },
         );
-        if (error) return NextResponse.json({ error: `Каналы не записались: ${error.message}` }, { status: 502 });
+        if (error) return fail(`Каналы не записались: ${error.message}`, 502);
     }
 
     if (!webhookUrl) return NextResponse.json({ channels, subscription: null });
 
-    // 2. Какой адрес сейчас у аккаунта. Не узнали — не трогаем.
+    // 2. Какой адрес сейчас у аккаунта. Не узнали или не поняли ответ — не трогаем.
     const current = await callWazzup(apiKey, 'GET', '/webhooks', undefined, STEP_TIMEOUT_MS);
     if (current.kind === 'network' || !current.ok) {
         const reason =
             current.kind === 'network' ? current.message : describeWazzupError(current.status, current.body);
 
-        return NextResponse.json(
-            { error: `Не удалось узнать текущий адрес вебхука (${reason}) — подписку не меняли`, channels },
-            { status: 502 },
-        );
+        return fail(`Не удалось узнать текущий адрес вебхука (${reason}) — подписку не меняли`, 502, { channels });
     }
-    const rawUri = (current.body as { webhooksUri?: unknown } | null)?.webhooksUri;
-    const currentUri = typeof rawUri === 'string' ? rawUri.trim() : '';
-    if (currentUri && !sameWebhookTarget(currentUri, webhookUrl) && confirm !== CONFIRM_REPLACE) {
-        const masked = maskForeignUri(currentUri);
+    const parsed = parseCurrentWebhook(current.body);
+    if (!parsed.ok) return fail(UNEXPECTED_FORMAT, 502, { channels });
 
-        return NextResponse.json(
-            {
-                error: `В Wazzup уже указан другой адрес приёма: ${masked}. Если его заменить, та система перестанет получать сообщения.`,
-                needsConfirm: true,
-                current: masked,
-                channels,
-            },
-            { status: 409 },
+    if (parsed.uri && !sameWebhookTarget(parsed.uri, webhookUrl) && confirm !== CONFIRM_REPLACE) {
+        const masked = maskForeignUri(parsed.uri);
+
+        return fail(
+            `В Wazzup уже указан другой адрес приёма: ${masked}. Если его заменить, та система перестанет получать сообщения.`,
+            409,
+            { needsConfirm: true, current: hideSecrets(masked), channels },
         );
     }
 
@@ -170,12 +180,14 @@ export async function POST(request: NextRequest) {
         patched.kind === 'network'
             ? {
                   ok: false,
-                  message: `Wazzup не ответил (${patched.message}). Подписка могла пройти — нажмите ещё раз через минуту.`,
+                  message: hideSecrets(
+                      `Wazzup не ответил (${patched.message}). Подписка могла пройти — нажмите ещё раз через минуту.`,
+                  ),
                   url: shown,
               }
             : patched.ok
               ? { ok: true, message: 'Приём подключён: Wazzup проверил адрес.', url: shown }
-              : { ok: false, message: describeWazzupError(patched.status, patched.body), url: shown };
+              : { ok: false, message: hideSecrets(describeWazzupError(patched.status, patched.body)), url: shown };
 
     return NextResponse.json({ channels, subscription });
 }

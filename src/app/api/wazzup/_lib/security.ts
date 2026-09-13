@@ -104,6 +104,26 @@ export const sameWebhookTarget = (current: string, ours: string): boolean => {
 };
 
 /**
+ * Ответ GET /v3/webhooks → текущий адрес. Принимаем только ожидаемую форму:
+ * объект, где webhooksUri — строка или null, либо поля нет вовсе (тогда в
+ * объекте не должно быть ничего, кроме subscriptions). Массив, обёртка
+ * {data: …}, число, не-JSON — неожиданный формат: адрес не меняем, чтобы
+ * случайно не затереть чужую подписку, которую мы не смогли прочитать.
+ */
+export const parseCurrentWebhook = (body: unknown): { ok: true; uri: string } | { ok: false } => {
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return { ok: false };
+    const fields = body as Record<string, unknown>;
+    if ('webhooksUri' in fields) {
+        if (fields.webhooksUri === null) return { ok: true, uri: '' };
+        if (typeof fields.webhooksUri === 'string') return { ok: true, uri: fields.webhooksUri.trim() };
+
+        return { ok: false };
+    }
+
+    return Object.keys(fields).every((key) => key === 'subscriptions') ? { ok: true, uri: '' } : { ok: false };
+};
+
+/**
  * Чужой адрес для показа человеку: домен и начало пути, без параметров —
  * в них у чужой системы может быть её ключ.
  */

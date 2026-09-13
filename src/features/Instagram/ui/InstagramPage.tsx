@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { isInstagramEnabled } from '@/shared/config/featureFlags';
+import { isWazzupTransportAccepted } from '@/shared/config/wazzupTransports';
 import { $user } from '@/shared/models/auth';
 import { showToast } from '@/shared/ui/Toast/Toast';
 import { useUnit } from 'effector-react/compat';
 import { ExternalLink, PlugZap, RefreshCw, Send } from 'lucide-react';
-import { FC, useEffect, useMemo, useState } from 'react';
+import { FC, useEffect, useMemo, useRef, useState } from 'react';
 
 import {
     ApiError,
@@ -21,6 +22,15 @@ import {
     useWazzupSetup,
     useWazzupStatus,
 } from '../api/instagram';
+import {
+    draftReducer,
+    draftView,
+    INITIAL_DRAFT,
+    outcomeFromError,
+    type DraftAction,
+    type DraftPayload,
+    type DraftState,
+} from '../lib/draft';
 import {
     channelStateLabel,
     chatTitle,
@@ -111,7 +121,7 @@ const ChannelsCard: FC = () => {
                 </CardTitle>
                 <CardDescription>
                     Сначала «Обновить каналы», потом «Подключить приём» — он говорит Wazzup, куда присылать сообщения.
-                    Нажимать один раз после настройки ключа или если сообщения перестали приходить.
+                    Принимается только Instagram: остальные каналы переедут из ОКО по одному.
                 </CardDescription>
             </CardHeader>
             <CardContent className="space-y-2 p-4 pt-0 text-sm">
@@ -142,11 +152,19 @@ const ChannelsCard: FC = () => {
                     <p className="text-muted-foreground">Каналов пока нет — нажмите «Обновить каналы».</p>
                 ) : (
                     <div className="flex flex-wrap gap-2">
-                        {channels.map((c) => (
-                            <Badge key={c.external_id} variant={isChannelHealthy(c.state) ? 'secondary' : 'destructive'}>
-                                {c.transport ?? 'канал'} {c.plain_id ?? ''} · {channelStateLabel(c.state)}
-                            </Badge>
-                        ))}
+                        {channels.map((c) => {
+                            const accepted = isWazzupTransportAccepted(c.transport);
+
+                            return (
+                                <Badge
+                                    key={c.external_id}
+                                    variant={!accepted ? 'outline' : isChannelHealthy(c.state) ? 'secondary' : 'destructive'}
+                                >
+                                    {c.transport ?? 'канал'} {c.plain_id ?? ''} ·{' '}
+                                    {accepted ? channelStateLabel(c.state) : 'не принимается, пока канал в ОКО'}
+                                </Badge>
+                            );
+                        })}
                     </div>
                 )}
             </CardContent>
@@ -163,15 +181,25 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number; missing: boolean }> = ({ row,
     const send = useSendReply();
     const [text, setText] = useState('');
     const [mode, setMode] = useState<SendMode>(row.kind === 'direct' ? 'direct' : 'comment_public');
-    // Ключ черновика: живёт до успеха или правки текста. Повторное нажатие
-    // с тем же ключом сервер второй раз не отправит.
-    const [draftKey, setDraftKey] = useState<string | null>(null);
-    // Запрос оборвался или ответ «могло уйти»: обычная кнопка выключена,
-    // новый ключ создаёт только «Отправить ещё раз».
-    const [uncertain, setUncertain] = useState<string | null>(null);
     // Комментарий, на который отвечаем, закрепляется при начале набора:
     // новый комментарий, пришедший во время набора, не подменит адресата.
     const [pinned, setPinned] = useState<Pinned | null>(null);
+    // Черновик и его ключ (см. lib/draft.ts). Состояние дублируется в ref:
+    // два быстрых нажатия до перерисовки не должны создать два ключа.
+    const [draft, setDraft] = useState<DraftState>(INITIAL_DRAFT);
+    const draftRef = useRef<DraftState>(INITIAL_DRAFT);
+    const view = draftView(draft);
+
+    const apply = (action: DraftAction): { prev: DraftState; next: DraftState } => {
+        const prev = draftRef.current;
+        const next = draftReducer(prev, action);
+        if (next !== prev) {
+            draftRef.current = next;
+            setDraft(next);
+        }
+
+        return { prev, next };
+    };
 
     const echoed = useMemo(() => new Set(messages.map((m) => m.external_id)), [messages]);
     const pendingRows = useMemo(() => visibleOutbox(outbox, echoed), [outbox, echoed]);
@@ -203,55 +231,58 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number; missing: boolean }> = ({ row,
         else hint = { tone: 'ok', remainingMs: null, text: PUBLIC_REPLY_HINT };
     }
     const needsRef = mode !== 'direct';
-    const canSend = check.ok && !send.isPending && !uncertain && (!needsRef || !!refExternalId);
+    const sending = draft.phase === 'sending';
 
-    const onTextChange = (value: string) => {
-        setText(value);
-        // Правка текста — это новый черновик.
-        setDraftKey(null);
-        setUncertain(null);
-        if (!value.trim()) setPinned(null);
-        else if (!pinned && lastInbound) setPinned(lastInbound);
-    };
+    const payloadFor = (value: string, nextMode: SendMode, ref: string | null = refExternalId): DraftPayload => ({
+        text: value,
+        mode: nextMode,
+        refExternalId: nextMode === 'direct' ? null : ref,
+    });
 
-    const submit = (key: string) => {
-        setDraftKey(key);
+    /** Запустить отправку или проверку. Ключ и текст берутся из черновика, а не из поля. */
+    const start = (action: DraftAction) => {
+        const { prev, next } = apply(action);
+        if (next === prev || next.phase !== 'sending' || !next.key || !next.payload) return;
+        const key = next.key;
+        const payload = next.payload;
         send.mutateAsync({
             draftId: key,
             chatId: row.chat_id,
-            mode,
-            text: outgoing,
-            refExternalId: needsRef ? refExternalId : null,
+            mode: payload.mode,
+            text: normalizeOutgoingText(payload.text),
+            refExternalId: payload.refExternalId,
         })
             .then((result) => {
+                apply({ type: 'result', key, outcome: { kind: 'response', status: result.status, error: result.error } });
                 if (result.status === 'sent') {
                     setText('');
-                    setDraftKey(null);
-                    setUncertain(null);
                     setPinned(null);
-                    showToast(result.repeated ? 'Это сообщение уже отправлено' : 'Отправлено', 'success');
-                } else if (result.status === 'failed') {
-                    // Точно не ушло: следующая попытка — новый черновик.
-                    setDraftKey(null);
-                    showToast(result.error ?? 'Не ушло', 'error');
-                } else {
-                    setUncertain(
-                        result.status === 'pending'
-                            ? 'Сообщение ещё отправляется — подождите и проверьте в Instagram.'
-                            : 'Связь оборвалась — проверьте в Instagram, сообщение могло уйти.',
-                    );
+                    showToast(result.repeated ? 'Сообщение уже было отправлено' : 'Отправлено', 'success');
                 }
             })
             .catch((e: unknown) => {
-                // Понятный отказ сервера (400/403/409) — ничего не ушло.
-                if (e instanceof ApiError && e.status >= 400 && e.status < 500) {
-                    setDraftKey(null);
-                    showToast(e.message, 'error');
-
-                    return;
-                }
-                setUncertain('Не получили ответ сервера — проверьте в Instagram, сообщение могло уйти.');
+                const message = e instanceof Error ? e.message : 'нет ответа';
+                const outcome = outcomeFromError(e instanceof ApiError ? e.status : null, message);
+                apply({ type: 'result', key, outcome });
+                if (outcome.kind === 'rejected') showToast(message, 'error');
             });
+    };
+
+    const onTextChange = (value: string) => {
+        setText(value);
+        let ref = refExternalId;
+        if (!value.trim()) setPinned(null);
+        else if (!pinned && lastInbound) {
+            setPinned(lastInbound);
+            ref = lastInbound.external_id;
+        }
+        // Правка, после которой текст не изменился, ключ не сбрасывает.
+        apply({ type: 'edit', payload: payloadFor(value, mode, ref) });
+    };
+
+    const changeMode = (nextMode: SendMode) => {
+        setMode(nextMode);
+        apply({ type: 'edit', payload: payloadFor(text, nextMode) });
     };
 
     return (
@@ -341,22 +372,18 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number; missing: boolean }> = ({ row,
                         <Button
                             type="button"
                             size="sm"
+                            disabled={sending}
                             variant={mode === 'comment_public' ? 'default' : 'outline'}
-                            onClick={() => {
-                                setMode('comment_public');
-                                setDraftKey(null);
-                            }}
+                            onClick={() => changeMode('comment_public')}
                         >
                             Ответить под постом
                         </Button>
                         <Button
                             type="button"
                             size="sm"
+                            disabled={sending}
                             variant={mode === 'comment_private' ? 'default' : 'outline'}
-                            onClick={() => {
-                                setMode('comment_private');
-                                setDraftKey(null);
-                            }}
+                            onClick={() => changeMode('comment_private')}
                         >
                             Написать в Direct
                         </Button>
@@ -376,35 +403,49 @@ const ChatPanel: FC<{ row: ChatRow; nowMs: number; missing: boolean }> = ({ row,
 
                 <Textarea
                     rows={3}
+                    disabled={sending}
                     placeholder={mode === 'comment_public' ? 'Ответ под постом — его увидят все' : 'Ответ клиенту в Direct'}
                     value={text}
                     onChange={(e) => onTextChange(e.target.value)}
                 />
-                {uncertain && (
+                {view.warning && (
                     <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800">
-                        <span>{uncertain}</span>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            disabled={send.isPending || !check.ok}
-                            onClick={() => {
-                                setUncertain(null);
-                                submit(newDraftKey());
-                            }}
-                        >
-                            Отправить ещё раз
-                        </Button>
+                        <span>{view.warning}</span>
+                        {view.canResend && (
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="outline"
+                                disabled={send.isPending}
+                                onClick={() => start({ type: 'resend', freshKey: newDraftKey() })}
+                            >
+                                Отправить ещё раз
+                            </Button>
+                        )}
                     </div>
                 )}
                 <div className="flex items-center justify-between gap-2">
                     <span className={`text-xs ${check.length > check.limit ? 'text-destructive' : 'text-muted-foreground'}`}>
                         {check.length} / {check.limit}
                     </span>
-                    <Button type="button" size="sm" disabled={!canSend} onClick={() => submit(draftKey ?? newDraftKey())}>
-                        <Send className="size-4" />
-                        {send.isPending ? 'Отправляю…' : 'Отправить'}
-                    </Button>
+                    {view.primary !== 'none' && (
+                        <Button
+                            type="button"
+                            size="sm"
+                            disabled={
+                                view.primary === 'busy' ||
+                                (view.primary === 'send' && (!check.ok || (needsRef && !refExternalId)))
+                            }
+                            onClick={() =>
+                                view.primary === 'check'
+                                    ? start({ type: 'check' })
+                                    : start({ type: 'send', payload: payloadFor(text, mode), freshKey: newDraftKey() })
+                            }
+                        >
+                            <Send className="size-4" />
+                            {view.primaryLabel}
+                        </Button>
+                    )}
                 </div>
             </CardContent>
         </Card>
@@ -578,7 +619,7 @@ export const InstagramPage = () => {
 
                 <div className="min-h-[50vh]">
                     {panelRow ? (
-                        // key обязателен: без него набранный текст и выбранный
+                        // key обязателен: без него набранный текст, черновик и
                         // способ ответа переехали бы в другой чат.
                         <ChatPanel key={panelRow.chat_id} row={panelRow} nowMs={nowMs} missing={listsLoaded && !fresh} />
                     ) : (

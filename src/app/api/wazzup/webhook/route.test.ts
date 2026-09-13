@@ -96,24 +96,55 @@ describe('вебхук Wazzup', () => {
         expect((mark?.payload as { processed_at?: string }).processed_at).toBeTruthy();
     });
 
-    it('неизвестный канал — 200, событие остаётся неразобранным с ошибкой', async () => {
+    it('Instagram и чужой канал в одной пачке: Instagram разобран, чужое пропущено по правилу, событие разобрано', async () => {
         respond = (call) => {
             if (call.op === 'insert') return { data: { id: 7 } };
             if (call.target === 'rpc:messenger_ingest_batch') {
                 return {
-                    data: { messages: 0, statuses: 0, channels: 0, errors: [], unknown_channels: ['ch-x'], skipped_channels: [] },
+                    data: {
+                        messages: 1,
+                        statuses: 0,
+                        channels: 0,
+                        errors: [],
+                        skipped: ['канал ch-wa (whatsapp) не принимается, пока он в ОКО', 'неизвестный канал ch-x'],
+                    },
                 };
             }
 
             return {};
         };
-        const response = await POST(request({ messages: [message] }));
+        const whatsapp = { ...message, messageId: 'm-2', channelId: 'ch-wa', chatType: 'whatsapp', chatId: '79001234567' };
+        const response = await POST(request({ messages: [message, whatsapp] }));
         expect(response.status).toBe(200);
-        expect(await response.json()).toMatchObject({ ok: true, stored: true, parse_error: true });
+        expect(await response.json()).toMatchObject({ ok: true, messages: 1 });
+
+        const batch = fake.calls.find((c) => c.target === 'rpc:messenger_ingest_batch');
+        // Список разрешённых каналов — из одного места, сейчас только Instagram.
+        expect((batch?.payload as { p_allowed_transports: string[] }).p_allowed_transports).toEqual(['instagram']);
+
         const updates = fake.calls.filter((c) => c.op === 'update' && c.target === 'messenger_events');
         expect(updates).toHaveLength(1);
         const payload = updates[0].payload as { error?: string; processed_at?: string };
-        expect(payload.error).toContain('неизвестный канал');
+        expect(payload.processed_at).toBeTruthy();
+        expect(payload.error).toContain('не принимается, пока он в ОКО');
+        expect(fake.calls.some((c) => c.target === 'rpc:messenger_event_defer')).toBe(false);
+    });
+
+    it('настоящая ошибка разбора — 200, событие не разобрано и ждёт повтора', async () => {
+        respond = (call) => {
+            if (call.op === 'insert') return { data: { id: 8 } };
+            if (call.target === 'rpc:messenger_ingest_batch') {
+                return { data: { messages: 0, statuses: 0, channels: 0, errors: ['m-1: сломалось'], skipped: [] } };
+            }
+
+            return {};
+        };
+        const response = await POST(request({ messages: [message] }));
+        expect(await response.json()).toMatchObject({ ok: true, stored: true, parse_error: true });
+        const updates = fake.calls.filter((c) => c.op === 'update' && c.target === 'messenger_events');
+        const payload = updates[0].payload as { error?: string; processed_at?: string; defers?: number };
+        expect(payload.error).toContain('сломалось');
         expect(payload.processed_at).toBeUndefined();
+        expect(payload.defers).toBe(0);
     });
 });

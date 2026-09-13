@@ -28,20 +28,24 @@ const post = (body: Record<string, unknown>) =>
 
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), { status });
 
-/** Wazzup: каналы, текущий адрес вебхука, подписка. */
-const wazzup = (currentUri: string | null) =>
+const CHANNELS = [
+    { channelId: 'ch-1', transport: 'instagram', plainId: 'abhazbereg', state: 'active' },
+    { channelId: 'ch-wa', transport: 'whatsapp', plainId: '79001234567', state: 'active' },
+];
+
+/** Wazzup: каналы, ответ GET /webhooks (готовый Response), подписка. */
+const wazzupRaw = (webhooks: () => Response, patch: () => Response = () => json({ ok: true })) =>
     fetchMock.mockImplementation(async (url: string, init?: RequestInit) => {
         const method = init?.method ?? 'GET';
-        if (url.endsWith('/channels')) {
-            return json([{ channelId: 'ch-1', transport: 'instagram', plainId: 'abhazbereg', state: 'active' }]);
-        }
-        if (url.endsWith('/webhooks') && method === 'GET') {
-            return json({ webhooksUri: currentUri, subscriptions: { messagesAndStatuses: true } });
-        }
-        if (url.endsWith('/webhooks') && method === 'PATCH') return json({ ok: true });
+        if (url.endsWith('/channels')) return json(CHANNELS);
+        if (url.endsWith('/webhooks') && method === 'GET') return webhooks();
+        if (url.endsWith('/webhooks') && method === 'PATCH') return patch();
 
         return json({ error: 'unexpected' }, 500);
     });
+
+const wazzup = (currentUri: string | null) =>
+    wazzupRaw(() => json({ webhooksUri: currentUri, subscriptions: { messagesAndStatuses: true } }));
 
 const patchCalls = () => fetchMock.mock.calls.filter(([, init]) => (init as RequestInit | undefined)?.method === 'PATCH');
 
@@ -88,13 +92,20 @@ describe('настройка Wazzup', () => {
         expect(fetchMock).not.toHaveBeenCalled();
     });
 
-    it('«Обновить каналы» работает и не на рабочем контуре, подписку не трогает', async () => {
+    it('«Обновить каналы»: все каналы записаны и показаны, неразрешённые помечены', async () => {
         vi.stubEnv('APP_ENV', 'staging');
         wazzup(null);
         const response = await POST(post({ subscribe: false }));
         expect(response.status).toBe(200);
-        expect(await response.json()).toMatchObject({ subscription: null });
-        expect(fake.calls.find((c) => c.op === 'upsert')?.target).toBe('messenger_channels');
+        const body = await response.json();
+        expect(body.subscription).toBeNull();
+        expect(body.channels).toEqual([
+            { external_id: 'ch-1', transport: 'instagram', plain_id: 'abhazbereg', state: 'active', accepted: true },
+            { external_id: 'ch-wa', transport: 'whatsapp', plain_id: '79001234567', state: 'active', accepted: false },
+        ]);
+        const upsert = fake.calls.find((c) => c.op === 'upsert');
+        expect(upsert?.target).toBe('messenger_channels');
+        expect(upsert?.payload).toHaveLength(2);
         expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith('/webhooks'))).toBe(false);
     });
 
@@ -122,7 +133,7 @@ describe('настройка Wazzup', () => {
         expect(sent.subscriptions).toMatchObject({ messagesAndStatuses: true, channelsUpdates: true });
     });
 
-    it('там уже наш адрес (хоть со старым токеном) или пусто — подписка без confirm', async () => {
+    it('там уже наш адрес (хоть со старым токеном), пусто или поля нет — подписка без confirm', async () => {
         wazzup(`${BASE}/api/wazzup/webhook?token=old`);
         expect((await POST(post({ subscribe: true }))).status).toBe(200);
         expect(patchCalls()).toHaveLength(1);
@@ -131,6 +142,26 @@ describe('настройка Wazzup', () => {
         wazzup('');
         expect((await POST(post({ subscribe: true }))).status).toBe(200);
         expect(patchCalls()).toHaveLength(1);
+
+        fetchMock.mockReset();
+        wazzupRaw(() => json({}));
+        expect((await POST(post({ subscribe: true }))).status).toBe(200);
+        expect(patchCalls()).toHaveLength(1);
+    });
+
+    it.each([
+        ['массив', () => json([{ webhooksUri: 'https://crm.example.org/hook' }])],
+        ['обёртка {data}', () => json({ data: { webhooksUri: 'https://crm.example.org/hook' } })],
+        ['число', () => json(42)],
+        ['webhooksUri не строка', () => json({ webhooksUri: { url: 'https://crm.example.org/hook' } })],
+        ['не JSON', () => new Response('<html>OK</html>', { status: 200 })],
+        ['пустой ответ', () => new Response('', { status: 200 })],
+    ])('неожиданный формат GET /webhooks (%s) — 502, адрес не меняем', async (_name, webhooks) => {
+        wazzupRaw(webhooks);
+        const response = await POST(post({ subscribe: true, confirm: 'заменить' }));
+        expect(response.status).toBe(502);
+        expect((await response.json()).error).toBe('Wazzup ответил в неожиданном формате, адрес не меняем');
+        expect(patchCalls()).toHaveLength(0);
     });
 
     it('не узнали текущий адрес — подписку не меняем', async () => {
@@ -140,5 +171,24 @@ describe('настройка Wazzup', () => {
         const response = await POST(post({ subscribe: true }));
         expect(response.status).toBe(502);
         expect(patchCalls()).toHaveLength(0);
+    });
+
+    it('токен из текста ошибки Wazzup на экран не попадает', async () => {
+        wazzupRaw(
+            () => json({ webhooksUri: null }),
+            () =>
+                json(
+                    {
+                        error: 'WEBHOOK_TEST_FAILED',
+                        description: `check ${BASE}/api/wazzup/webhook?token=${TOKEN} failed, token ${TOKEN}`,
+                    },
+                    400,
+                ),
+        );
+        const response = await POST(post({ subscribe: true }));
+        const body = await response.json();
+        expect(body.subscription.ok).toBe(false);
+        expect(body.subscription.message).toContain('WEBHOOK_TEST_FAILED');
+        expect(JSON.stringify(body)).not.toContain(TOKEN);
     });
 });

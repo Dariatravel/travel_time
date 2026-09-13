@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { chatKeyOf, normalizeChannelList, normalizeWebhook, scrubDeletedPayload, toIso } from './normalize';
+import { chatKeyOf, normalizeChannelList, normalizeWebhook, toIso } from './normalize';
 
 const direct = (extra: Record<string, unknown> = {}) => ({
     messageId: '11111111-1111-1111-1111-111111111111',
@@ -200,30 +200,6 @@ describe('вебхук: решения ревью', () => {
         expect(m.raw).toBeNull();
     });
 
-    it('журнал события чистится от содержимого удалённых сообщений', () => {
-        const body = {
-            messages: [
-                direct({ text: 'остаётся' }),
-                direct({
-                    messageId: 'del',
-                    isDeleted: true,
-                    text: 'телефон 8900',
-                    contentUri: 'https://x/1.jpg',
-                    oldInfo: { oldText: 'x' },
-                    instPost: { id: 'P1', description: 'подпись', src: 'https://p' },
-                }),
-            ],
-        };
-        const scrubbed = scrubDeletedPayload(body) as { messages: Record<string, unknown>[] };
-        expect(scrubbed.messages[0].text).toBe('остаётся');
-        expect(scrubbed.messages[1]).not.toHaveProperty('text');
-        expect(scrubbed.messages[1]).not.toHaveProperty('contentUri');
-        expect(scrubbed.messages[1]).not.toHaveProperty('oldInfo');
-        expect(scrubbed.messages[1].instPost).toEqual({ id: 'P1', sha1: undefined, src: 'https://p' });
-        expect(JSON.stringify(scrubbed)).not.toContain('8900');
-        expect(scrubDeletedPayload({ messages: [direct()] })).toBeNull();
-        expect(scrubDeletedPayload({ test: true })).toBeNull();
-    });
 });
 
 describe('вебхук: статусы и каналы', () => {

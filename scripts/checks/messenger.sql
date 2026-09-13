@@ -51,7 +51,9 @@ END $$;
 
 -- Канал заводит setup; без него сообщения не принимаются.
 INSERT INTO public.messenger_channels (provider, external_id, transport, plain_id, state)
-VALUES ('wazzup', 'ch-1', 'instagram', 'abhazbereg', 'active');
+VALUES ('wazzup', 'ch-1', 'instagram', 'abhazbereg', 'active'),
+       -- WhatsApp в аккаунте есть, но пока идёт через ОКО — не принимается.
+       ('wazzup', 'ch-wa', 'whatsapp', '79001234567', 'active');
 
 -- Сообщение в том виде, в каком его отдаёт normalize.ts. identity_kind
 -- передаём и для комментариев — база сама не должна заводить по ним карточку.
@@ -438,19 +440,44 @@ DO $$
 DECLARE r jsonb; v_clients int;
 BEGIN
   SELECT count(*) INTO v_clients FROM public.clients;
+  -- Instagram, WhatsApp (канал ещё в ОКО) и неизвестный канал в одной пачке:
+  -- Instagram пишется, остальное пропускается ПО ПРАВИЛУ — это не ошибки.
   r := public.messenger_ingest_batch('wazzup',
       jsonb_build_array(
           public.t_msg('b1', 'bob', 'in', now()::text, 'привет'),
-          public.t_msg('b2', 'bob', 'in', now()::text, 'x') - 'chat_id',
-          public.t_msg('b3', 'stranger', 'in', now()::text, 'спам', NULL, NULL, false, false, false, 'ch-x')),
+          public.t_msg('b3', 'stranger', 'in', now()::text, 'спам', NULL, NULL, false, false, false, 'ch-x'),
+          jsonb_set(public.t_msg('b4', '79005556677', 'in', now()::text, 'из WhatsApp', NULL, NULL, false, false, false, 'ch-wa'),
+                    '{chat_type}', '"whatsapp"')),
       jsonb_build_array(jsonb_build_object('external_id', 'b1', 'status', 'read')),
       jsonb_build_array(jsonb_build_object('external_id', 'ch-1', 'state', 'blocked'),
-                        jsonb_build_object('external_id', 'ch-zzz', 'state', 'active')));
+                        jsonb_build_object('external_id', 'ch-wa', 'state', 'blocked'),
+                        jsonb_build_object('external_id', 'ch-zzz', 'state', 'active')),
+      ARRAY['instagram']);
   RAISE NOTICE 'пачка: %', r;
-  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 1
-     OR r -> 'unknown_channels' <> '["ch-x"]'::jsonb
-     OR (r ->> 'channels')::int <> 1 OR r -> 'skipped_channels' <> '["ch-zzz"]'::jsonb THEN
+  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 0
+     OR jsonb_array_length(r -> 'skipped') <> 4 OR (r ->> 'channels')::int <> 1 THEN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: итог пачки %', r;
+  END IF;
+  IF EXISTS (SELECT 1 FROM public.messenger_chats WHERE chat_type = 'whatsapp' OR chat_id = '79005556677') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: сообщение WhatsApp записано, хотя канал ещё в ОКО';
+  END IF;
+  IF (SELECT state FROM public.messenger_channels WHERE external_id = 'ch-wa') <> 'active' THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: состояние неразрешённого канала обновилось';
+  END IF;
+  -- Пустой список разрешённых — не принимается ничего.
+  r := public.messenger_ingest_batch('wazzup',
+      jsonb_build_array(public.t_msg('b6', 'bob', 'in', now()::text, 'без списка')), '[]'::jsonb, '[]'::jsonb, '{}'::text[]);
+  IF (r ->> 'messages')::int <> 0 OR jsonb_array_length(r -> 'skipped') <> 1
+     OR EXISTS (SELECT 1 FROM public.messenger_messages WHERE external_id = 'b6') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: при пустом списке что-то принято: %', r;
+  END IF;
+  -- Кривое сообщение Instagram — настоящая ошибка, но хорошее рядом пишется.
+  r := public.messenger_ingest_batch('wazzup',
+      jsonb_build_array(public.t_msg('b2', 'bob', 'in', now()::text, 'x') - 'chat_id',
+                        public.t_msg('b5', 'bob', 'in', now()::text, 'ещё')),
+      '[]'::jsonb, '[]'::jsonb, ARRAY['instagram']);
+  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 1 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: итог кривой пачки %', r;
   END IF;
   IF EXISTS (SELECT 1 FROM public.messenger_chats WHERE chat_id = 'stranger')
      OR EXISTS (SELECT 1 FROM public.messenger_channels WHERE external_id IN ('ch-x', 'ch-zzz')) THEN
@@ -481,6 +508,35 @@ BEGIN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: удалённое не стёрто: % / % / %', m.text, m.content_uri, m.raw;
   END IF;
   RAISE NOTICE 'удалённое сообщение стёрто и не воскресает';
+END $$;
+
+\echo '=== 13б. удалённое стирается из сырого журнала во ВСЕХ событиях ==='
+INSERT INTO public.messenger_events (provider, payload, processed_at) VALUES
+ ('wazzup', '{"messages": [{"messageId": "del-2", "text": "паспорт 4510 123456", "contentUri": "https://x/pass.jpg"},
+                           {"messageId": "keep-1", "text": "соседнее сообщение"}]}', now()),
+ ('wazzup', '{"messages": [{"messageId": "del-2", "text": "паспорт 4510 123456", "isEdited": true,
+                            "oldInfo": {"oldText": "паспорт 4510"}}]}', now()),
+ ('wazzup', '{"statuses": [{"messageId": "del-2", "status": "read"}]}', now());
+SELECT public.messenger_ingest_message('wazzup',
+  public.t_msg('del-2', 'anna.travel', 'in', '2026-09-13T12:40:00Z', 'паспорт 4510 123456'));
+SELECT public.messenger_ingest_message('wazzup',
+  public.t_msg('del-2', 'anna.travel', 'in', '2026-09-13T12:40:00Z', NULL, NULL, NULL, false, false, true));
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.messenger_events
+              WHERE payload::text LIKE '%4510%' OR payload::text LIKE '%pass.jpg%' OR payload::text LIKE '%oldInfo%') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: содержимое удалённого сообщения осталось в журнале';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.messenger_events
+                  WHERE payload @> '{"messages": [{"messageId": "keep-1", "text": "соседнее сообщение"}]}') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: соседнее сообщение пачки пострадало';
+  END IF;
+  IF (SELECT count(*) FROM public.messenger_events WHERE payload @> '{"messages": [{"messageId": "del-2"}]}') <> 2 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: сообщение исчезло из журнала целиком (стирать нужно только содержимое)';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.messenger_events WHERE payload @> '{"statuses": [{"messageId": "del-2", "status": "read"}]}') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: событие без messages изменилось';
+  END IF;
+  RAISE NOTICE 'журнал: удалённое стёрто во всех событиях, соседние целы';
 END $$;
 SELECT public.messenger_ingest_message('wazzup',
   jsonb_set(public.t_msg('g1', 'group-1', 'in', now()::text, 'всем привет') - 'identity_kind', '{chat_type}', '"whatsgroup"'));
@@ -518,6 +574,38 @@ BEGIN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: после десяти попыток событие всё ещё выдаётся';
   END IF;
   RAISE NOTICE 'первая попытка через 2 минуты, отсрочка бесплатна, предел попыток работает';
+END $$;
+
+\echo '=== 15. отсрочка без траты попытки — не больше 5 раз подряд ==='
+DO $$
+DECLARE v_id bigint; v_attempts int; v_error text;
+BEGIN
+  INSERT INTO public.messenger_events (provider, payload, attempts, received_at)
+  VALUES ('wazzup', '{"a": 3}', 8, now() - interval '1 hour') RETURNING id INTO v_id;
+  FOR i IN 1..5 LOOP PERFORM public.messenger_event_defer(v_id); END LOOP;
+  SELECT attempts INTO v_attempts FROM public.messenger_events WHERE id = v_id;
+  IF v_attempts <> 3 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: после 5 отсрочек попыток % (ждали 3)', v_attempts; END IF;
+  PERFORM public.messenger_event_defer(v_id);
+  SELECT attempts, error INTO v_attempts, v_error FROM public.messenger_events WHERE id = v_id;
+  IF v_attempts <> 3 OR v_error NOT LIKE '%засчитана как попытка%' THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: шестая отсрочка вернула попытку (% / %)', v_attempts, v_error;
+  END IF;
+  RAISE NOTICE 'пять отсрочек бесплатно, шестая засчитана как попытка';
+END $$;
+
+\echo '=== 16. отложенные статусы старше 7 дней убираются при повторном разборе ==='
+INSERT INTO public.messenger_pending_statuses (provider, external_id, status, received_at)
+VALUES ('wazzup', 'old-status', 'read', now() - interval '8 days'),
+       ('wazzup', 'fresh-status', 'read', now());
+SELECT count(*) AS выдано FROM public.messenger_events_to_retry(1);
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.messenger_pending_statuses WHERE external_id = 'old-status') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: старый отложенный статус не убран';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.messenger_pending_statuses WHERE external_id = 'fresh-status') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: свежий отложенный статус удалён';
+  END IF;
+  RAISE NOTICE 'старые отложенные статусы убраны, свежие на месте';
 END $$;
 
 \echo '=== ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ==='

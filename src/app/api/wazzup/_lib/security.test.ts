@@ -5,6 +5,7 @@ import {
     buildWebhookUrl,
     maskForeignUri,
     maskToken,
+    parseCurrentWebhook,
     sameWebhookTarget,
     sanitizeHeaders,
     tokenMatches,
@@ -89,6 +90,23 @@ describe('адрес вебхука', () => {
         expect(sameWebhookTarget('https://crm.example.org/api/wazzup/webhook?token=new', ours)).toBe(false);
         expect(sameWebhookTarget('https://a.ru/other', ours)).toBe(false);
         expect(sameWebhookTarget('мусор', ours)).toBe(false);
+    });
+
+    it('текущий адрес читается только из ожидаемой формы ответа', () => {
+        expect(parseCurrentWebhook({ webhooksUri: ' https://a.ru/hook ', subscriptions: {} })).toEqual({
+            ok: true,
+            uri: 'https://a.ru/hook',
+        });
+        expect(parseCurrentWebhook({ webhooksUri: null })).toEqual({ ok: true, uri: '' });
+        expect(parseCurrentWebhook({})).toEqual({ ok: true, uri: '' });
+        expect(parseCurrentWebhook({ subscriptions: { messagesAndStatuses: false } })).toEqual({ ok: true, uri: '' });
+        // Неожиданное — ничего не менять.
+        expect(parseCurrentWebhook([{ webhooksUri: 'https://a.ru' }])).toEqual({ ok: false });
+        expect(parseCurrentWebhook({ data: { webhooksUri: 'https://a.ru' } })).toEqual({ ok: false });
+        expect(parseCurrentWebhook({ webhooksUri: 42 })).toEqual({ ok: false });
+        expect(parseCurrentWebhook(42)).toEqual({ ok: false });
+        expect(parseCurrentWebhook('<html>OK</html>')).toEqual({ ok: false });
+        expect(parseCurrentWebhook(null)).toEqual({ ok: false });
     });
 
     it('чужой адрес показывается без параметров и хвоста пути', () => {

@@ -303,33 +303,8 @@ export const normalizeWebhook = (body: unknown): NormalizedWebhook => {
     return result;
 };
 
-/**
- * Сырое событие без содержимого удалённых сообщений: клиент удалил — в
- * журнале не должно остаться ни текста, ни ссылки. Нечего чистить — null.
- */
-export const scrubDeletedPayload = (body: unknown): Json | null => {
-    if (!isObject(body) || !Array.isArray(body.messages)) return null;
-    let changed = false;
-    const messages = body.messages.map((item) => {
-        if (!isObject(item) || !bool(item.isDeleted)) return item;
-        const rest: Json = { ...item };
-        for (const key of ['text', 'contentUri', 'oldInfo', 'quotedMessage']) {
-            if (key in rest) {
-                delete rest[key];
-                changed = true;
-            }
-        }
-        // Пост оставляем без подписи: по его id сообщение найдёт свой чат.
-        if (isObject(item.instPost) && 'description' in item.instPost) {
-            rest.instPost = { id: item.instPost.id, sha1: item.instPost.sha1, src: item.instPost.src };
-            changed = true;
-        }
-
-        return rest;
-    });
-
-    return changed ? { ...body, messages } : null;
-};
+// Содержимое удалённых сообщений из сырого журнала стирает база
+// (messenger_ingest_message) — во всех событиях сразу, а не только в текущем.
 
 /** Ответ GET /v3/channels → каналы. Не массив — пусто. */
 export const normalizeChannelList = (body: unknown): NormalizedChannel[] => {
