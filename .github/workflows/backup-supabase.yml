@@ -107,7 +107,7 @@ jobs:
              GROUP BY table_schema, table_name, grantee
              ORDER BY 1;" >> "privileges-$STAMP.sql"
           psql "$PROD_DB_URL" -At -c "
-            SELECT 'GRANT EXECUTE ON FUNCTION ' || p.oid::regprocedure || ' TO ' || quote_ident(g.grantee) || ';'
+            SELECT 'GRANT EXECUTE ON FUNCTION ' || p.oid::regprocedure || ' TO ' || quote_ident(g.rolname) || ';'
               FROM pg_proc p
               JOIN pg_namespace n ON n.oid = p.pronamespace
               CROSS JOIN LATERAL aclexplode(COALESCE(p.proacl, acldefault('f', p.proowner))) AS a
