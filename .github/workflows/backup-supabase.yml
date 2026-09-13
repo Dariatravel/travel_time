@@ -66,7 +66,13 @@ jobs:
             --schema=public --schema=app_private --schema=auth --schema=storage \
             -f "travel_time-$stamp.pgc"
           # Проверка, что дамп читается и в нём есть таблица броней.
-          pg_restore --list "travel_time-$stamp.pgc" | grep -q 'TABLE DATA public reserves'
+          # Опись сначала в файл: при `pg_restore --list | grep -q` grep
+          # закрывает трубу на первом совпадении, pg_restore ловит SIGPIPE
+          # («Broken pipe»), и pipefail валит шаг — так и было с 13.09.2026,
+          # когда опись удлинилась схемой storage.
+          pg_restore --list "travel_time-$stamp.pgc" > "list-$stamp.txt"
+          grep -q 'TABLE DATA public reserves' "list-$stamp.txt"
+          rm -f "list-$stamp.txt"
           echo "dump size: $(du -h "travel_time-$stamp.pgc" | cut -f1)"
 
       - name: Save grants (dump is taken without privileges)
