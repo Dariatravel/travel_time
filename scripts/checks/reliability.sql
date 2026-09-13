@@ -343,6 +343,13 @@ BEGIN
   SELECT count(*) INTO n FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
   IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: перепроверяется ожидание старше двух суток'; END IF;
 
+  -- А НЕпроверенный чат старше двух суток на сверку идёт (окно — две недели).
+  DELETE FROM public.oko_chat_checks WHERE messenger_id = 777;
+  SELECT * INTO r FROM public.oko_waiting_contacts_to_check(5) WHERE oko_contact_id = 4242;
+  IF r.oko_contact_id IS NULL OR NOT r.unchecked THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: непроверенный чат трёхдневной давности не выдан на сверку';
+  END IF;
+
   -- Клиент написал только что — менеджеру даём 20 минут, сверку не тратим.
   DELETE FROM public.oko_contact_checks WHERE oko_contact_id = 4242;
   DELETE FROM public.oko_chat_checks WHERE messenger_id = 777;
