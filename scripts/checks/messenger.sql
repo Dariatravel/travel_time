@@ -608,4 +608,37 @@ DO $$ BEGIN
   RAISE NOTICE 'старые отложенные статусы убраны, свежие на месте';
 END $$;
 
+\echo '=== 19. ни одна функция не делает DELETE/UPDATE без WHERE ==='
+-- В рабочей базе у PostgREST включён pg-safeupdate: такие команды там
+-- отклоняются даже внутри SECURITY DEFINER функций, а на чистом Postgres
+-- проходят. 14.09.2026 так молча не работала выдача «ждущих» чатов ОКО
+-- (см. reliability.sql, сценарий 15). Та же проверка — для функций
+-- мессенджеров: ON CONFLICT … DO UPDATE и FOR UPDATE она не считает.
+DO $$
+DECLARE
+  r record;
+  stmt text;
+  bad text[] := '{}';
+BEGIN
+  FOR r IN
+    SELECT p.proname, p.prosrc
+      FROM pg_proc AS p
+      JOIN pg_namespace AS n ON n.oid = p.pronamespace
+      JOIN pg_language AS l ON l.oid = p.prolang
+     WHERE n.nspname = 'public' AND l.lanname IN ('plpgsql', 'sql')
+  LOOP
+    FOR stmt IN SELECT s FROM regexp_split_to_table(r.prosrc, ';') AS s LOOP
+      stmt := regexp_replace(stmt, '--[^\n]*', '', 'g');
+      IF (stmt ~* '\mDELETE\s+FROM\M' OR stmt ~* '\mUPDATE\s+[a-z_."]+(\s+AS\s+[a-z_]+)?\s+SET\M')
+         AND stmt !~* '\mWHERE\M' THEN
+        bad := bad || r.proname::text;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF cardinality(bad) > 0 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: DELETE/UPDATE без WHERE в функциях: %', bad;
+  END IF;
+  RAISE NOTICE 'DELETE/UPDATE без WHERE в функциях нет';
+END $$;
+
 \echo '=== ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ==='
