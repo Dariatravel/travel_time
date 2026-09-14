@@ -441,7 +441,9 @@ DECLARE r jsonb; v_clients int;
 BEGIN
   SELECT count(*) INTO v_clients FROM public.clients;
   -- Instagram, WhatsApp (канал ещё в ОКО) и неизвестный канал в одной пачке:
-  -- Instagram пишется, остальное пропускается ПО ПРАВИЛУ — это не ошибки.
+  -- Instagram пишется; WhatsApp пропускается ПО ПРАВИЛУ; неизвестный канал —
+  -- ОШИБКА: событие останется неразобранным и дождётся «Обновить каналы»,
+  -- иначе сообщения нового канала пропали бы насовсем.
   r := public.messenger_ingest_batch('wazzup',
       jsonb_build_array(
           public.t_msg('b1', 'bob', 'in', now()::text, 'привет'),
@@ -454,8 +456,10 @@ BEGIN
                         jsonb_build_object('external_id', 'ch-zzz', 'state', 'active')),
       ARRAY['instagram']);
   RAISE NOTICE 'пачка: %', r;
-  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 0
-     OR jsonb_array_length(r -> 'skipped') <> 4 OR (r ->> 'channels')::int <> 1 THEN
+  -- skipped: сообщение WhatsApp, состояние ch-wa (не разрешён), состояние ch-zzz (неизвестен).
+  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 1
+     OR (r -> 'errors' ->> 0) NOT LIKE 'неизвестный канал ch-x%'
+     OR jsonb_array_length(r -> 'skipped') <> 3 OR (r ->> 'channels')::int <> 1 THEN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: итог пачки %', r;
   END IF;
   IF EXISTS (SELECT 1 FROM public.messenger_chats WHERE chat_type = 'whatsapp' OR chat_id = '79005556677') THEN
@@ -492,6 +496,35 @@ BEGIN
   END IF;
   UPDATE public.messenger_channels SET state = 'active' WHERE external_id = 'ch-1';
   RAISE NOTICE 'пачка: кривое не мешает хорошему, чужой канал не пишется';
+END $$;
+
+-- Новый Instagram-канал, о котором мы ещё не знаем: сообщение не пишется,
+-- но это ОШИБКА (событие ждёт), а после «Обновить каналы» то же сообщение
+-- принимается. Раньше оно помечалось «пропущено» и терялось насовсем.
+DO $$
+DECLARE r jsonb;
+BEGIN
+  r := public.messenger_ingest_batch('wazzup',
+      jsonb_build_array(public.t_msg('nc-1', 'newacc', 'in', now()::text, 'пишу в новый аккаунт',
+                                     NULL, NULL, false, false, false, 'ch-new')),
+      '[]'::jsonb, '[]'::jsonb, ARRAY['instagram']);
+  IF (r ->> 'messages')::int <> 0 OR jsonb_array_length(r -> 'errors') <> 1
+     OR jsonb_array_length(r -> 'skipped') <> 0 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: неизвестный канал должен быть ошибкой, а не пропуском: %', r;
+  END IF;
+
+  INSERT INTO public.messenger_channels (provider, external_id, transport, plain_id, state)
+  VALUES ('wazzup', 'ch-new', 'instagram', 'new_account', 'active');
+
+  r := public.messenger_ingest_batch('wazzup',
+      jsonb_build_array(public.t_msg('nc-1', 'newacc', 'in', now()::text, 'пишу в новый аккаунт',
+                                     NULL, NULL, false, false, false, 'ch-new')),
+      '[]'::jsonb, '[]'::jsonb, ARRAY['instagram']);
+  IF (r ->> 'messages')::int <> 1 OR jsonb_array_length(r -> 'errors') <> 0
+     OR NOT EXISTS (SELECT 1 FROM public.messenger_messages WHERE external_id = 'nc-1') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: после обновления каналов сообщение не принято: %', r;
+  END IF;
+  RAISE NOTICE 'новый канал: сначала ждёт, после обновления каналов сообщение принято';
 END $$;
 SELECT public.messenger_ingest_message('wazzup',
   public.t_msg('del-1', 'anna.travel', 'in', '2026-09-13T12:30:00Z', 'мой телефон 8 900 000') || '{"content_uri": "https://x/story.jpg"}');
@@ -537,6 +570,23 @@ DO $$ BEGIN
     RAISE EXCEPTION 'ОШИБКА ТЕСТА: событие без messages изменилось';
   END IF;
   RAISE NOTICE 'журнал: удалённое стёрто во всех событиях, соседние целы';
+END $$;
+-- messageId числом (у Wazzup это строка, но на всякий случай) — тоже стирается,
+-- а сообщение с похожим номером (123450) не задевается.
+INSERT INTO public.messenger_events (provider, payload, processed_at) VALUES
+ ('wazzup', '{"messages": [{"messageId": 12345, "text": "секрет 777"}, {"messageId": 123450, "text": "не трогать"}]}', now());
+SELECT public.messenger_ingest_message('wazzup',
+  public.t_msg('12345', 'anna.travel', 'in', '2026-09-13T12:41:00Z', 'секрет 777'));
+SELECT public.messenger_ingest_message('wazzup',
+  public.t_msg('12345', 'anna.travel', 'in', '2026-09-13T12:41:00Z', NULL, NULL, NULL, false, false, true));
+DO $$ BEGIN
+  IF EXISTS (SELECT 1 FROM public.messenger_events WHERE payload::text LIKE '%секрет 777%') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: удалённое сообщение с числовым messageId осталось в журнале';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.messenger_events WHERE payload::text LIKE '%не трогать%') THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: задето сообщение с похожим числовым номером';
+  END IF;
+  RAISE NOTICE 'журнал: числовой messageId тоже стирается, похожий номер цел';
 END $$;
 SELECT public.messenger_ingest_message('wazzup',
   jsonb_set(public.t_msg('g1', 'group-1', 'in', now()::text, 'всем привет') - 'identity_kind', '{chat_type}', '"whatsgroup"'));

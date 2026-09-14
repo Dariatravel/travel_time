@@ -586,7 +586,10 @@ BEGIN
                      FROM jsonb_array_elements(e.payload -> 'messages') WITH ORDINALITY AS t(m, ord)))
          WHERE e.provider = p_provider
            AND jsonb_typeof(e.payload -> 'messages') = 'array'
-           AND (e.payload -> 'messages') @> jsonb_build_array(jsonb_build_object('messageId', v_ext));
+           -- messageId у Wazzup — строка, но на случай числа ищем оба вида.
+           AND ((e.payload -> 'messages') @> jsonb_build_array(jsonb_build_object('messageId', v_ext))
+                OR (v_ext ~ '^[0-9]{1,15}$'
+                    AND (e.payload -> 'messages') @> jsonb_build_array(jsonb_build_object('messageId', v_ext::bigint))));
     END IF;
 
     IF v_dir = 'out' THEN
@@ -733,10 +736,16 @@ GRANT EXECUTE ON FUNCTION public.messenger_apply_status(text, text, text, text, 
 /**
  * Разбор пачки из одного события одним обращением к базе: сообщения,
  * статусы, состояния каналов. Каждое сообщение — в своей подтранзакции:
- * одно кривое не откатывает остальные. Сообщения неизвестных каналов и
- * каналов с неразрешённым транспортом (p_allowed_transports; пустой список —
- * не принимается ничего) не пишутся и карточек не заводят. Это пропуск по
- * правилу, а не ошибка: причины возвращаются в skipped, событие разобрано.
+ * одно кривое не откатывает остальные.
+ *
+ * Два разных случая «не пишем»:
+ *  - канал ИЗВЕСТЕН, но его транспорт не разрешён (p_allowed_transports;
+ *    пустой список — не принимается ничего): пропуск по правилу, причина в
+ *    skipped, событие разобрано — этот канал пока живёт в ОКО;
+ *  - канал НЕИЗВЕСТЕН (новый Instagram-аккаунт, переподключение, «Обновить
+ *    каналы» ещё не нажимали): это ошибка, а не пропуск. Событие остаётся
+ *    неразобранным и дождётся повторного разбора — иначе его сообщения
+ *    пропали бы насовсем (ревью PR #87, третий круг).
  */
 CREATE OR REPLACE FUNCTION public.messenger_ingest_batch(
     p_provider text,
@@ -769,7 +778,14 @@ BEGIN
           FROM public.messenger_channels AS ch
          WHERE ch.provider = p_provider AND ch.external_id = v_item ->> 'channel_external_id';
         IF NOT FOUND THEN
-            v_reason := format('неизвестный канал %s', v_item ->> 'channel_external_id');
+            -- Ошибка, а не пропуск: событие останется неразобранным и
+            -- дождётся «Обновить каналы». Одна причина на канал.
+            v_reason := format('неизвестный канал %s — обновите список каналов в настройке Instagram',
+                               v_item ->> 'channel_external_id');
+            IF NOT v_errors @> jsonb_build_array(v_reason) THEN
+                v_errors := v_errors || jsonb_build_array(v_reason);
+            END IF;
+            CONTINUE;
         ELSIF NOT (lower(COALESCE(v_transport, '')) = ANY (v_allowed)) THEN
             v_reason := format('канал %s (%s) не принимается, пока он в ОКО',
                                v_item ->> 'channel_external_id', COALESCE(v_transport, '?'));

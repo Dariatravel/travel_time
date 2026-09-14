@@ -100,8 +100,29 @@ describe('ключ черновика: правка текста', () => {
         expect(draftReducer(lost, { type: 'edit', payload: payload('Привет\n') })).toBe(lost);
     });
 
-    it('реальная правка текста → новый черновик, предупреждение о прошлом остаётся', () => {
-        const edited = draftReducer(sentAndLost(), { type: 'edit', payload: payload('Привет!') });
+    it('нет ответа сервера → правка текста НЕ открывает новую отправку, сначала «Проверить»', () => {
+        const lost = sentAndLost();
+        const edited = draftReducer(lost, { type: 'edit', payload: payload('Привет!') });
+        expect(edited).toBe(lost);
+        expect(draftView(edited)).toMatchObject({ primary: 'check', canResend: false });
+        // Обычная отправка исправленного текста с новым ключом недоступна.
+        expect(draftReducer(edited, { type: 'send', payload: payload('Привет!'), freshKey: 'k3' })).toBe(lost);
+    });
+
+    it('«ещё отправляется» → правка текста тоже не открывает новую отправку', () => {
+        const pending = run(
+            [{ type: 'check' }, { type: 'result', key: 'k1', outcome: { kind: 'response', status: 'pending' } }],
+            sentAndLost(),
+        );
+        expect(draftReducer(pending, { type: 'edit', payload: payload('Совсем другое') })).toBe(pending);
+    });
+
+    it('после ответа unknown реальная правка → новый черновик, предупреждение о прошлом остаётся', () => {
+        const unknown = run([
+            { type: 'send', payload: payload('Привет'), freshKey: 'k1' },
+            { type: 'result', key: 'k1', outcome: { kind: 'response', status: 'unknown' } },
+        ]);
+        const edited = draftReducer(unknown, { type: 'edit', payload: payload('Привет!') });
         expect(edited).toMatchObject({ key: null, phase: 'idle', mayHaveSent: true });
         expect(draftView(edited)).toMatchObject({ primary: 'send' });
         expect(draftView(edited).warning).toContain('могло уйти');
@@ -159,6 +180,22 @@ describe('ключ черновика: прочее', () => {
         ]);
         expect(rejected).toMatchObject({ key: null, phase: 'idle', error: 'уже писали' });
         expect(draftView(rejected)).toMatchObject({ primary: 'send', warning: 'уже писали' });
+    });
+
+    it('отказ сервера (401) на «Проверить» → ключ и «Проверить» остаются, причина видна', () => {
+        const checkedAfterLogout = run(
+            [{ type: 'check' }, { type: 'result', key: 'k1', outcome: outcomeFromError(401, 'Не авторизован') }],
+            sentAndLost(),
+        );
+        expect(checkedAfterLogout).toMatchObject({ key: 'k1', phase: 'no_response', error: 'Не авторизован' });
+        const view = draftView(checkedAfterLogout);
+        expect(view).toMatchObject({ primary: 'check', canResend: false });
+        expect(view.warning).toContain('Не авторизован');
+        // После входа — снова проверка тем же ключом, а не новая отправка.
+        expect(draftReducer(checkedAfterLogout, { type: 'send', payload: payload('Привет'), freshKey: 'k2' })).toBe(
+            checkedAfterLogout,
+        );
+        expect(draftReducer(checkedAfterLogout, { type: 'check' })).toMatchObject({ key: 'k1', phase: 'sending' });
     });
 
     it('первая отправка — свежий ключ; повторное нажатие во время отправки ничего не делает', () => {

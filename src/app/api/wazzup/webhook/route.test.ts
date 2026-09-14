@@ -96,6 +96,33 @@ describe('вебхук Wazzup', () => {
         expect((mark?.payload as { processed_at?: string }).processed_at).toBeTruthy();
     });
 
+    it('неизвестный канал — не пропуск: 200, событие НЕ разобрано и дождётся «Обновить каналы»', async () => {
+        respond = (call) => {
+            if (call.op === 'insert') return { data: { id: 9 } };
+            if (call.target === 'rpc:messenger_ingest_batch') {
+                return {
+                    data: {
+                        messages: 0,
+                        statuses: 0,
+                        channels: 0,
+                        errors: ['неизвестный канал ch-new — обновите список каналов в настройке Instagram'],
+                        skipped: [],
+                    },
+                };
+            }
+
+            return {};
+        };
+        const fromNewChannel = { ...message, messageId: 'm-9', channelId: 'ch-new' };
+        const response = await POST(request({ messages: [fromNewChannel] }));
+        expect(response.status).toBe(200);
+
+        const updates = fake.calls.filter((c) => c.op === 'update' && c.target === 'messenger_events');
+        // Отметки «разобрано» нет — иначе сообщения нового канала пропали бы насовсем.
+        expect(updates.some((u) => (u.payload as { processed_at?: string }).processed_at)).toBe(false);
+        expect(JSON.stringify(updates.map((u) => u.payload))).toContain('неизвестный канал ch-new');
+    });
+
     it('Instagram и чужой канал в одной пачке: Instagram разобран, чужое пропущено по правилу, событие разобрано', async () => {
         respond = (call) => {
             if (call.op === 'insert') return { data: { id: 7 } };
@@ -106,7 +133,7 @@ describe('вебхук Wazzup', () => {
                         statuses: 0,
                         channels: 0,
                         errors: [],
-                        skipped: ['канал ch-wa (whatsapp) не принимается, пока он в ОКО', 'неизвестный канал ch-x'],
+                        skipped: ['канал ch-wa (whatsapp) не принимается, пока он в ОКО'],
                     },
                 };
             }

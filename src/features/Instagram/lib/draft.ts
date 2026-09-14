@@ -25,10 +25,23 @@ export type DraftState = {
     phase: DraftPhase;
     /** Прошлое сообщение могло уйти — предупреждать и в новом черновике. */
     mayHaveSent: boolean;
+    /**
+     * Идёт «Проверить», а не первая отправка. Отказ сервера (4xx) на проверке
+     * не значит «ничего не ушло»: первое сообщение могло уйти, пока истекала
+     * сессия. Поэтому такой отказ оставляет ключ и «Проверить».
+     */
+    checking: boolean;
     error: string | null;
 };
 
-export const INITIAL_DRAFT: DraftState = { key: null, payload: null, phase: 'idle', mayHaveSent: false, error: null };
+export const INITIAL_DRAFT: DraftState = {
+    key: null,
+    payload: null,
+    phase: 'idle',
+    mayHaveSent: false,
+    checking: false,
+    error: null,
+};
 
 export type SendOutcome =
     /** Сервер ответил статусом строки очереди. */
@@ -64,6 +77,10 @@ export const draftReducer = (state: DraftState, action: DraftAction): DraftState
         case 'edit': {
             // Во время отправки поле ввода закрыто; на всякий случай ничего не меняем.
             if (state.phase === 'sending') return state;
+            // Судьба сообщения по ключу ещё не известна (нет ответа или «ещё
+            // отправляется»): правка текста НЕ открывает новую отправку, иначе
+            // клиент получил бы и старое, и исправленное. Сначала «Проверить».
+            if (state.phase === 'no_response' || state.phase === 'pending') return state;
             if (!state.key) return state.error ? { ...state, error: null } : state;
             if (sameDraft(state.payload, action.payload)) return state;
 
@@ -72,22 +89,35 @@ export const draftReducer = (state: DraftState, action: DraftAction): DraftState
         case 'send':
             if (state.phase !== 'idle') return state;
 
-            return { ...state, key: action.freshKey, payload: action.payload, phase: 'sending', error: null };
+            return {
+                ...state,
+                key: action.freshKey,
+                payload: action.payload,
+                phase: 'sending',
+                checking: false,
+                error: null,
+            };
         case 'check':
             if (!state.key || !state.payload || (state.phase !== 'no_response' && state.phase !== 'pending')) {
                 return state;
             }
 
-            return { ...state, phase: 'sending', error: null };
+            return { ...state, phase: 'sending', checking: true, error: null };
         case 'resend':
             if (!state.payload || (state.phase !== 'unknown' && state.phase !== 'failed')) return state;
 
-            return { ...state, key: action.freshKey, phase: 'sending', mayHaveSent: true, error: null };
+            return { ...state, key: action.freshKey, phase: 'sending', mayHaveSent: true, checking: false, error: null };
         case 'result': {
             // Ответ по старому ключу (панель успела перейти дальше) не трогаем.
             if (action.key !== state.key || state.phase !== 'sending') return state;
             const outcome = action.outcome;
-            if (outcome.kind === 'rejected') return { ...INITIAL_DRAFT, mayHaveSent: state.mayHaveSent, error: outcome.error };
+            if (outcome.kind === 'rejected') {
+                // Отказ на ПРОВЕРКЕ (например, истекла сессия) ничего не говорит
+                // о первом сообщении: ключ и «Проверить» остаются, видна причина.
+                if (state.checking) return { ...state, phase: 'no_response', error: outcome.error };
+
+                return { ...INITIAL_DRAFT, mayHaveSent: state.mayHaveSent, error: outcome.error };
+            }
             if (outcome.kind === 'no_response') return { ...state, phase: 'no_response', error: outcome.error ?? null };
             if (outcome.status === 'sent') return INITIAL_DRAFT;
 
