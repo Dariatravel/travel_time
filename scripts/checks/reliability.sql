@@ -90,6 +90,7 @@ VALUES ('b0000000-0000-0000-0000-000000000001', 501, 'in', 'contact', 'прив�
 \i supabase/migrations/20260914100000_webhook_reliability.sql
 \i supabase/migrations/20260915120000_inbox_checked.sql
 \i supabase/migrations/20260915130000_oko_waiting_targets.sql
+\i supabase/migrations/20260915140000_oko_safeupdate.sql
 
 SET app.role = 'admin';
 
@@ -358,6 +359,38 @@ BEGIN
   IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: чат пятиминутной давности выдан на сверку'; END IF;
 
   RAISE NOTICE 'ждущие выдаются по делу, не чаще раза в 20 минут';
+END $$;
+
+\echo '=== 15. ни одна функция не делает DELETE/UPDATE без WHERE ==='
+-- В рабочей базе у PostgREST включён pg-safeupdate: такие команды там
+-- отклоняются даже внутри функций, а здесь, на чистом Postgres, проходят.
+-- 14.09.2026 так молча не работала выдача «ждущих» чатов для сверки.
+-- Проверка грубая (по тексту функции), но ловит именно эту ловушку.
+DO $$
+DECLARE
+  r record;
+  stmt text;
+  bad text[] := '{}';
+BEGIN
+  FOR r IN
+    SELECT p.proname, p.prosrc
+      FROM pg_proc AS p
+      JOIN pg_namespace AS n ON n.oid = p.pronamespace
+      JOIN pg_language AS l ON l.oid = p.prolang
+     WHERE n.nspname = 'public' AND l.lanname IN ('plpgsql', 'sql')
+  LOOP
+    FOR stmt IN SELECT s FROM regexp_split_to_table(r.prosrc, ';') AS s LOOP
+      stmt := regexp_replace(stmt, '--[^\n]*', '', 'g');
+      IF (stmt ~* '\mDELETE\s+FROM\M' OR stmt ~* '\mUPDATE\s+[a-z_."]+(\s+AS\s+[a-z_]+)?\s+SET\M')
+         AND stmt !~* '\mWHERE\M' THEN
+        bad := bad || r.proname::text;
+      END IF;
+    END LOOP;
+  END LOOP;
+  IF cardinality(bad) > 0 THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: DELETE/UPDATE без WHERE в функциях: %', bad;
+  END IF;
+  RAISE NOTICE 'DELETE/UPDATE без WHERE в функциях нет';
 END $$;
 
 \echo '=== ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ ==='
