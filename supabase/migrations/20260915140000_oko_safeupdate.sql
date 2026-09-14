@@ -15,8 +15,9 @@
 -- Чтобы ловушка не вернулась, scripts/checks/reliability.sql проверяет, что
 -- ни в одной функции public нет DELETE/UPDATE без WHERE.
 --
--- Откат: применить функции заново из 20260915130000_oko_waiting_targets.sql
--- и 20260914090000_reliability_db.sql (вернёт ошибку).
+-- Откат: взять ТОЛЬКО тела этих двух функций (CREATE OR REPLACE … GRANT) из
+-- 20260915130000_oko_waiting_targets.sql и 20260914090000_reliability_db.sql —
+-- не прогонять те миграции целиком. Откат вернёт ошибку с safeupdate.
 BEGIN;
 
 CREATE OR REPLACE FUNCTION public.oko_waiting_contacts_to_check(p_limit integer DEFAULT 2)
