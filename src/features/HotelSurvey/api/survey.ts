@@ -1,3 +1,4 @@
+import { fetchAll } from '@/shared/api/supabase/fetchAll';
 import supabase from '@/shared/config/supabase';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
@@ -205,25 +206,23 @@ export const useSetProgress = () => {
 };
 
 // ---- статистика (только админ: RLS отдаёт все строки лишь роли admin) ----
+// Строк больше тысячи, а Supabase больше тысячи за раз не отдаёт — читаем
+// страницами (см. fetchAll), иначе часть сотрудников выглядит «не отвечавшими».
 
 export const useAllAnswers = () =>
     useQuery({
         queryKey: SURVEY_KEYS.allAnswers,
-        queryFn: async () => {
-            const { data, error } = await answersTable().select('*').limit(50000);
-            if (error) throw error;
-            return (data ?? []) as AnswerRow[];
-        },
+        queryFn: () =>
+            fetchAll<AnswerRow>((from, to) =>
+                answersTable().select('*').order('user_id').order('object_slug').order('question_id').range(from, to),
+            ),
     });
 
 export const useAllProgress = () =>
     useQuery({
         queryKey: SURVEY_KEYS.allProgress,
-        queryFn: async () => {
-            const { data, error } = await progressTable().select('*').limit(50000);
-            if (error) throw error;
-            return (data ?? []) as ProgressRow[];
-        },
+        queryFn: () =>
+            fetchAll<ProgressRow>((from, to) => progressTable().select('*').order('user_id').order('object_slug').range(from, to)),
     });
 
 export const useParticipants = () =>
