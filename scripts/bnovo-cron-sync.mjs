@@ -55,6 +55,29 @@ const BNOVO_HOTELS = [
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+// Вход в кабинет Bnovo: сколько ждать сессию и сколько раз пробовать.
+const LOGIN_WAIT_MS = 45_000;
+const LOGIN_ATTEMPTS = 3;
+const LOGIN_RETRY_DELAY_MS = 5_000;
+
+/** Текст отказа со страницы входа — чтобы отличить неверный пароль от медленной сессии. */
+const readLoginRefusal = async (page) => {
+    try {
+        const text = await page.evaluate(() => document.body?.innerText ?? '');
+        const line = text
+            .split('\n')
+            .map((value) => value.trim())
+            .find((value) =>
+                /(неверн|неправильн).*(логин|пароль|почт)|пользователь не найден|invalid (login|password|credentials)/i.test(
+                    value,
+                ),
+            );
+        return line ? line.slice(0, 200) : '';
+    } catch {
+        return '';
+    }
+};
+
 const isOverlapConflict = (error) =>
     error?.code === '23P01' || String(error?.message ?? '').includes('Наложение броней запрещено');
 
@@ -69,47 +92,76 @@ const fetchBnovoBookings = async (login, password) => {
     const browser = await chromium.launch({ args: ['--no-sandbox'] });
     try {
         const page = await browser.newPage();
-        await page.goto('https://online.bnovo.ru/', { waitUntil: 'domcontentloaded', timeout: 60_000 });
 
-        const emailBox = page.getByPlaceholder(/электронную почту/i);
-        await emailBox.waitFor({ timeout: 60_000 });
-        await emailBox.fill(login);
-        await page.getByPlaceholder(/пароль/i).fill(password);
-        await page.getByRole('button', { name: /Войти/ }).click();
-
-        // Сигнал успешного входа — сам штатный запрос шахматки: без сессии он
-        // отдаёт 'session_expired', с сессией — JSON {result:[…]}. Пробуем в
-        // цикле, пока SPA не установит сессионную куку (или не выйдет таймаут).
-        const deadline = Date.now() + 60_000;
+        // Вход не всегда удаётся с первого раза: страница кабинета — SPA, и
+        // если нажать «Войти» раньше, чем она ожила, нажатие уходит в пустоту.
+        // Прогоны 13.09 и 15.09.2026 падали именно так — при верном пароле.
+        // Поэтому попытку повторяем, а «неверный пароль» объявляем только
+        // тогда, когда это сказал сам Bnovo.
         let ready = false;
-        while (Date.now() < deadline) {
-            ready = await page.evaluate(async () => {
-                try {
-                    const fd = new FormData();
-                    fd.append('dfrom', '2026-01-01');
-                    fd.append('dto', '2026-01-10');
-                    fd.append('daily', '0');
-                    const r = await fetch('/planning/bookings', {
-                        method: 'POST',
-                        credentials: 'include',
-                        headers: {
-                            'X-Requested-With': 'XMLHttpRequest',
-                            Accept: 'application/json, text/plain, */*',
-                        },
-                        body: fd,
-                    });
-                    if (!r.ok) return false;
-                    const text = await r.text();
-                    if (/session_expired/.test(text)) return false;
-                    return Array.isArray(JSON.parse(text).result);
-                } catch {
-                    return false;
-                }
+        let lastReason = '';
+        for (let attempt = 1; attempt <= LOGIN_ATTEMPTS && !ready; attempt += 1) {
+            if (attempt > 1) {
+                console.warn(`Bnovo: попытка входа ${attempt} из ${LOGIN_ATTEMPTS} (${lastReason})`);
+                await sleep(LOGIN_RETRY_DELAY_MS);
+            }
+
+            await page.goto('https://online.bnovo.ru/', {
+                waitUntil: 'domcontentloaded',
+                timeout: 60_000,
             });
-            if (ready) break;
-            await sleep(2000);
+
+            const emailBox = page.getByPlaceholder(/электронную почту/i);
+            await emailBox.waitFor({ timeout: 60_000 });
+            await emailBox.fill(login);
+            await page.getByPlaceholder(/пароль/i).fill(password);
+            await page.getByRole('button', { name: /Войти/ }).click();
+
+            // Сигнал успешного входа — сам штатный запрос шахматки: без сессии он
+            // отдаёт 'session_expired', с сессией — JSON {result:[…]}. Пробуем в
+            // цикле, пока SPA не установит сессионную куку (или не выйдет таймаут).
+            const deadline = Date.now() + LOGIN_WAIT_MS;
+            while (Date.now() < deadline) {
+                ready = await page.evaluate(async () => {
+                    try {
+                        const fd = new FormData();
+                        fd.append('dfrom', '2026-01-01');
+                        fd.append('dto', '2026-01-10');
+                        fd.append('daily', '0');
+                        const r = await fetch('/planning/bookings', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                Accept: 'application/json, text/plain, */*',
+                            },
+                            body: fd,
+                        });
+                        if (!r.ok) return false;
+                        const text = await r.text();
+                        if (/session_expired/.test(text)) return false;
+                        return Array.isArray(JSON.parse(text).result);
+                    } catch {
+                        return false;
+                    }
+                });
+                if (ready) break;
+
+                // Если Bnovo прямо сказал, что логин или пароль не тот —
+                // повторять бессмысленно, а сообщение должно быть честным.
+                const refusal = await readLoginRefusal(page);
+                if (refusal) throw new Error(`Bnovo отклонил вход: ${refusal}`);
+
+                await sleep(2000);
+            }
+            lastReason = 'сессия не установилась';
         }
-        if (!ready) throw new Error('Bnovo: вход не подтвердился (проверьте логин/пароль)');
+        if (!ready) {
+            throw new Error(
+                `Bnovo: вход не подтвердился за ${LOGIN_ATTEMPTS} попыт(ки) — ${lastReason}. ` +
+                    'Пароль Bnovo не отвергал: скорее всего кабинет отвечал слишком медленно.',
+            );
+        }
 
         const periods = [];
         const start = new Date(utcMidnightToday());
