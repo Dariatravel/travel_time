@@ -134,15 +134,25 @@ const AccessTab: FC<{ hotelId: string; hotelTitle: string; ownerId: string | nul
                             <Button
                                 type="button"
                                 disabled={invite.isPending || !form.email || !form.password || !form.name}
-                                onClick={() =>
+                                onClick={() => {
+                                    // У отеля уже есть отельер: замена отбирает у него доступ.
+                                    const replace = !!ownerId;
+                                    if (
+                                        replace &&
+                                        !window.confirm(
+                                            `У отеля уже есть отельер${owner ? ` (${formatAssignableUser(owner)})` : ''}. Создать нового и отобрать доступ у прежнего?`,
+                                        )
+                                    ) {
+                                        return;
+                                    }
                                     invite
-                                        .mutateAsync({ ...form, hotel_id: hotelId })
+                                        .mutateAsync({ ...form, hotel_id: hotelId, replace })
                                         .then((h) => {
                                             setCreated({ email: h.email, password: form.password });
                                             showToast('Вход создан и привязан к отелю', 'success');
                                         })
-                                        .catch((e: Error) => showToast(e.message, 'error'))
-                                }
+                                        .catch((e: Error) => showToast(e.message, 'error'));
+                                }}
                             >
                                 {invite.isPending ? 'Создаю…' : 'Создать и привязать'}
                             </Button>
@@ -159,8 +169,10 @@ const PlacementsTab: FC<{ hotelId: string; actor: string }> = ({ hotelId, actor 
     const { data: rows = [] } = usePlacements(hotelId, true);
     const save = useSavePlacement(hotelId);
     const [urls, setUrls] = useState<Record<string, string>>({});
+    // Из базы подставляем только каналы, которые человек ещё не трогал:
+    // сохранение одного канала не должно стирать набранное в других.
     useEffect(() => {
-        setUrls(Object.fromEntries(rows.map((r) => [r.channel, r.url ?? ''])));
+        setUrls((typed) => ({ ...Object.fromEntries(rows.map((r) => [r.channel, r.url ?? ''])), ...typed }));
     }, [rows]);
 
     return (
@@ -424,8 +436,13 @@ export const ObjectCardPage: FC<{ hotelId: string }> = ({ hotelId }) => {
                                 disabled={review.isPending}
                                 onClick={() =>
                                     review
-                                        .mutateAsync('approve')
-                                        .then(() => showToast('Правка принята', 'success'))
+                                        .mutateAsync({ decision: 'approve', draftAt: current.draft_at })
+                                        .then((n) =>
+                                            showToast(
+                                                n > 0 ? 'Правка принята' : 'Отельер прислал новую правку — посмотрите её заново',
+                                                n > 0 ? 'success' : 'error',
+                                            ),
+                                        )
                                         .catch((e: Error) => showToast(e.message, 'error'))
                                 }
                             >
@@ -437,7 +454,7 @@ export const ObjectCardPage: FC<{ hotelId: string }> = ({ hotelId }) => {
                                 disabled={review.isPending}
                                 onClick={() =>
                                     review
-                                        .mutateAsync('reject')
+                                        .mutateAsync({ decision: 'reject', draftAt: null })
                                         .then(() => showToast('Правка отклонена', 'success'))
                                         .catch((e: Error) => showToast(e.message, 'error'))
                                 }

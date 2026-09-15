@@ -15,13 +15,14 @@ import { useUnit } from 'effector-react/compat';
 import Link from 'next/link';
 import { FC, useEffect, useMemo, useState } from 'react';
 
-import { useMyHotels, useSubmitDraft } from '../api/objectCard';
-import { cleanPublic, draftChanges, withDraft, type HotelierCardRow, type PublicKey } from '../lib/objectCard';
+import { useMyHotels, useSubmitDraft, useWithdrawDraft } from '../api/objectCard';
+import { changedOnly, cleanPublic, draftChanges, withDraft, type HotelierCardRow, type PublicKey } from '../lib/objectCard';
 import { PublicFieldsForm, toFormValues, type PublicFormValues } from './PublicFieldsForm';
 
 /** Один отель отельера: описание (на проверку) и номера (сразу в шахматку). */
 const MyHotelCard: FC<{ row: HotelierCardRow }> = ({ row }) => {
     const submit = useSubmitDraft();
+    const withdraw = useWithdrawDraft();
     // Показываем карточку с уже предложенной правкой поверх — чтобы отельер
     // не терял набранное, пока менеджер проверяет.
     const shown = useMemo(() => withDraft(row, row.draft), [row]);
@@ -38,10 +39,19 @@ const MyHotelCard: FC<{ row: HotelierCardRow }> = ({ row }) => {
     );
 
     const onSubmit = () => {
-        const draft = cleanPublic(values);
-        const changed = draftChanges(row, draft);
-        if (changed.length === 0) {
-            showToast('Изменений нет', 'error');
+        // Только то, что отличается от опубликованного: иначе подтверждение
+        // перезаписало бы поля, которые менеджер поправил позже сам.
+        const draft = changedOnly(row, cleanPublic(values));
+        if (Object.keys(draft).length === 0) {
+            if (row.draft) {
+                // Вернул всё как было — значит, правку отзываем.
+                withdraw
+                    .mutateAsync(row.hotel_id)
+                    .then(() => showToast('Правка отозвана', 'success'))
+                    .catch((e: Error) => showToast(e.message, 'error'));
+            } else {
+                showToast('Изменений нет', 'error');
+            }
 
             return;
         }
@@ -79,9 +89,26 @@ const MyHotelCard: FC<{ row: HotelierCardRow }> = ({ row }) => {
                         меняются через менеджера.
                     </p>
                     <PublicFieldsForm values={values} onChange={setValues} highlight={pending} />
-                    <Button type="button" disabled={submit.isPending} onClick={onSubmit}>
-                        {submit.isPending ? 'Отправляю…' : 'Отправить на проверку'}
-                    </Button>
+                    <div className="flex flex-wrap gap-2">
+                        <Button type="button" disabled={submit.isPending || withdraw.isPending} onClick={onSubmit}>
+                            {submit.isPending ? 'Отправляю…' : 'Отправить на проверку'}
+                        </Button>
+                        {row.draft && (
+                            <Button
+                                type="button"
+                                variant="outline"
+                                disabled={withdraw.isPending}
+                                onClick={() =>
+                                    withdraw
+                                        .mutateAsync(row.hotel_id)
+                                        .then(() => showToast('Правка отозвана', 'success'))
+                                        .catch((e: Error) => showToast(e.message, 'error'))
+                                }
+                            >
+                                Отозвать правку
+                            </Button>
+                        )}
+                    </div>
                 </div>
 
                 <div className="space-y-2">

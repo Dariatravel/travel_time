@@ -14,7 +14,8 @@
 -- сразу видна в шахматке.
 --
 -- Откат: DROP FUNCTION public.hotelier_cards(), public.hotelier_submit_card(uuid, jsonb),
--- public.approve_card_draft(uuid), public.reject_card_draft(uuid),
+-- public.hotelier_withdraw_card(uuid), public.approve_card_draft(uuid, timestamptz),
+-- public.reject_card_draft(uuid),
 -- public.hotel_card_public_keys(); DROP TABLE public.hotel_placements, public.hotel_cards.
 BEGIN;
 
@@ -152,7 +153,7 @@ DECLARE
     v_val   jsonb;
     v_text  text;
 BEGIN
-    IF v_role NOT IN ('hotel', 'admin') THEN
+    IF v_role IS NULL OR v_role NOT IN ('hotel', 'admin') THEN
         RAISE EXCEPTION 'Доступ запрещён' USING ERRCODE = '42501';
     END IF;
     IF NOT EXISTS (
@@ -178,10 +179,13 @@ BEGIN
             END IF;
         ELSIF v_key = 'amenities' THEN
             IF jsonb_typeof(v_val) = 'array' THEN
+                -- Только строки, без пустых, не больше 30 — фильтр ДО лимита.
                 v_clean := v_clean || jsonb_build_object(v_key, (
-                    SELECT COALESCE(jsonb_agg(left(btrim(t), 60)), '[]'::jsonb)
-                      FROM (SELECT jsonb_array_elements_text(v_val) AS t LIMIT 30) AS x
-                     WHERE btrim(t) <> ''));
+                    SELECT COALESCE(jsonb_agg(x.t), '[]'::jsonb)
+                      FROM (SELECT left(btrim(e #>> '{}'), 60) AS t
+                              FROM jsonb_array_elements(v_val) AS e
+                             WHERE jsonb_typeof(e) = 'string' AND btrim(e #>> '{}') <> ''
+                             LIMIT 30) AS x));
             END IF;
         ELSIF jsonb_typeof(v_val) = 'null' THEN
             v_clean := v_clean || jsonb_build_object(v_key, NULL);
@@ -207,8 +211,42 @@ $$;
 REVOKE ALL ON FUNCTION public.hotelier_submit_card(uuid, jsonb) FROM PUBLIC, anon;
 GRANT EXECUTE ON FUNCTION public.hotelier_submit_card(uuid, jsonb) TO authenticated;
 
-/** Менеджер подтверждает правку отельера: поля из draft переносятся в карточку. */
-CREATE OR REPLACE FUNCTION public.approve_card_draft(p_hotel uuid)
+/** Отельер отзывает свою правку, пока менеджер её не проверил. */
+CREATE OR REPLACE FUNCTION public.hotelier_withdraw_card(p_hotel uuid)
+RETURNS integer
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+    v_role text := public.current_app_role();
+    n integer;
+BEGIN
+    IF v_role IS NULL OR v_role NOT IN ('hotel', 'admin') THEN
+        RAISE EXCEPTION 'Доступ запрещён' USING ERRCODE = '42501';
+    END IF;
+
+    UPDATE public.hotel_cards AS c
+       SET draft = NULL, draft_at = NULL, draft_by = NULL
+     WHERE c.hotel_id = p_hotel
+       AND c.draft IS NOT NULL
+       AND EXISTS (SELECT 1 FROM public.hotels AS h
+                    WHERE h.id = p_hotel AND (h.user_id = auth.uid() OR v_role = 'admin'));
+
+    GET DIAGNOSTICS n = ROW_COUNT;
+    RETURN n;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.hotelier_withdraw_card(uuid) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.hotelier_withdraw_card(uuid) TO authenticated;
+
+/**
+ * Менеджер подтверждает правку отельера: поля из draft переносятся в карточку.
+ * p_draft_at — время правки, которую менеджер видел на экране: если отельер
+ * успел прислать новую, ничего не переносится (0) — нельзя принять невиденное.
+ */
+CREATE OR REPLACE FUNCTION public.approve_card_draft(p_hotel uuid, p_draft_at timestamptz DEFAULT NULL)
 RETURNS integer
 LANGUAGE plpgsql
 SECURITY DEFINER
@@ -217,7 +255,7 @@ AS $$
 DECLARE
     n integer;
 BEGIN
-    IF public.current_app_role() <> 'admin' THEN
+    IF public.current_app_role() IS DISTINCT FROM 'admin' THEN
         RAISE EXCEPTION 'Доступ запрещён' USING ERRCODE = '42501';
     END IF;
 
@@ -240,7 +278,9 @@ BEGIN
                                 ELSE c.amenities END,
            draft = NULL, draft_at = NULL, draft_by = NULL,
            updated_at = now(), updated_by = 'проверка правки отельера'
-     WHERE c.hotel_id = p_hotel AND c.draft IS NOT NULL;
+     WHERE c.hotel_id = p_hotel
+       AND c.draft IS NOT NULL
+       AND (p_draft_at IS NULL OR c.draft_at = p_draft_at);
 
     GET DIAGNOSTICS n = ROW_COUNT;
     RETURN n;
@@ -257,7 +297,7 @@ AS $$
 DECLARE
     n integer;
 BEGIN
-    IF public.current_app_role() <> 'admin' THEN
+    IF public.current_app_role() IS DISTINCT FROM 'admin' THEN
         RAISE EXCEPTION 'Доступ запрещён' USING ERRCODE = '42501';
     END IF;
 
@@ -270,7 +310,9 @@ BEGIN
 END;
 $$;
 
-REVOKE ALL ON FUNCTION public.approve_card_draft(uuid), public.reject_card_draft(uuid) FROM PUBLIC, anon;
-GRANT EXECUTE ON FUNCTION public.approve_card_draft(uuid), public.reject_card_draft(uuid) TO authenticated;
+REVOKE ALL ON FUNCTION public.approve_card_draft(uuid, timestamptz), public.reject_card_draft(uuid),
+    public.hotel_card_public_keys() FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.approve_card_draft(uuid, timestamptz), public.reject_card_draft(uuid),
+    public.hotel_card_public_keys() TO authenticated;
 
 COMMIT;

@@ -125,15 +125,20 @@ export const useSavePlacement = (hotelId: string) => {
     });
 };
 
-/** Подтвердить или отклонить правку отельера — функции базы, только admin. */
+/**
+ * Подтвердить или отклонить правку отельера — функции базы, только admin.
+ * При подтверждении передаётся время правки, которую менеджер видел: если
+ * отельер успел прислать новую, база вернёт 0 и ничего не перенесёт.
+ */
 export const useReviewDraft = (hotelId: string) => {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (decision: 'approve' | 'reject') => {
-            const { data, error } = await supabase.rpc(decision === 'approve' ? 'approve_card_draft' : 'reject_card_draft', {
-                p_hotel: hotelId,
-            });
+        mutationFn: async (input: { decision: 'approve' | 'reject'; draftAt: string | null }) => {
+            const { data, error } =
+                input.decision === 'approve'
+                    ? await supabase.rpc('approve_card_draft', { p_hotel: hotelId, p_draft_at: input.draftAt })
+                    : await supabase.rpc('reject_card_draft', { p_hotel: hotelId });
             if (error) throw error;
 
             return (data as number | null) ?? 0;
@@ -168,7 +173,15 @@ const authHeaders = async (): Promise<HeadersInit> => {
     return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-export type InvitePayload = { email: string; password: string; name: string; phone: string; hotel_id: string };
+export type InvitePayload = {
+    email: string;
+    password: string;
+    name: string;
+    phone: string;
+    hotel_id: string;
+    /** У отеля уже есть отельер — заменить его (осознанно, после подтверждения). */
+    replace?: boolean;
+};
 
 /** Создать вход отельеру и привязать к отелю — серверный роут, только admin. */
 export const useInviteHotelier = () => {
@@ -206,7 +219,11 @@ export const useMyHotels = (enabled: boolean) =>
         },
     });
 
-/** Отельер отправляет правку на проверку. Возвращает число принятых полей. */
+/**
+ * Отельер отправляет правку на проверку — только изменённые поля, иначе
+ * подтверждение перезаписало бы то, что менеджер поправил позже сам.
+ * Возвращает число принятых полей.
+ */
 export const useSubmitDraft = () => {
     const queryClient = useQueryClient();
 
@@ -216,6 +233,21 @@ export const useSubmitDraft = () => {
                 p_hotel: input.hotelId,
                 p_draft: cleanPublic(input.draft),
             });
+            if (error) throw error;
+
+            return (data as number | null) ?? 0;
+        },
+        onSuccess: () => queryClient.invalidateQueries({ queryKey: OBJECT_KEYS.mine }),
+    });
+};
+
+/** Отельер отзывает свою правку, пока её не проверили. */
+export const useWithdrawDraft = () => {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (hotelId: string) => {
+            const { data, error } = await supabase.rpc('hotelier_withdraw_card', { p_hotel: hotelId });
             if (error) throw error;
 
             return (data as number | null) ?? 0;

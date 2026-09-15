@@ -1,6 +1,16 @@
 import { describe, expect, it } from 'vitest';
 
-import { cleanInternal, cleanPublic, completeness, draftChanges, emptyPublic, parseTags, PUBLIC_KEYS, withDraft } from './objectCard';
+import {
+    changedOnly,
+    cleanInternal,
+    cleanPublic,
+    completeness,
+    draftChanges,
+    emptyPublic,
+    parseTags,
+    PUBLIC_KEYS,
+    withDraft,
+} from './objectCard';
 
 describe('удобства через запятую', () => {
     it('режет, чистит пустые и повторы', () => {
@@ -44,6 +54,11 @@ describe('правка отельера', () => {
     it('показывает только реально изменившиеся поля', () => {
         const changes = draftChanges(current, { summary: 'Старый текст', kids: 'до 5 лет бесплатно', amenities: ['Wi-Fi'] });
         expect(changes).toEqual([{ key: 'kids', label: 'Дети', before: '—', after: 'до 5 лет бесплатно' }]);
+    });
+
+    it('на отправку уходят только изменённые поля — не вся форма', () => {
+        expect(changedOnly(current, { summary: 'Старый текст', kids: 'до 5 лет', amenities: ['Wi-Fi'] })).toEqual({ kids: 'до 5 лет' });
+        expect(changedOnly(current, { summary: 'Старый текст' })).toEqual({});
     });
 
     it('без правки — пусто; правка поверх карточки — для формы отельера', () => {

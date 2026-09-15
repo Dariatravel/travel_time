@@ -103,13 +103,40 @@ DO $$ BEGIN
 EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'отказ, как и надо';
 END $$;
 
+\echo '=== 5а. без роли (нет строки в user_roles) — отказ ==='
+SET app.role = '';
+DO $$ BEGIN
+  PERFORM public.hotelier_submit_card('10000000-0000-0000-0000-000000000001', '{"summary": "x"}'::jsonb);
+  RAISE EXCEPTION 'ОШИБКА ТЕСТА: правка без роли принята';
+EXCEPTION WHEN insufficient_privilege THEN RAISE NOTICE 'отказ, как и надо';
+END $$;
+
+\echo '=== 5б. RLS: отельер не читает hotel_cards напрямую (внутренние поля закрыты) ==='
+SET ROLE authenticated;
+SET app.role = 'hotel';
+SET app.uid = '20000000-0000-0000-0000-000000000001';
+DO $$
+DECLARE n int;
+BEGIN
+  SELECT count(*) INTO n FROM public.hotel_cards;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отельеру видны строки hotel_cards напрямую'; END IF;
+  SELECT count(*) INTO n FROM public.hotel_placements;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отельеру видны размещения'; END IF;
+  RAISE NOTICE 'напрямую отельеру карточка не видна';
+END $$;
+RESET ROLE;
+
 \echo '=== 6. менеджер подтверждает: поля переносятся, правка снимается ==='
 SET app.role = 'admin';
 SET app.uid = '';
 DO $$
 DECLARE n int; r record;
 BEGIN
-  SELECT public.approve_card_draft('10000000-0000-0000-0000-000000000001') INTO n;
+  -- Правка на экране устарела (другое время) — ничего не переносится.
+  SELECT public.approve_card_draft('10000000-0000-0000-0000-000000000001', now() - interval '1 day') INTO n;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: принята правка с другим временем'; END IF;
+  SELECT public.approve_card_draft('10000000-0000-0000-0000-000000000001',
+      (SELECT draft_at FROM public.hotel_cards WHERE hotel_id = '10000000-0000-0000-0000-000000000001')) INTO n;
   IF n <> 1 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: подтверждено % карточек', n; END IF;
   SELECT * INTO r FROM public.hotel_cards WHERE hotel_id = '10000000-0000-0000-0000-000000000001';
   IF r.summary <> 'Уютный отель у моря' OR r.min_nights <> 3 OR r.amenities <> ARRAY['Wi-Fi','Парковка']
@@ -122,9 +149,24 @@ BEGIN
   RAISE NOTICE 'правка перенесена в карточку';
 END $$;
 
-\echo '=== 7. отклонение: карточка не меняется ==='
+\echo '=== 7. отзыв и отклонение: карточка не меняется ==='
 SET app.role = 'hotel';
 SET app.uid = '20000000-0000-0000-0000-000000000001';
+SELECT public.hotelier_submit_card('10000000-0000-0000-0000-000000000001', '{"summary": "Передумал", "amenities": [1, "  ", "Сауна"]}'::jsonb) AS принято;
+DO $$
+DECLARE n int; d jsonb;
+BEGIN
+  SELECT draft INTO d FROM public.hotel_cards WHERE hotel_id = '10000000-0000-0000-0000-000000000001';
+  IF d -> 'amenities' <> '["Сауна"]'::jsonb THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: не-строки в удобствах: %', d; END IF;
+  -- Чужой отель отозвать нельзя, свой — можно.
+  SELECT public.hotelier_withdraw_card('10000000-0000-0000-0000-000000000002') INTO n;
+  IF n <> 0 THEN RAISE EXCEPTION 'ОШИБКА ТЕСТА: отозвана чужая правка'; END IF;
+  SELECT public.hotelier_withdraw_card('10000000-0000-0000-0000-000000000001') INTO n;
+  IF n <> 1 OR (SELECT draft FROM public.hotel_cards WHERE hotel_id = '10000000-0000-0000-0000-000000000001') IS NOT NULL THEN
+    RAISE EXCEPTION 'ОШИБКА ТЕСТА: своя правка не отозвана';
+  END IF;
+  RAISE NOTICE 'отзыв правки работает';
+END $$;
 SELECT public.hotelier_submit_card('10000000-0000-0000-0000-000000000001', '{"summary": "Новый текст"}'::jsonb) AS принято;
 SET app.role = 'admin';
 SET app.uid = '';

@@ -211,6 +211,16 @@ export const draftChanges = (current: CardPublic, draft: Partial<CardPublic> | n
     return changes;
 };
 
+/** Только те поля правки, что отличаются от карточки, — их и отправляем. */
+export const changedOnly = (current: CardPublic, draft: Partial<CardPublic>): Partial<CardPublic> => {
+    const out: Partial<CardPublic> = {};
+    for (const change of draftChanges(current, draft)) {
+        (out as Record<string, unknown>)[change.key] = draft[change.key];
+    }
+
+    return out;
+};
+
 /** Правка поверх карточки — так отельер видит свои неподтверждённые поля. */
 export const withDraft = (current: CardPublic, draft: Partial<CardPublic> | null): CardPublic =>
     draft ? { ...current, ...draft } : current;

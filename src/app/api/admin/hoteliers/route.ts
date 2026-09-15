@@ -27,7 +27,15 @@ const schema = z.object({
     name: z.string().trim().min(2, 'Имя — минимум 2 символа').max(120),
     phone: z.string().trim().max(40).optional().default(''),
     hotel_id: z.string().uuid('Не указан отель'),
+    // Заменить прежнего отельера — только явно: он теряет доступ к отелю.
+    replace: z.boolean().optional().default(false),
 });
+
+/** Ответ Supabase на занятый e-mail — по-русски. */
+const humanAuthError = (message: string): string =>
+    /already|registered|exists/i.test(message)
+        ? 'Пользователь с таким e-mail уже есть — привяжите его через список слева'
+        : message;
 
 export async function POST(request: NextRequest) {
     const auth = await requireAdmin(request);
@@ -43,7 +51,7 @@ export async function POST(request: NextRequest) {
                 { status: 400 },
             );
         }
-        const { email, password, name, phone, hotel_id } = parsed.data;
+        const { email, password, name, phone, hotel_id, replace } = parsed.data;
         const service = createSupabaseServiceRoleClient();
 
         const { data: hotel, error: hotelError } = await service
@@ -53,6 +61,12 @@ export async function POST(request: NextRequest) {
             .maybeSingle();
         if (hotelError) return NextResponse.json({ error: hotelError.message }, { status: 502 });
         if (!hotel) return NextResponse.json({ error: 'Отель не найден' }, { status: 404 });
+        if (hotel.user_id && !replace) {
+            return NextResponse.json(
+                { error: 'У отеля уже есть отельер. Сначала отвяжите его или подтвердите замену.' },
+                { status: 409 },
+            );
+        }
 
         const { data, error } = await service.auth.admin.createUser({
             email,
@@ -62,7 +76,7 @@ export async function POST(request: NextRequest) {
             user_metadata: { name, surname: hotel.title, phone },
         });
         if (error) {
-            return NextResponse.json({ error: error.message }, { status: 400 });
+            return NextResponse.json({ error: humanAuthError(error.message) }, { status: 400 });
         }
 
         const { error: roleError } = await service
