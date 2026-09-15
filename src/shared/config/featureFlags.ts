@@ -33,3 +33,16 @@ export const isInstagramEnabled = (role?: string | null): boolean => isAdminRole
  */
 export const isHotelierCabinetEnabled = (role?: string | null): boolean =>
     isHotelierRole(role) || isAdminRole(role);
+
+/**
+ * Карточка объекта (16.09.2026): описание, тариф, размещение, номера, доступ
+ * отельера. Полная карточка — только admin (RLS hotel_cards тоже admin).
+ */
+export const isObjectCardEnabled = (role?: string | null): boolean => isAdminRole(role);
+
+/**
+ * «Мой отель» для отельера: публичная часть карточки (правка — на проверку
+ * менеджеру) и номера, которые сразу видны в шахматке. Admin — для проверки.
+ */
+export const isMyHotelEnabled = (role?: string | null): boolean =>
+    isHotelierRole(role) || isAdminRole(role);

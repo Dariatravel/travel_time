@@ -14,13 +14,17 @@ import {
     isHotelierCabinetEnabled,
     isInstagramEnabled,
     isMorningEnabled,
+    isMyHotelEnabled,
+    isObjectCardEnabled,
 } from '@/shared/config/featureFlags';
 import {
+    BookOpenText,
     Building2,
     Calendar,
     ClipboardList,
     Contact,
     HomeIcon,
+    Hotel,
     Instagram,
     KanbanSquare,
     LayoutDashboard,
@@ -91,15 +95,23 @@ export default function MainLayout({ children }: { children: React.ReactNode }) 
               ...(isFinanceEnabled(user?.role)
                   ? [{ href: routes[PagesEnum.FINANCE], label: 'Финансы', icon: Wallet }]
                   : []),
+              // Карточки объектов — описание, тариф, размещение, доступ отельера.
+              ...(isObjectCardEnabled(user?.role)
+                  ? [{ href: routes[PagesEnum.OBJECTS], label: 'Объекты', icon: BookOpenText }]
+                  : []),
           ]
         : [];
 
-    // Кабинет отельера «Мои расчёты» — в меню только для роли hotel;
-    // admin может открыть страницу по адресу для проверки.
-    const hotelierLinks =
-        isHotelierCabinetEnabled(user?.role) && !isAdminRole(user?.role)
+    // Кабинет отельера («Мой отель», «Мои расчёты») — в меню только для роли
+    // hotel; admin может открыть страницы по адресу для проверки.
+    const hotelierLinks = [
+        ...(isMyHotelEnabled(user?.role) && !isAdminRole(user?.role)
+            ? [{ href: routes[PagesEnum.MY_HOTEL], label: 'Мой отель', icon: Hotel }]
+            : []),
+        ...(isHotelierCabinetEnabled(user?.role) && !isAdminRole(user?.role)
             ? [{ href: routes[PagesEnum.MY_FINANCE], label: 'Мои расчёты', icon: Receipt }]
-            : [];
+            : []),
+    ];
 
     const navigationLinks = isAdminRole(user?.role)
         ? [

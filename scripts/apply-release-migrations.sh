@@ -28,6 +28,7 @@ migrations=(
     "supabase/migrations/20260915120000_inbox_checked.sql"
     "supabase/migrations/20260915130000_oko_waiting_targets.sql"
     "supabase/migrations/20260915140000_oko_safeupdate.sql"
+    "supabase/migrations/20260916090000_object_cards.sql"
 )
 
 # Файлы, применённые ДО появления этого реестра — вручную, вне Supabase CLI.

@@ -76,6 +76,8 @@ const PATH_LABELS: Record<string, string> = {
     '/main/reservation': 'Бронирование',
     '/main/operations': 'Операционный центр',
     '/main/admin/operators': 'Операторы',
+    '/main/objects': 'Объекты',
+    '/main/my-hotel': 'Мой отель',
     '/login': 'Вход',
     '/advanced-filters': 'Расширенные фильтры',
 };
