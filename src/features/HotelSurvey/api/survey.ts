@@ -212,17 +212,34 @@ export const useSetProgress = () => {
 export const useAllAnswers = () =>
     useQuery({
         queryKey: SURVEY_KEYS.allAnswers,
+        staleTime: 5 * 60 * 1000,
         queryFn: () =>
-            fetchAll<AnswerRow>((from, to) =>
-                answersTable().select('*').order('user_id').order('object_slug').order('question_id').range(from, to),
+            fetchAll<AnswerRow>(
+                (from, to) =>
+                    answersTable()
+                        .select('*')
+                        .order('user_id')
+                        .order('object_slug')
+                        .order('question_id')
+                        .range(from, to),
+                { key: (r) => `${r.user_id}|${r.object_slug}|${r.question_id}` },
             ),
     });
 
 export const useAllProgress = () =>
     useQuery({
         queryKey: SURVEY_KEYS.allProgress,
+        staleTime: 5 * 60 * 1000,
         queryFn: () =>
-            fetchAll<ProgressRow>((from, to) => progressTable().select('*').order('user_id').order('object_slug').range(from, to)),
+            fetchAll<ProgressRow>(
+                (from, to) =>
+                    progressTable()
+                        .select('*')
+                        .order('user_id')
+                        .order('object_slug')
+                        .range(from, to),
+                { key: (r) => `${r.user_id}|${r.object_slug}` },
+            ),
     });
 
 export const useParticipants = () =>
